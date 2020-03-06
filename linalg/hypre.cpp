@@ -2240,6 +2240,8 @@ HypreSolver::HypreSolver()
 {
    A = NULL;
    setup_called = 0;
+   final_res_norm = -1;
+   num_iterations = -1;
    B = X = NULL;
    error_mode = ABORT_HYPRE_ERRORS;
 }
@@ -2249,6 +2251,8 @@ HypreSolver::HypreSolver(HypreParMatrix *_A)
 {
    A = _A;
    setup_called = 0;
+   final_res_norm = -1;
+   num_iterations = -1;
    B = X = NULL;
    error_mode = ABORT_HYPRE_ERRORS;
 }
@@ -2413,8 +2417,6 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
 {
    int myid;
    HYPRE_Int time_index = 0;
-   HYPRE_Int num_iterations;
-   double final_res_norm;
    MPI_Comm comm;
    HYPRE_Int print_level;
 
@@ -2458,6 +2460,9 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
    x.HostReadWrite();
 
    HYPRE_ParCSRPCGSolve(pcg_solver, *A, b, x);
+   HYPRE_ParCSRPCGGetNumIterations(pcg_solver, &num_iterations);
+   HYPRE_ParCSRPCGGetFinalRelativeResidualNorm(pcg_solver,
+                                               &final_res_norm);
 
    if (print_level > 0)
    {
@@ -2468,10 +2473,6 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
          hypre_FinalizeTiming(time_index);
          hypre_ClearTiming();
       }
-
-      HYPRE_ParCSRPCGGetNumIterations(pcg_solver, &num_iterations);
-      HYPRE_ParCSRPCGGetFinalRelativeResidualNorm(pcg_solver,
-                                                  &final_res_norm);
 
       MPI_Comm_rank(comm, &myid);
 
@@ -2587,8 +2588,6 @@ void HypreGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
 {
    int myid;
    HYPRE_Int time_index = 0;
-   HYPRE_Int num_iterations;
-   double final_res_norm;
    MPI_Comm comm;
    HYPRE_Int print_level;
 
@@ -2628,6 +2627,9 @@ void HypreGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
    }
 
    HYPRE_ParCSRGMRESSolve(gmres_solver, *A, b, x);
+   HYPRE_ParCSRGMRESGetNumIterations(gmres_solver, &num_iterations);
+   HYPRE_ParCSRGMRESGetFinalRelativeResidualNorm(gmres_solver,
+                                                 &final_res_norm);
 
    if (print_level > 0)
    {
@@ -2635,10 +2637,6 @@ void HypreGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
       hypre_PrintTiming("Solve phase times", comm);
       hypre_FinalizeTiming(time_index);
       hypre_ClearTiming();
-
-      HYPRE_ParCSRGMRESGetNumIterations(gmres_solver, &num_iterations);
-      HYPRE_ParCSRGMRESGetFinalRelativeResidualNorm(gmres_solver,
-                                                    &final_res_norm);
 
       MPI_Comm_rank(comm, &myid);
 
@@ -2855,8 +2853,6 @@ void HypreBoomerAMG::Mult(const HypreParVector &b, HypreParVector &x) const
 {
    int myid;
    HYPRE_Int time_index = 0;
-   HYPRE_Int num_iterations;
-   double final_res_norm;
    MPI_Comm comm;
    HYPRE_Int print_level;
 
@@ -2896,6 +2892,9 @@ void HypreBoomerAMG::Mult(const HypreParVector &b, HypreParVector &x) const
    }
 
    HYPRE_BoomerAMGSolve(amg_precond, *A, b, x);
+   HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_iterations);
+   HYPRE_BoomerAMGGetFinalRelativeResidualNorm(amg_precond,
+                                               &final_res_norm);
 
    if (print_level > 0)
    {
@@ -2903,10 +2902,6 @@ void HypreBoomerAMG::Mult(const HypreParVector &b, HypreParVector &x) const
       hypre_PrintTiming("Solve phase times", comm);
       hypre_FinalizeTiming(time_index);
       hypre_ClearTiming();
-
-      HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_iterations);
-      HYPRE_BoomerAMGGetFinalRelativeResidualNorm(amg_precond,
-                                                  &final_res_norm);
 
       MPI_Comm_rank(comm, &myid);
 

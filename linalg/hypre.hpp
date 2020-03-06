@@ -722,6 +722,8 @@ protected:
 
    /// Was hypre's Setup function called already?
    mutable int setup_called;
+   mutable HYPRE_Int num_iterations;
+   mutable double final_res_norm;
 
    /// How to treat hypre errors.
    mutable ErrorMode error_mode;
@@ -730,6 +732,9 @@ public:
    HypreSolver();
 
    HypreSolver(HypreParMatrix *_A);
+
+   int GetNumIterations() const { return num_iterations; }
+   double GetFinalNorm() const { return final_res_norm; }
 
    /// Typecast to HYPRE_Solver -- return the solver
    virtual operator HYPRE_Solver() const = 0;
