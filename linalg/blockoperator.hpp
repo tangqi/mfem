@@ -212,7 +212,7 @@ public:
     *  @note BlockLowerTriangularPreconditioner will not own/copy the data
     *  contained in @a offsets.
     */
-   BlockLowerTriangularPreconditioner(const Array<int> & offsets);
+   BlockLowerTriangularPreconditioner(const Array<int> & offsets_);
 
    //! Add block op in the block-entry (iblock, iblock).
    /**
