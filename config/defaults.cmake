@@ -50,6 +50,7 @@ option(MFEM_USE_RAJA "Enable RAJA" OFF)
 option(MFEM_USE_CEED "Enable CEED" OFF)
 option(MFEM_USE_UMPIRE "Enable Umpire" OFF)
 option(MFEM_USE_ADIOS2 "Enable ADIOS2" OFF)
+option(MFEM_USE_PARELAG "Enable ParELAG" OFF)
 
 set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
 
@@ -176,6 +177,14 @@ set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
 set(CEED_DIR "${MFEM_DIR}/../libCEED" CACHE PATH "Path to libCEED")
 set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
+
+# Provide paths, since ParELAG is dependent on MFEM and MFEM needs to be
+# compiled (or at least cmake needs to succeed) before compiling ParELAG.
+set(PARELAG_DIR "${MFEM_DIR}/../parelag" CACHE PATH "Path to ParELAG")
+set(PARELAG_INCLUDE_DIRS "${PARELAG_DIR}/src;${PARELAG_DIR}/build/src" CACHE
+    STRING "Path to ParELAG headers.")
+set(PARELAG_LIBRARIES "${PARELAG_DIR}/build/src/libParELAG.a" CACHE STRING
+    "The ParELAG library.")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")

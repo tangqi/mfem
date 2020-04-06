@@ -138,6 +138,7 @@ MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
 MFEM_USE_UMPIRE        = NO
 MFEM_USE_ADIOS2        = NO
+MFEM_USE_PARELAG       = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -353,6 +354,11 @@ RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include
 UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
+
+# PARELAG library configuration
+PARELAG_DIR = @MFEM_DIR@/../parelag
+PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
+PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 
 # If YES, enable some informational messages
 VERBOSE = NO

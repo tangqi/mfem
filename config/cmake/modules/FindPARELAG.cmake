@@ -9,17 +9,11 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# Include the source directory where mfem.hpp and mfem-performance.hpp are.
-include_directories(BEFORE ${PROJECT_BINARY_DIR})
+# Defines the following variables:
+#   - PARELAG_FOUND
+#   - PARELAG_LIBRARIES
+#   - PARELAG_INCLUDE_DIRS
 
-set(MINIAPPS_COMMON_SOURCES "")
-set(MINIAPPS_COMMON_HEADERS "")
-add_subdirectory(common)
-add_subdirectory(electromagnetics)
-add_subdirectory(meshing)
-add_subdirectory(performance)
-add_subdirectory(tools)
-add_subdirectory(toys)
-add_subdirectory(nurbs)
-add_subdirectory(gslib)
-add_subdirectory(parelag)
+include(MfemCmakeUtilities)
+mfem_find_package(PARELAG PARELAG PARELAG_DIR "" "" "" ""
+  "Paths to headers required by ParELAG." "Libraries required by ParELAG.")

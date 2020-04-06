@@ -117,7 +117,7 @@ EXAMPLE_SUBDIRS = sundials petsc pumi hiop ginkgo
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing performance tools toys nurbs gslib
+MINIAPP_SUBDIRS = common electromagnetics meshing performance tools toys nurbs gslib parelag
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools toys)
@@ -260,7 +260,7 @@ endif
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
  SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC MPFR PUMI HIOP GSLIB\
- OCCA CEED RAJA UMPIRE
+ OCCA CEED RAJA UMPIRE PARELAG
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -322,8 +322,8 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS\
  MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT\
  MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
- MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_SOURCE_DIR\
- MFEM_INSTALL_DIR
+ MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_PARELAG\
+ MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -644,6 +644,7 @@ status info:
 	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
 	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
 	$(info MFEM_USE_UMPIRE        = $(MFEM_USE_UMPIRE))
+	$(info MFEM_USE_PARELAG       = $(MFEM_USE_PARELAG))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
 	$(info MFEM_CXXFLAGS          = $(value MFEM_CXXFLAGS))
