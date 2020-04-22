@@ -109,8 +109,6 @@ public:
        directly. */
    SparseMatrix(int nrows, int ncols, int rowsize);
 
-   SparseMatrix(const Vector &v);
-
    /// Copy constructor (deep copy).
    /** If @a mat is finalized and @a copy_graph is false, the #I and #J arrays
        will use a shallow copy (copy the pointers only) without transferring
