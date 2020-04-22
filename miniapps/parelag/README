@@ -2,18 +2,23 @@
                       (ParElag) Mini-applications in MFEM
 
 
-This contains a couple of miniapps that employ MFEM and ParElag to solve
-H(curl)- and H(div)-elliptic forms. They use: a multilevel hierarchy of de Rham
-complexes of finite element spaces, built by ParElag; Hiptmair-type smoothers,
-implemented in ParElag; and AMS (Auxiliary-space Maxwell Solver) or ADS
-(Auxiliary-space Divergence Solver), from HYPRE, for preconditioning on the
-coarsest levels.
-
 ParElag is a library mostly developed at the Center for Applied Scientific
 Computing of Lawrence Livermore National Laboratory, California, USA. It can be
 obtained as a source code from:
 
-http://github.com/LLNL/parelag
+   http://github.com/LLNL/parelag
+
+This contains a couple of miniapps that employ MFEM and ParElag to solve
+H(curl)- and H(div)-elliptic forms. They use: a multilevel hierarchy of de Rham
+complexes of finite element spaces, built by ParElag; Hiptmair-type smoothers,
+implemented in ParElag; and AMS (Auxiliary-space Maxwell Solver) or ADS
+(Auxiliary-space Divergence Solver), from HYPRE, for preconditioning or solving
+on the coarsest levels.
+
+Alternatively, it is possible to precondition or solve the H(div) form on the
+coarsest level via a hybridization approach. However, this is not yet
+implemented in ParElag. Only the hybridization solver that is directly
+applicable to an H(div)-L^2 mixed (saddle-point) system is currently available.
 
 
 Installation
@@ -34,8 +39,8 @@ and uses MFEM.
 
 Note that ParElag needs MFEM with enabled MPI parallelism.
 
-Using GNU Make
---------------
+ Using GNU Make
+ --------------
 
 MFEM needs to be configured to use ParElag and build its miniapps. Refer to the
 MFEM installation instructions in mfem/INSTALL on how to modify the
@@ -50,14 +55,14 @@ compiled SuiteSparse, METIS, HYPRE, and MFEM. Refer to parelag/INSTALL.
 If everything is set correctly, the following commands, in the respective shown
 directories (mfem/ and parelag/), should build ParElag, MFEM, and the miniapps:
 
-mfem/$ make parallel -j 8
-parelag/$ ./configure_library.sh
-parelag/$ cd build
-parelag/build/$ make -j 8
-mfem/$ make miniapps -j 8
+   mfem/$ make parallel -j 8
+   parelag/$ ./configure_library.sh
+   parelag/$ cd build
+   parelag/build/$ make -j 8
+   mfem/$ make miniapps -j 8
 
-Using CMake
---------------
+ Using CMake
+ --------------
 
 MFEM needs to be configured to use ParElag and build its miniapps. Refer to the
 MFEM installation instructions in mfem/INSTALL on how to modify the
@@ -72,14 +77,34 @@ compiled SuiteSparse, METIS, HYPRE, and MFEM. Refer to parelag/INSTALL.
 If everything is set correctly, the following commands, in the respective shown
 directories (mfem/ and parelag/), should build ParElag, MFEM, and the miniapps:
 
-mfem/$ mkdir build
-mfem/$ cd build
-mfem/build/$ cmake ..
-mfem/build/$ make -j 8
-parelag/$ ./configure_library.sh
-parelag/$ cd build
-parelag/build/$ make -j 8
-mfem/build/$ make miniapps -j 8
+   mfem/$ mkdir build
+   mfem/$ cd build
+   mfem/build/$ cmake ..
+   mfem/build/$ make -j 8
+   parelag/$ ./configure_library.sh
+   parelag/$ cd build
+   parelag/build/$ make -j 8
+   mfem/build/$ make miniapps -j 8
+
+
+Usage
+=====
+
+The miniapps utilize .xml files with detailed sets of parameters in them. They
+allow access to basic parameters (like the path to a mesh file) as well as the
+capacity to tune and set a variety of solver and preconditioner parameters.
+Example .xml files for the miniapps are provided.
+
+When executing a miniapp, the .xml file needs to be explicitly supplied. For
+example, as follows:
+
+   mfem/miniapps/parelag/$ ./MultilevelHcurlSolver -f MultilevelHcurlSolver_example_parameters.xml
+
+   mfem/miniapps/parelag/$ ./MultilevelHdivSolver -f MultilevelHdivSolver_example_parameters.xml
+
+The miniapps can be executed in parallel, e.g., using mpirun.
+
+If GLVIS is running, the final obtained solution is visualized.
 
 
 References
