@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //            -----------------------------------------------------
 //            Mesh Explorer Miniapp:  Explore and manipulate meshes
@@ -118,16 +118,128 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix)
    return mesh;
 }
 
+// Given a 3D mesh, produce a 2D mesh consisting of its boundary elements.
+Mesh *skin_mesh(Mesh *mesh)
+{
+   // Determine mapping from vertex to boundary vertex
+   Array<int> v2v(mesh->GetNV());
+   v2v = -1;
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      Element *el = mesh->GetBdrElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         v2v[v[j]] = 0;
+      }
+   }
+   int nbvt = 0;
+   for (int i = 0; i < v2v.Size(); i++)
+   {
+      if (v2v[i] == 0)
+      {
+         v2v[i] = nbvt++;
+      }
+   }
+
+   // Create a new mesh for the boundary
+   Mesh * bmesh = new Mesh(mesh->Dimension() - 1, nbvt, mesh->GetNBE(),
+                           0, mesh->SpaceDimension());
+
+   // Copy vertices to the boundary mesh
+   nbvt = 0;
+   for (int i = 0; i < v2v.Size(); i++)
+   {
+      if (v2v[i] >= 0)
+      {
+         double *c = mesh->GetVertex(i);
+         bmesh->AddVertex(c);
+         nbvt++;
+      }
+   }
+
+   // Copy elements to the boundary mesh
+   int bv[4];
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      Element *el = mesh->GetBdrElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+
+      for (int j = 0; j < nv; j++)
+      {
+         bv[j] = v2v[v[j]];
+      }
+
+      switch (el->GetGeometryType())
+      {
+         case Geometry::SEGMENT:
+            bmesh->AddSegment(bv, el->GetAttribute());
+            break;
+         case Geometry::TRIANGLE:
+            bmesh->AddTriangle(bv, el->GetAttribute());
+            break;
+         case Geometry::SQUARE:
+            bmesh->AddQuad(bv, el->GetAttribute());
+            break;
+         default:
+            break; /// This should not happen
+      }
+
+   }
+   bmesh->FinalizeTopology();
+
+   // Copy GridFunction describing nodes if present
+   if (mesh->GetNodes())
+   {
+      FiniteElementSpace *fes = mesh->GetNodes()->FESpace();
+      const FiniteElementCollection *fec = fes->FEColl();
+      if (dynamic_cast<const H1_FECollection*>(fec))
+      {
+         FiniteElementCollection *fec_copy =
+            FiniteElementCollection::New(fec->Name());
+         FiniteElementSpace *fes_copy =
+            new FiniteElementSpace(*fes, bmesh, fec_copy);
+         GridFunction *bdr_nodes = new GridFunction(fes_copy);
+         bdr_nodes->MakeOwner(fec_copy);
+
+         bmesh->NewNodes(*bdr_nodes, true);
+
+         Array<int> vdofs;
+         Array<int> bvdofs;
+         Vector v;
+         for (int i=0; i<mesh->GetNBE(); i++)
+         {
+            fes->GetBdrElementVDofs(i, vdofs);
+            mesh->GetNodes()->GetSubVector(vdofs, v);
+
+            fes_copy->GetElementVDofs(i, bvdofs);
+            bdr_nodes->SetSubVector(bvdofs, v);
+         }
+      }
+      else
+      {
+         cout << "\nDiscontinuous nodes not yet supported" << endl;
+      }
+   }
+
+   return bmesh;
+}
+
 int main (int argc, char *argv[])
 {
    int np = 0;
    const char *mesh_file = "../../data/beam-hex.mesh";
+   bool refine = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to visualize.");
    args.AddOption(&np, "-np", "--num-proc",
                   "Load mesh from multiple processors.");
+   args.AddOption(&refine, "-ref", "--refinement", "-no-ref", "--no-refinement",
+                  "Prepare the mesh for refinement or not.");
    args.Parse();
    if (!args.Good())
    {
@@ -147,9 +259,10 @@ int main (int argc, char *argv[])
    args.PrintOptions(cout);
 
    Mesh *mesh;
+   Mesh *bdr_mesh = NULL;
    if (np <= 0)
    {
-      mesh = new Mesh(mesh_file, 1, 1);
+      mesh = new Mesh(mesh_file, 1, refine);
    }
    else
    {
@@ -162,6 +275,7 @@ int main (int argc, char *argv[])
    int dim  = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
+   FiniteElementCollection *bdr_attr_fec = NULL;
    FiniteElementCollection *attr_fec;
    if (dim == 2)
    {
@@ -169,6 +283,7 @@ int main (int argc, char *argv[])
    }
    else
    {
+      bdr_attr_fec = new Const2DFECollection;
       attr_fec = new Const3DFECollection;
    }
 
@@ -203,7 +318,6 @@ int main (int argc, char *argv[])
       print_char = 0;
       cout << endl;
       cout << "What would you like to do?\n"
-           "q) Quit\n"
            "r) Refine\n"
            "c) Change curvature\n"
            "s) Scale\n"
@@ -218,7 +332,13 @@ int main (int argc, char *argv[])
            "x) Print sub-element stats\n"
            "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
-           "S) Save\n"
+           "o) Reorder elements\n"
+           "S) Save in MFEM format\n"
+           "V) Save in VTK format (only linear and quadratic meshes)\n"
+           "q) Quit\n"
+#ifdef MFEM_USE_ZLIB
+           "Z) Save in MFEM format with compression\n"
+#endif
            "--> " << flush;
       char mk;
       cin >> mk;
@@ -234,6 +354,7 @@ int main (int argc, char *argv[])
          cout <<
               "Choose type of refinement:\n"
               "s) standard refinement with Mesh::UniformRefinement()\n"
+              "b) Mesh::UniformRefinement() (bisection for tet meshes)\n"
               "u) uniform refinement with a factor\n"
               "g) non-uniform refinement (Gauss-Lobatto) with a factor\n"
               "l) refine locally using the region() function\n"
@@ -244,6 +365,11 @@ int main (int argc, char *argv[])
          {
             case 's':
                mesh->UniformRefinement();
+               // Make sure tet-only meshes are marked for local refinement.
+               mesh->Finalize(true);
+               break;
+            case 'b':
+               mesh->UniformRefinement(1); // ref_algo = 1
                break;
             case 'u':
             case 'g':
@@ -373,9 +499,12 @@ int main (int argc, char *argv[])
                }
             }
 
-            int bdr = 0;
+            char move_bdr = 'n';
+            cout << "move boundary nodes? [y/n] ---> " << flush;
+            cin >> move_bdr;
+
             // don't perturb the boundary
-            if (!bdr)
+            if (move_bdr == 'n')
             {
                Array<int> vdofs;
                for (int i = 0; i < fespace->GetNBE(); i++)
@@ -404,9 +533,11 @@ int main (int argc, char *argv[])
          max_det_J = max_kappa = max_ratio_det_J_z = -infinity();
          cout << "subdivision factor ---> " << flush;
          cin >> sd;
+         Array<int> bad_elems_by_geom(Geometry::NumGeom);
+         bad_elems_by_geom = 0;
          for (int i = 0; i < mesh->GetNE(); i++)
          {
-            int geom = mesh->GetElementBaseGeometry(i);
+            Geometry::Type geom = mesh->GetElementBaseGeometry(i);
             ElementTransformation *T = mesh->GetElementTransformation(i);
 
             RefinedGeometry *RefG = GlobGeometryRefiner.Refine(geom, sd, 1);
@@ -436,15 +567,21 @@ int main (int argc, char *argv[])
             if (min_det_J_z <= 0.0)
             {
                nz++;
+               bad_elems_by_geom[geom]++;
             }
          }
-         cout  << "\nbad elements = " << nz
-               << "\nmin det(J)   = " << min_det_J
-               << "\nmax det(J)   = " << max_det_J
-               << "\nglobal ratio = " << max_det_J/min_det_J
-               << "\nmax el ratio = " << max_ratio_det_J_z
-               << "\nmin kappa    = " << min_kappa
-               << "\nmax kappa    = " << max_kappa << endl;
+         cout << "\nbad elements = " << nz;
+         if (nz)
+         {
+            cout << "  --  ";
+            Mesh::PrintElementsByGeometry(dim, bad_elems_by_geom, cout);
+         }
+         cout << "\nmin det(J)   = " << min_det_J
+              << "\nmax det(J)   = " << max_det_J
+              << "\nglobal ratio = " << max_det_J/min_det_J
+              << "\nmax el ratio = " << max_ratio_det_J_z
+              << "\nmin kappa    = " << min_kappa
+              << "\nmax kappa    = " << max_kappa << endl;
       }
 
       if (mk == 'f')
@@ -482,22 +619,65 @@ int main (int argc, char *argv[])
          }
       }
 
+      if (mk == 'o')
+      {
+         cout << "What type of reordering?\n"
+              "h) Hilbert spatial sort\n"
+              //"g) Gecko edge-product minimization\n" // TODO future
+              "--> " << flush;
+         char rk;
+         cin >> rk;
+
+         Array<int> ordering;
+         if (rk == 'h')
+         {
+            mesh->GetHilbertElementOrdering(ordering);
+            mesh->ReorderElements(ordering);
+         }
+      }
+
       // These are the cases that open a new GLVis window
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
           mk == 'k' || mk == 'p')
       {
+         Array<int> bdr_part;
          Array<int> part(mesh->GetNE());
+         FiniteElementSpace *bdr_attr_fespace = NULL;
          FiniteElementSpace *attr_fespace =
             new FiniteElementSpace(mesh, attr_fec);
+         GridFunction bdr_attr;
          GridFunction attr(attr_fespace);
 
          if (mk == 'm')
+         {
             for (int i = 0; i < mesh->GetNE(); i++)
             {
                part[i] = (attr(i) = mesh->GetAttribute(i)) - 1;
             }
+         }
 
-         if (mk == 'b' || mk == 'v')
+         if (mk == 'b')
+         {
+            if (dim == 3)
+            {
+               delete bdr_mesh;
+               bdr_mesh = skin_mesh(mesh);
+               bdr_attr_fespace =
+                  new FiniteElementSpace(bdr_mesh, bdr_attr_fec);
+               bdr_part.SetSize(bdr_mesh->GetNE());
+               bdr_attr.SetSpace(bdr_attr_fespace);
+               for (int i = 0; i < bdr_mesh->GetNE(); i++)
+               {
+                  bdr_part[i] = (bdr_attr(i) = bdr_mesh->GetAttribute(i)) - 1;
+               }
+            }
+            else
+            {
+               attr = 1.0;
+            }
+         }
+
+         if (mk == 'v')
          {
             attr = 1.0;
          }
@@ -566,11 +746,13 @@ int main (int argc, char *argv[])
 
          if (mk == 'p')
          {
-            int *partitioning = NULL, n;
+            int *partitioning = NULL, np;
             cout << "What type of partitioning?\n"
                  "c) Cartesian\n"
+                 "s) Simple 1D split of the element sequence\n"
                  "0) METIS_PartGraphRecursive (sorted neighbor lists)\n"
-                 "1) METIS_PartGraphKway      (sorted neighbor lists)\n"
+                 "1) METIS_PartGraphKway      (sorted neighbor lists)"
+                 " (default)\n"
                  "2) METIS_PartGraphVKway     (sorted neighbor lists)\n"
                  "3) METIS_PartGraphRecursive\n"
                  "4) METIS_PartGraphKway\n"
@@ -582,18 +764,29 @@ int main (int argc, char *argv[])
             {
                int nxyz[3];
                cout << "Enter nx: " << flush;
-               cin >> nxyz[0]; n = nxyz[0];
+               cin >> nxyz[0]; np = nxyz[0];
                if (mesh->Dimension() > 1)
                {
                   cout << "Enter ny: " << flush;
-                  cin >> nxyz[1]; n *= nxyz[1];
+                  cin >> nxyz[1]; np *= nxyz[1];
                   if (mesh->Dimension() > 2)
                   {
                      cout << "Enter nz: " << flush;
-                     cin >> nxyz[2]; n *= nxyz[2];
+                     cin >> nxyz[2]; np *= nxyz[2];
                   }
                }
                partitioning = mesh->CartesianPartitioning(nxyz);
+            }
+            else if (pk == 's')
+            {
+               cout << "Enter number of processors: " << flush;
+               cin >> np;
+
+               partitioning = new int[mesh->GetNE()];
+               for (int i = 0; i < mesh->GetNE(); i++)
+               {
+                  partitioning[i] = i * np / mesh->GetNE();
+               }
             }
             else
             {
@@ -603,29 +796,29 @@ int main (int argc, char *argv[])
                   continue;
                }
                cout << "Enter number of processors: " << flush;
-               cin >> n;
-               partitioning = mesh->GeneratePartitioning(n, part_method);
+               cin >> np;
+               partitioning = mesh->GeneratePartitioning(np, part_method);
             }
             if (partitioning)
             {
                const char part_file[] = "partitioning.txt";
                ofstream opart(part_file);
                opart << "number_of_elements " << mesh->GetNE() << '\n'
-                     << "number_of_processors " << n << '\n';
+                     << "number_of_processors " << np << '\n';
                for (int i = 0; i < mesh->GetNE(); i++)
                {
                   opart << partitioning[i] << '\n';
                }
                cout << "Partitioning file: " << part_file << endl;
 
-               Array<int> proc_el(n);
+               Array<int> proc_el(np);
                proc_el = 0;
                for (int i = 0; i < mesh->GetNE(); i++)
                {
                   proc_el[partitioning[i]]++;
                }
                int min_el = proc_el[0], max_el = proc_el[0];
-               for (int i = 1; i < n; i++)
+               for (int i = 1; i < np; i++)
                {
                   if (min_el > proc_el[i])
                   {
@@ -644,7 +837,7 @@ int main (int argc, char *argv[])
                     << setw(12) << "total" << '\n';
                cout << " elements  "
                     << setw(12) << min_el
-                    << setw(12) << double(mesh->GetNE())/n
+                    << setw(12) << double(mesh->GetNE())/np
                     << setw(12) << max_el
                     << setw(12) << mesh->GetNE() << endl;
             }
@@ -703,9 +896,17 @@ int main (int argc, char *argv[])
             else
             {
                sol_sock << "fem3d_gf_data_keys\n";
-               if (mk == 'b' || mk == 'v' || mk == 'h' || mk == 'k')
+               if (mk == 'v' || mk == 'h' || mk == 'k')
                {
                   mesh->Print(sol_sock);
+               }
+               else if (mk == 'b')
+               {
+                  bdr_mesh->Print(sol_sock);
+                  bdr_attr.Save(sol_sock);
+                  sol_sock << "mcaaA";
+                  // Switch to a discrete color scale
+                  sol_sock << "pppppp" << "pppppp" << "pppppp";
                }
                else
                {
@@ -723,15 +924,18 @@ int main (int argc, char *argv[])
                      mesh->PrintWithPartitioning(part, sol_sock);
                   }
                }
-               attr.Save(sol_sock);
-               sol_sock << "maaA";
-               if (mk == 'v')
+               if (mk != 'b')
                {
-                  sol_sock << "aa";
-               }
-               else
-               {
-                  sol_sock << "\n";
+                  attr.Save(sol_sock);
+                  sol_sock << "maaA";
+                  if (mk == 'v')
+                  {
+                     sol_sock << "aa";
+                  }
+                  else
+                  {
+                     sol_sock << "\n";
+                  }
                }
             }
             sol_sock << flush;
@@ -742,21 +946,43 @@ int main (int argc, char *argv[])
                  << vishost << ':' << visport << endl;
          }
          delete attr_fespace;
+         delete bdr_attr_fespace;
       }
 
       if (mk == 'S')
       {
          const char mesh_file[] = "mesh-explorer.mesh";
          ofstream omesh(mesh_file);
-         // Save gzip-ed mesh, requires MFEM_USE_GZSTREAM = YES
-         // ofgzstream omesh(mesh_file, "zwb9");
          omesh.precision(14);
          mesh->Print(omesh);
          cout << "New mesh file: " << mesh_file << endl;
       }
+
+      if (mk == 'V')
+      {
+         const char mesh_file[] = "mesh-explorer.vtk";
+         ofstream omesh(mesh_file);
+         omesh.precision(14);
+         mesh->PrintVTK(omesh);
+         cout << "New VTK mesh file: " << mesh_file << endl;
+      }
+
+#ifdef MFEM_USE_ZLIB
+      if (mk == 'Z')
+      {
+         const char mesh_file[] = "mesh-explorer.mesh.gz";
+         ofgzstream omesh(mesh_file, "zwb9");
+         omesh.precision(14);
+         mesh->Print(omesh);
+         cout << "New mesh file: " << mesh_file << endl;
+      }
+#endif
+
    }
 
+   delete bdr_attr_fec;
    delete attr_fec;
+   delete bdr_mesh;
    delete mesh;
    return 0;
 }

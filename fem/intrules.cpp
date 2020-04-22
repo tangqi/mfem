@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of IntegrationRule(s) classes
 
@@ -48,6 +48,8 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
          ip.weight = ipx.weight * ipy.weight;
       }
    }
+
+   SetPointIndices();
 }
 
 IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
@@ -75,6 +77,29 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
             ip.weight = ipx.weight*ipy.weight*ipz.weight;
          }
       }
+   }
+
+   SetPointIndices();
+}
+
+const Array<double> &IntegrationRule::GetWeights() const
+{
+   if (weights.Size() != GetNPoints())
+   {
+      weights.SetSize(GetNPoints());
+      for (int i = 0; i < GetNPoints(); i++)
+      {
+         weights[i] = IntPoint(i).weight;
+      }
+   }
+   return weights;
+}
+
+void IntegrationRule::SetPointIndices()
+{
+   for (int i = 0; i < Size(); i++)
+   {
+      IntPoint(i).index = i;
    }
 }
 
@@ -862,24 +887,28 @@ IntegrationRules::IntegrationRules(int Ref, int _type):
 
    own_rules = 1;
 
-   PointIntRules.SetSize(2);
+   const MemoryType h_mt = MemoryType::HOST;
+   PointIntRules.SetSize(2, h_mt);
    PointIntRules = NULL;
 
-   SegmentIntRules.SetSize(32);
+   SegmentIntRules.SetSize(32, h_mt);
    SegmentIntRules = NULL;
 
    // TriangleIntegrationRule() assumes that this size is >= 26
-   TriangleIntRules.SetSize(32);
+   TriangleIntRules.SetSize(32, h_mt);
    TriangleIntRules = NULL;
 
-   SquareIntRules.SetSize(32);
+   SquareIntRules.SetSize(32, h_mt);
    SquareIntRules = NULL;
 
    // TetrahedronIntegrationRule() assumes that this size is >= 10
-   TetrahedronIntRules.SetSize(32);
+   TetrahedronIntRules.SetSize(32, h_mt);
    TetrahedronIntRules = NULL;
 
-   CubeIntRules.SetSize(32);
+   PrismIntRules.SetSize(32, h_mt);
+   PrismIntRules = NULL;
+
+   CubeIntRules.SetSize(32, h_mt);
    CubeIntRules = NULL;
 }
 
@@ -895,6 +924,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
       case Geometry::SQUARE:      ir_array = &SquareIntRules; break;
       case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
+      case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       default:
          mfem_error("IntegrationRules::Get(...) : Unknown geometry type!");
          ir_array = NULL;
@@ -907,7 +937,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
 
    if (!HaveIntRule(*ir_array, Order))
    {
-#ifdef MFEM_USE_OPENMP
+#ifdef MFEM_USE_LEGACY_OPENMP
       #pragma omp critical
 #endif
       {
@@ -940,6 +970,7 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
       case Geometry::SQUARE:      ir_array = &SquareIntRules; break;
       case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
+      case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       default:
          mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
          ir_array = NULL;
@@ -982,6 +1013,7 @@ IntegrationRules::~IntegrationRules()
    DeleteIntRuleArray(SquareIntRules);
    DeleteIntRuleArray(TetrahedronIntRules);
    DeleteIntRuleArray(CubeIntRules);
+   DeleteIntRuleArray(PrismIntRules);
 }
 
 
@@ -1002,6 +1034,8 @@ IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
          return TetrahedronIntegrationRule(Order);
       case Geometry::CUBE:
          return CubeIntegrationRule(Order);
+      case Geometry::PRISM:
+         return PrismIntegrationRule(Order);
       default:
          mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
          return NULL;
@@ -1616,6 +1650,33 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          TetrahedronIntRules[i-1] = TetrahedronIntRules[i] = ir;
          return ir;
    }
+}
+
+// Integration rules for reference prism
+IntegrationRule *IntegrationRules::PrismIntegrationRule(int Order)
+{
+   const IntegrationRule & irt = Get(Geometry::TRIANGLE, Order);
+   const IntegrationRule & irs = Get(Geometry::SEGMENT, Order);
+   int nt = irt.GetNPoints();
+   int ns = irs.GetNPoints();
+   AllocIntRule(PrismIntRules, Order);
+   PrismIntRules[Order] = new IntegrationRule(nt * ns);
+
+   for (int ks=0; ks<ns; ks++)
+   {
+      const IntegrationPoint & ips = irs.IntPoint(ks);
+      for (int kt=0; kt<nt; kt++)
+      {
+         int kp = ks * nt + kt;
+         const IntegrationPoint & ipt = irt.IntPoint(kt);
+         IntegrationPoint & ipp = PrismIntRules[Order]->IntPoint(kp);
+         ipp.x = ipt.x;
+         ipp.y = ipt.y;
+         ipp.z = ips.x;
+         ipp.weight = ipt.weight * ips.weight;
+      }
+   }
+   return PrismIntRules[Order];
 }
 
 // Integration rules for reference cube

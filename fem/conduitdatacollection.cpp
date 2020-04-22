@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -304,32 +304,43 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    if ( n_mesh_topo.has_child("boundary_topology") )
    {
       std::string bndry_topo_name = n_mesh_topo["boundary_topology"].as_string();
-      const Node &n_bndry_topo    = n_mesh["topologies"][bndry_topo_name];
-      std::string bndry_ele_shape = n_bndry_topo["elements/shape"].as_string();
 
-      bndry_geo = ShapeNameToGeomType(bndry_ele_shape);
-      int num_idxs_per_bndry_ele = Geometry::NumVerts[mesh_geo];
+      // In VisIt, we encountered a case were a mesh specified a boundary
+      // topology, but the boundary topology was omitted from the blueprint
+      // index, so it's data could not be obtained.
+      //
+      // This guard prevents an error in that case, allowing the mesh to be
+      // created without boundary info
 
-      const Node &n_bndry_conn = n_bndry_topo["elements/connectivity"];
-
-      // mfem requires ints, we could have int64s, etc convert if necessary
-      if ( n_bndry_conn.dtype().is_int() &&
-           n_bndry_conn.is_compact())
+      if (n_mesh["topologies"].has_child(bndry_topo_name))
       {
-         bndry_indices = n_bndry_conn.value();
-      }
-      else
-      {
-         Node &(n_bndry_conn_conv) =
-            n_conv["topologies"][bndry_topo_name]["elements/connectivity"];
-         n_bndry_conn.to_int_array(n_bndry_conn_conv);
-         bndry_indices = (n_bndry_conn_conv).value();
+         const Node &n_bndry_topo    = n_mesh["topologies"][bndry_topo_name];
+         std::string bndry_ele_shape = n_bndry_topo["elements/shape"].as_string();
 
-      }
+         bndry_geo = ShapeNameToGeomType(bndry_ele_shape);
+         int num_idxs_per_bndry_ele = Geometry::NumVerts[mesh_geo];
 
-      num_bndry_ele =
-         n_bndry_topo["elements/connectivity"].dtype().number_of_elements();
-      num_bndry_ele = num_bndry_ele / num_idxs_per_bndry_ele;
+         const Node &n_bndry_conn = n_bndry_topo["elements/connectivity"];
+
+         // mfem requires ints, we could have int64s, etc convert if necessary
+         if ( n_bndry_conn.dtype().is_int() &&
+              n_bndry_conn.is_compact())
+         {
+            bndry_indices = n_bndry_conn.value();
+         }
+         else
+         {
+            Node &(n_bndry_conn_conv) =
+               n_conv["topologies"][bndry_topo_name]["elements/connectivity"];
+            n_bndry_conn.to_int_array(n_bndry_conn_conv);
+            bndry_indices = (n_bndry_conn_conv).value();
+
+         }
+
+         num_bndry_ele =
+            n_bndry_topo["elements/connectivity"].dtype().number_of_elements();
+         num_bndry_ele = num_bndry_ele / num_idxs_per_bndry_ele;
+      }
    }
    else
    {
@@ -688,8 +699,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    n_topo["type"]  = "unstructured";
    n_topo["coordset"] = coordset_name;
 
-   Element::Type ele_type = static_cast<Element::Type>(mesh->GetElement(
-                                                          0)->GetType());
+   Element::Type ele_type = mesh->GetElementType(0);
 
    std::string ele_shape = ElementTypeToShapeName(ele_type);
 
@@ -763,8 +773,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
       n_bndry_topo["type"]     = "unstructured";
       n_bndry_topo["coordset"] = coordset_name;
 
-      Element::Type bndry_ele_type = static_cast<Element::Type>(mesh->GetBdrElement(
-                                                                   0)->GetType());
+      Element::Type bndry_ele_type = mesh->GetBdrElementType(0);
 
       std::string bndry_ele_shape = ElementTypeToShapeName(bndry_ele_type);
 
@@ -1152,6 +1161,8 @@ ConduitDataCollection::ElementTypeToShapeName(Element::Type element_type)
       case Element::QUADRILATERAL:  return "quad";
       case Element::TETRAHEDRON:    return "tet";
       case Element::HEXAHEDRON:     return "hex";
+      case Element::WEDGE:
+      default: ;
    }
 
    return "unknown";

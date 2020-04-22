@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PGRIDFUNC
 #define MFEM_PGRIDFUNC
@@ -32,12 +32,21 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm);
 class ParGridFunction : public GridFunction
 {
 protected:
-   ParFiniteElementSpace *pfes;
+   ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
 
+   /** @brief Vector used to store data from face-neighbor processors,
+       initialized by ExchangeFaceNbrData(). */
    Vector face_nbr_data;
+
+   void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
+                              Array<int> &attr);
 
 public:
    ParGridFunction() { pfes = NULL; }
+
+   /// Copy constructor. The internal vector #face_nbr_data is not copied.
+   ParGridFunction(const ParGridFunction &orig)
+      : GridFunction(orig), pfes(orig.pfes) { }
 
    ParGridFunction(ParFiniteElementSpace *pf) : GridFunction(pf), pfes(pf) { }
 
@@ -74,6 +83,15 @@ public:
        constructed. The new ParGridFunction assumes ownership of both. */
    ParGridFunction(ParMesh *pmesh, std::istream &input);
 
+   /// Copy assignment. Only the data of the base class Vector is copied.
+   /** It is assumed that this object and @a rhs use ParFiniteElementSpace%s
+       that have the same size.
+
+       @note Defining this method overwrites the implicitly defined copy
+       assignment operator. */
+   ParGridFunction &operator=(const ParGridFunction &rhs)
+   { return operator=((const Vector &)rhs); }
+
    /// Assign constant values to the ParGridFunction data.
    ParGridFunction &operator=(double value)
    { GridFunction::operator=(value); return *this; }
@@ -93,6 +111,8 @@ public:
 
    /// Associate a new parallel space with the ParGridFunction.
    void SetSpace(ParFiniteElementSpace *f);
+
+   using GridFunction::MakeRef;
 
    /** @brief Make the ParGridFunction reference external data on a new
        FiniteElementSpace. */
@@ -138,7 +158,7 @@ public:
    /// Set the GridFunction from the given true-dof vector.
    virtual void SetFromTrueDofs(const Vector &tv) { Distribute(tv); }
 
-   /// Short semantic for Distribute
+   /// Short semantic for Distribute()
    ParGridFunction &operator=(const HypreParVector &tv)
    { Distribute(&tv); return (*this); }
 
@@ -196,6 +216,21 @@ public:
    virtual void ProjectDiscCoefficient(Coefficient &coeff, AvgType type);
 
    virtual void ProjectDiscCoefficient(VectorCoefficient &vcoeff, AvgType type);
+
+   using GridFunction::ProjectBdrCoefficient;
+
+   // Only the values in the master are guaranteed to be correct!
+   virtual void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
+                                      Array<int> &attr)
+   { ProjectBdrCoefficient(NULL, &vcoeff, attr); }
+
+   // Only the values in the master are guaranteed to be correct!
+   virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
+   { ProjectBdrCoefficient(coeff, NULL, attr); }
+
+   // Only the values in the master are guaranteed to be correct!
+   virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
+                                             Array<int> &bdr_attr);
 
    virtual double ComputeL1Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL) const
@@ -273,7 +308,7 @@ public:
 
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,
-                            int wcoef = 1, int subdomain = -1);
+                            bool wcoef = true, int subdomain = -1);
 
    /** Save the local portion of the ParGridFunction. It differs from the
        serial GridFunction::Save in that it takes into account the signs of
