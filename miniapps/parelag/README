@@ -98,11 +98,25 @@ Example .xml files for the miniapps are provided.
 When executing a miniapp, the .xml file needs to be explicitly supplied. For
 example, as follows:
 
-   mfem/miniapps/parelag/$ ./MultilevelHcurlSolver -f MultilevelHcurlSolver_example_parameters.xml
+   mfem/miniapps/parelag/$ ./MultilevelHcurlSolver -f \
+                                 MultilevelHcurlSolver_example_parameters.xml
 
-   mfem/miniapps/parelag/$ ./MultilevelHdivSolver -f MultilevelHdivSolver_example_parameters.xml
+   mfem/miniapps/parelag/$ ./MultilevelHdivSolver -f \
+                                 MultilevelHdivSolver_example_parameters.xml
 
 The miniapps can be executed in parallel, e.g., using mpirun.
+
+Note that the examples in their current form are limited to 3D meshes and
+problem.
+
+The examples assume zero natural and essential boundary conditions, where the
+boundary attributes for essential boundary conditions are provided in the
+parameters .xml files. For more sophisticated boundary conditions, the source
+files of the miniapps need to be modified.
+
+The examples allow piecewise constant coefficients in areas of the domain
+associated with mesh attributes. The particular attributes and values can be
+set in the parameters .xml files.
 
 If GLVIS is running, the final obtained solution is visualized.
 

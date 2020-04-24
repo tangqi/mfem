@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
    shared_ptr<ParMesh> pmesh;
    {
       if (!myid)
-         cout << "Reading and refining serial mesh...\n";
+         cout << "\nReading and refining serial mesh...\n";
 
       ifstream imesh(meshfile);
       if (!imesh)
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
          mesh_msg << "*  Parallel refinements: " << par_ref_levels << '\n'
                   << "*        Fine mesh size: " << global_num_elmts << '\n'
                   << "*          Total levels: " << nLevels << '\n'
-                  << string(50, '*') << '\n';
+                  << string(50, '*') << "\n\n";
       }
    }
 
@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
 
    // Obtain the hierarchy of agglomerate topologies.
    if (!myid)
-      cout << "Agglomerating topology for " << nLevels << " levels...\n";
+      cout << "Agglomerating topology for " << nLevels-1 << " coarse levels...\n";
 
    constexpr auto AT_elem = AgglomeratedTopology::ELEMENT;
    // This partitioner simply geometrically coarsens the mesh by recovering the geometric
@@ -212,7 +212,6 @@ int main(int argc, char *argv[])
 
    vector<shared_ptr<DeRhamSequence>> sequence(topology.size());
 
-   const int nForms = nDimensions + 1;
    const int jform = nDimensions - 1; // This is the H(div) form.
    if(nDimensions == 3)
       sequence[0] = make_shared<DeRhamSequence3D_FE>(topology[0], pmesh.get(), feorder);
@@ -236,29 +235,7 @@ int main(int argc, char *argv[])
    if (!myid)
       cout << "Interpolating and setting polynomial targets...\n";
 
-   vector<unique_ptr<MultiVector>> targets(nForms);
-
-   Array<Coefficient *> L2coeff;
-   Array<VectorCoefficient *> Hdivcoeff;
-   Array<Coefficient *> H1coeff;
-   fillVectorCoefficientArray(nDimensions, upscalingOrder, Hdivcoeff);
-   fillCoefficientArray(nDimensions, upscalingOrder, L2coeff);
-   fillCoefficientArray(nDimensions, upscalingOrder + 1, H1coeff);
-
-   targets[0] = DRSequence_FE->InterpolateScalarTargets(0, H1coeff);
-   if(nDimensions == 3)
-      targets[jform - 1] = DRSequence_FE->InterpolateVectorTargets(jform - 1, Hdivcoeff);
-   targets[jform] = DRSequence_FE->InterpolateVectorTargets(jform, Hdivcoeff);
-   targets[jform + 1] = DRSequence_FE->InterpolateScalarTargets(jform + 1, L2coeff);
-
-   freeCoeffArray(L2coeff);
-   freeCoeffArray(Hdivcoeff);
-   freeCoeffArray(H1coeff);
-
-   Array<MultiVector *> targets_in(targets.size());
-   for (int i = 0; i < targets_in.Size(); ++i)
-      targets_in[i] = targets[i].get();
-   sequence[0]->SetTargets(targets_in);
+   DRSequence_FE->SetUpscalingTargets(nDimensions, upscalingOrder);
 
    if (!myid)
       cout << "Building the coarse-level de Rham sequences...\n";
@@ -399,7 +376,7 @@ int main(int argc, char *argv[])
    }
 
    if (!myid)
-      cout << "Finished.\n";
+      cout << "\nFinished.\n";
 
    return EXIT_SUCCESS;
 }

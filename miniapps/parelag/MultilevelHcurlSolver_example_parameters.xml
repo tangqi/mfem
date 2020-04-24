@@ -5,7 +5,7 @@
 
     <!-- Mesh name. -->
     <Parameter name="Mesh file" type="string"
-               value="/path/to/meshes/inline-hex.mesh"/>
+               value="cube456.mesh"/>
 
     <!-- Number of times to refine in serial. Set to -1 to refine the
          minimum amount of times to probably get a good parallel
