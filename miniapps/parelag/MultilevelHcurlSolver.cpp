@@ -25,7 +25,7 @@ using namespace mfem;
 using namespace parelag;
 using namespace std;
 
-void solfunc(const Vector &, Vector &);
+void bdrfunc(const Vector &, Vector &);
 void rhsfunc(const Vector &, Vector &);
 
 int main(int argc, char *argv[])
@@ -38,13 +38,16 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(comm, &myid);
 
    if (!myid)
-      cout << "-- This is an example of using a geometric-like multilevel hierarchy, constructed by ParElag,\n"
-              "-- to solve a finite element H(curl) form.\n\n";
+      cout << "-- This is an example of using a geometric-like multilevel "
+              "hierarchy, constructed by ParElag,\n"
+              "-- to solve a finite element H(curl) form: "
+              "(alpha curl u, curl v) + (beta u, v).\n\n";
 
    // Get basic parameters from command line.
    const char *xml_file_c = "";
    OptionsParser args(argc, argv);
-   args.AddOption(&xml_file_c, "-f", "--xml-file", "XML parameter list (an XML file with detailed parameters).");
+   args.AddOption(&xml_file_c, "-f", "--xml-file",
+                  "XML parameter list (an XML file with detailed parameters).");
    args.Parse();
    if (!args.Good())
    {
@@ -90,11 +93,27 @@ int main(int argc, char *argv[])
    // (after interpolating them onto the fine space).
    const int upscalingOrder = prob_list.Get("Upscaling order", 0);
 
+   // A list of 1s and 0s stating which boundary attribute is appointed as
+   // essential. If only a single entry is given, it is applied to the whole
+   // boundary. That is, if a single 0 is given the whole boundary is "natural",
+   // while a single 1 means that the whole boundary is essential.
+   vector<int> par_ess_attr = prob_list.Get("Essential attributes",
+                                            vector<int>{1});
+
+   // A list of (piecewise) constant values for the coefficient 'alpha', in
+   // accordance with the mesh attributes. If only a single entry is given, it
+   // is applied to the whole mesh/domain.
+   vector<double> alpha_vals = prob_list.Get("alpha values",
+                                             vector<double>{1.0});
+
+   // A list of (piecewise) constant values for the coefficient 'beta', in
+   // accordance with the mesh attributes. If only a single entry is given, it
+   // is applied to the whole mesh/domain.
+   vector<double> beta_vals = prob_list.Get("beta values",
+                                             vector<double>{1.0});
+
    // The list of solvers to invoke.
    auto list_of_solvers = prob_list.Get<list<string>>("List of linear solvers");
-
-   ConstantCoefficient alpha(1.0);
-   ConstantCoefficient beta(1.0);
 
    ostringstream mesh_msg;
    if (!myid)
@@ -143,10 +162,48 @@ int main(int argc, char *argv[])
       pmesh = make_shared<ParMesh>(comm, *mesh);
    }
 
-   // Mark all boundary attributes as essential.
+   // Mark essential boundary attributes.
+   MFEM_ASSERT(par_ess_attr.size() <= 1 ||
+               par_ess_attr.size() == (unsigned) pmesh->bdr_attributes.Max(),
+               "Incorrect size of the essential attributes vector in parameters"
+               " input.");
    vector<Array<int>> ess_attr(1);
    ess_attr[0].SetSize(pmesh->bdr_attributes.Max());
-   ess_attr[0] = 1;
+   if (par_ess_attr.size() == 0)
+      ess_attr[0] = 1;
+   else if (par_ess_attr.size() == 1)
+      ess_attr[0] = par_ess_attr[0];
+   else
+      for (unsigned i = 0; i < par_ess_attr.size(); ++i)
+         ess_attr[0][i] = par_ess_attr[i];
+
+   // Initialize piecewise constant coefficients in the form.
+   MFEM_ASSERT(alpha_vals.size() <= 1 ||
+               alpha_vals.size() == (unsigned) pmesh->attributes.Max(),
+               "Incorrect size of the 'alpha' local values vector in parameters"
+               " input.");
+   MFEM_ASSERT(alpha_vals.size() <= 1 ||
+               alpha_vals.size() == (unsigned) pmesh->attributes.Max(),
+               "Incorrect size of the 'alpha' local values vector in parameters"
+               " input.");
+   PWConstCoefficient alpha(pmesh->attributes.Max());
+   PWConstCoefficient beta(pmesh->attributes.Max());
+
+   if (alpha_vals.size() == 0)
+      alpha = 1.0;
+   else if (alpha_vals.size() == 1)
+      alpha = alpha_vals[0];
+   else
+      for (unsigned i = 0; i < alpha_vals.size(); ++i)
+         alpha(i+1) = alpha_vals[i];
+
+   if (beta_vals.size() == 0)
+      beta = 1.0;
+   else if (beta_vals.size() == 1)
+      beta = beta_vals[0];
+   else
+      for (unsigned i = 0; i < beta_vals.size(); ++i)
+         beta(i+1) = beta_vals[i];
 
    // Refine the mesh in parallel.
    const int nDimensions = pmesh->Dimension();
@@ -189,12 +246,13 @@ int main(int argc, char *argv[])
 
    // Obtain the hierarchy of agglomerate topologies.
    if (!myid)
-      cout << "Agglomerating topology for " << nLevels-1 << " coarse levels...\n";
+      cout << "Agglomerating topology for " << nLevels-1
+           << " coarse levels...\n";
 
    constexpr auto AT_elem = AgglomeratedTopology::ELEMENT;
-   // This partitioner simply geometrically coarsens the mesh by recovering the geometric
-   // coarse elements as agglomerate elements. That is, it reverts the MFEM uniform refinement
-   // procedure to provide agglomeration.
+   // This partitioner simply geometrically coarsens the mesh by recovering the
+   // geometric coarse elements as agglomerate elements. That is, it reverts the
+   // MFEM uniform refinement procedure to provide agglomeration.
    MFEMRefinedMeshPartitioner partitioner(nDimensions);
    vector<shared_ptr<AgglomeratedTopology>> topology(nLevels);
 
@@ -204,10 +262,12 @@ int main(int argc, char *argv[])
       Array<int> partitioning(topology[l]->GetNumberLocalEntities(AT_elem));
       partitioner.Partition(topology[l]->GetNumberLocalEntities(AT_elem),
                             level_nElements[l + 1], partitioning);
-      topology[l + 1] = topology[l]->CoarsenLocalPartitioning(partitioning, false, false);
+      topology[l + 1] = topology[l]->CoarsenLocalPartitioning(partitioning,
+                                                              false, false);
    }
 
-   // Construct the hierarchy of spaces, thus forming a hierarchy of (partial) de Rham sequences.
+   // Construct the hierarchy of spaces, thus forming a hierarchy of (partial)
+   // de Rham sequences.
    if (!myid)
       cout << "Building the fine-level de Rham sequence...\n";
 
@@ -215,23 +275,29 @@ int main(int argc, char *argv[])
 
    const int jform = 1; // This is the H(curl) form.
    if(nDimensions == 3)
-      sequence[0] = make_shared<DeRhamSequence3D_FE>(topology[0], pmesh.get(), feorder);
+      sequence[0] = make_shared<DeRhamSequence3D_FE>(topology[0], pmesh.get(),
+                                                     feorder);
    else
       MFEM_ABORT("No H(curl) 2D interpretation of form 1 is implemented.");
 
-   // To build H(curl) (form 1 in 3D), it is needed to obtain all forms and spaces with larger
-   // indices. To use the so called "Hiptmair smoothers", a one form lower is needed
-   // (H1, form 0). Anyway, to use AMS all forms and spaces to H1 (0 form) are needed.
-   // Therefore, the entire de Rham complex is constructed.
+   // To build H(curl) (form 1 in 3D), it is needed to obtain all forms and
+   // spaces with larger indices. To use the so called "Hiptmair smoothers", a
+   // one form lower is needed (H1, form 0). Anyway, to use AMS all forms and
+   // spaces to H1 (0 form) are needed. Therefore, the entire de Rham complex is
+   // constructed.
    sequence[0]->SetjformStart(0);
 
    DeRhamSequenceFE *DRSequence_FE = sequence[0]->FemSequence();
-   MFEM_ASSERT(DRSequence_FE, "Failed to obtain the fine-level de Rham sequence.");
-   DRSequence_FE->ReplaceMassIntegrator(AT_elem, jform, make_unique<VectorFEMassIntegrator>(beta), false);
+   MFEM_ASSERT(DRSequence_FE,
+               "Failed to obtain the fine-level de Rham sequence.");
+   DRSequence_FE->ReplaceMassIntegrator(AT_elem, jform,
+                     make_unique<VectorFEMassIntegrator>(beta), false);
    if(nDimensions == 3)
-      DRSequence_FE->ReplaceMassIntegrator(AT_elem, jform + 1, make_unique<VectorFEMassIntegrator>(alpha), true);
+      DRSequence_FE->ReplaceMassIntegrator(AT_elem, jform + 1,
+                        make_unique<VectorFEMassIntegrator>(alpha), true);
    else
-      DRSequence_FE->ReplaceMassIntegrator(AT_elem, jform + 1, make_unique<MassIntegrator>(alpha), true);
+      DRSequence_FE->ReplaceMassIntegrator(AT_elem, jform + 1,
+                        make_unique<MassIntegrator>(alpha), true);
 
    if (!myid)
       cout << "Interpolating and setting polynomial targets...\n";
@@ -252,23 +318,26 @@ int main(int argc, char *argv[])
       cout << "Assembling the fine-level system...\n";
 
    VectorFunctionCoefficient rhscoeff(nDimensions, rhsfunc);
-   VectorFunctionCoefficient solcoeff(nDimensions, solfunc);
+   VectorFunctionCoefficient solcoeff(nDimensions, bdrfunc);
 
-   // Take the vector FE space and construct a RHS linear form on it.
-   // Then, move the linear form to a vector. This is local, i.e. on all known dofs for the process.
+   // Take the vector FE space and construct a RHS linear form on it. Then, move
+   // the linear form to a vector. This is local, i.e. on all known dofs for the
+   // process.
    FiniteElementSpace *fespace = DRSequence_FE->GetFeSpace(jform);
    auto rhsform = make_unique<LinearForm>(fespace);
    rhsform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(rhscoeff));
    rhsform->Assemble();
    unique_ptr<Vector> rhs = move(rhsform);
 
-   // Obtain the boundary data. This is local, i.e. on all known dofs for the process.
+   // Obtain the boundary data. This is local, i.e. on all known dofs for the
+   // process.
    auto solgf = make_unique<GridFunction>(fespace);
    solgf->ProjectCoefficient(solcoeff);
    unique_ptr<Vector> sol = move(solgf);
 
    // Create the parallel linear system.
-   const SharingMap& hcurl_dofTrueDof = sequence[0]->GetDofHandler(jform)->GetDofTrueDof();
+   const SharingMap& hcurl_dofTrueDof =
+      sequence[0]->GetDofHandler(jform)->GetDofTrueDof();
 
    // System RHS, B. It is defined on the true dofs owned by the process.
    Vector B(hcurl_dofTrueDof.GetTrueLocalSize());
@@ -279,21 +348,27 @@ int main(int argc, char *argv[])
       // Get the mass and derivative operators.
       // M1 represents the form (beta u, v) on H(curl) vector fields.
       // M2 represents the form (alpha u, v) on H(div) vector fields, in 3D.
-      // D1 is the curl operator from H(curl) vector fields to H(div) vector fields, in 3D.
-      // In 2D, instead of considering H(div) vector fields, L2 scalar fields are to be considered.
-      // Thus, D1^T * M2 * D1 represents the form (alpha curl u, curl v) on H(curl) vector fields.
+      // D1 is the curl operator from H(curl) vector fields to H(div) vector
+      // fields, in 3D.
+      // In 2D, instead of considering H(div) vector fields, L2 scalar fields
+      // are to be considered.
+      // Thus, D1^T * M2 * D1 represents the form (alpha curl u, curl v) on
+      // H(curl) vector fields.
       auto M1 = sequence[0]->ComputeMassOperator(jform),
            M2 = sequence[0]->ComputeMassOperator(jform + 1);
       auto D1 = sequence[0]->GetDerivativeOperator(jform);
 
-      // spA = D1^T * M2 * D1 + M1 represents the form (alpha curl u, curl v) + (beta u, v)
-      // on H(curl) vector fields. This is local, i.e. on all known dofs for the process.
+      // spA = D1^T * M2 * D1 + M1 represents the form:
+      // (alpha curl u, curl v) + (beta u, v)
+      // on H(curl) vector fields. This is local, i.e. on all known dofs for the
+      // process.
       auto spA = ToUnique(Add(*M1, *ToUnique(RAP(*D1, *M2, *D1))));
 
       // Eliminate the boundary conditions
       Array<int> marker(spA->Height());
       marker = 0;
-      sequence[0]->GetDofHandler(jform)->MarkDofsOnSelectedBndr(ess_attr[0], marker);
+      sequence[0]->GetDofHandler(jform)->MarkDofsOnSelectedBndr(ess_attr[0],
+                                                                marker);
 
       for(int i = 0; i < spA->Height(); ++i)
          if(marker[i])
@@ -303,18 +378,18 @@ int main(int argc, char *argv[])
       hcurl_dofTrueDof.Assemble(*rhs, B);
    }
    if (!myid)
-   {
-      cout << "A size: " << A->GetGlobalNumRows() << 'x' << A->GetGlobalNumCols() << '\n'
-           << " A NNZ: " << A->NNZ() << '\n';
-   }
-   MFEM_ASSERT(B.Size() == A->Height(), "Matrix and vector size are incompatible.");
+      cout << "A size: " << A->GetGlobalNumRows() << 'x'
+           << A->GetGlobalNumCols() << '\n' << " A NNZ: " << A->NNZ() << '\n';
+   MFEM_ASSERT(B.Size() == A->Height(),
+               "Matrix and vector size are incompatible.");
 
    // Perform the solves.
    if (!myid)
       cout << "\nRunning fine-level solvers...\n\n";
 
    // Create the solver library.
-   auto lib = SolverLibrary::CreateLibrary(master_list->Sublist("Preconditioner Library"));
+   auto lib = SolverLibrary::CreateLibrary(
+                                master_list->Sublist("Preconditioner Library"));
 
    // Loop through the solvers.
    for (const auto& solver_name : list_of_solvers)
@@ -335,7 +410,8 @@ int main(int argc, char *argv[])
       if (!myid)
          cout << "Solving system with \"" << solver_name << "\"...\n";
 
-      // Note that X is on true dofs owned by the process, while x is on local dofs that are known to the process.
+      // Note that X is on true dofs owned by the process, while x is on local
+      // dofs that are known to the process.
       Vector X(A->Width()), x(sequence[0]->GetNumberOfDofs(jform));
       X=0.0;
 
@@ -347,7 +423,8 @@ int main(int argc, char *argv[])
 
          double local_norm = tmp.Norml2() * tmp.Norml2();
          double global_norm;
-         MPI_Reduce(&local_norm, &global_norm, 1, GetMPIType(local_norm), MPI_SUM, 0, comm);
+         MPI_Reduce(&local_norm, &global_norm, 1, GetMPIType(local_norm),
+                    MPI_SUM, 0, comm);
          if (!myid)
             cout << "Initial residual l2 norm: " << sqrt(global_norm) << '\n';
       }
@@ -363,7 +440,8 @@ int main(int argc, char *argv[])
 
          double local_norm = tmp.Norml2() * tmp.Norml2();
          double global_norm;
-         MPI_Reduce(&local_norm, &global_norm, 1, GetMPIType(local_norm), MPI_SUM, 0, comm);
+         MPI_Reduce(&local_norm, &global_norm, 1, GetMPIType(local_norm),
+                    MPI_SUM, 0, comm);
          if (!myid)
             cout << "Final residual l2 norm: " << sqrt(global_norm) << '\n';
       }
@@ -383,10 +461,10 @@ int main(int argc, char *argv[])
    return EXIT_SUCCESS;
 }
 
-// Solution vector field. Used for setting boundary conditions.
-void solfunc(const Vector &p, Vector &F)
+// A vector field, used for setting boundary conditions.
+void bdrfunc(const Vector &p, Vector &F)
 {
-   int dim = p.Size();
+   const int dim = p.Size();
 
    F(0) = 0.0;
    F(1) = 0.0;
@@ -399,7 +477,7 @@ void solfunc(const Vector &p, Vector &F)
 // The right hand side.
 void rhsfunc(const Vector &p, Vector &f)
 {
-   int dim = p.Size();
+   const int dim = p.Size();
 
    f(0) = 0.0;
    f(1) = 0.0;

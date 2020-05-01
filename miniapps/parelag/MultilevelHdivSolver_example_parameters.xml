@@ -1,4 +1,10 @@
-<!-- This is an example parameter list for the MultilevelHdivSolver miniapp. -->
+<!-- This is an example parameter list for the MultilevelHdivSolver miniapp.
+-->
+<!-- This is an example of using a geometric-like multilevel hierarchy,
+     constructed by ParElag to solve a finite element H(div) form:
+
+         (alpha div u, div v) + (beta u, v).
+-->
 <ParameterList name="Default">
 
   <ParameterList name="Problem parameters">
@@ -22,6 +28,23 @@
 
     <!-- Order of polynomials to include in the upscaled spaces. -->
     <Parameter name="Upscaling order" type="int" value="0"/>
+
+    <!-- A list of 1s and 0s stating which boundary attribute is appointed as
+         essential. If only a single entry is given, it is applied to the whole
+         boundary. That is, if a single 0 is given the whole boundary is
+         "natural", while a single 1 means that the whole boundary is
+         essential. -->
+    <Parameter name="Essential attributes" type="vector(int)" value="1"/>
+
+    <!-- A list of (piecewise) constant values for the coefficient 'alpha', in
+         accordance with the mesh attributes. If only a single entry is given,
+         it is applied to the whole mesh/domain. -->
+    <Parameter name="alpha attributes" type="vector(double)" value="1.0"/>
+
+    <!-- A list of (piecewise) constant values for the coefficient 'beta', in
+         accordance with the mesh attributes. If only a single entry is given,
+         it is applied to the whole mesh/domain. -->
+    <Parameter name="beta attributes" type="vector(double)" value="1.0"/>
 
     <!-- A list of solvers to apply. The miniapp will loop over these
          solvers, which must be entries in the "Preconditioner Library",
@@ -103,7 +126,8 @@
       <Parameter name="Type" type="string" value="Hiptmair"/>
       <ParameterList name="Solver Parameters">
         <Parameter name="Primary Smoother" type="string" value="Gauss-Seidel"/>
-        <Parameter name="Auxiliary Smoother" type="string" value="Gauss-Seidel"/>
+        <Parameter name="Auxiliary Smoother" type="string"
+                   value="Gauss-Seidel"/>
       </ParameterList>
       <!-- ParameterList "Solver Parameters" -->
     </ParameterList>
@@ -171,7 +195,8 @@
           <Parameter name="Cycle type" type="int" value="14"/>
           <ParameterList name="PtAP AMG Parameters">
             <Parameter name="Coarsening type" type="int" value="10"/>
-            <Parameter name="Aggressive coarsening levels" type="int" value="1"/>
+            <Parameter name="Aggressive coarsening levels" type="int"
+                       value="1"/>
             <Parameter name="Relaxation type" type="int" value="8"/>
             <Parameter name="Theta" type="double" value="0.25"/>
             <Parameter name="Interpolation type" type="int" value="6"/>
