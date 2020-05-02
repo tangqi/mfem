@@ -3415,6 +3415,14 @@ void HypreBoomerAMG::SetNAIROptions(int neumann_degree,
    }
 }
 
+
+void HypreBoomerAMG::SetRelaxationOrdering(int *ordering)
+{
+   HYPRE_BoomerAMGSetRelaxType(amg_precond, 10);
+   relax_ordering = (HYPRE_Int *) ordering;
+   hypre_ParCSRMatrixProcOrdering(A) = relax_ordering;
+}
+
 #endif
 
 HypreBoomerAMG::~HypreBoomerAMG()
@@ -3422,6 +3430,12 @@ HypreBoomerAMG::~HypreBoomerAMG()
    for (int i = 0; i < rbms.Size(); i++)
    {
       HYPRE_ParVectorDestroy(rbms[i]);
+   }
+
+   // If relaxation ordering provided to hypre, set internal
+   // hypre pointer to NULL. Memory is managed in MFEM.
+   if (relax_ordering) {
+      hypre_ParCSRMatrixProcOrdering(A) = NULL;
    }
 
    HYPRE_BoomerAMGDestroy(amg_precond);

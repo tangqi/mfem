@@ -997,6 +997,7 @@ class HypreBoomerAMG : public HypreSolver
 {
 private:
    HYPRE_Solver amg_precond;
+   HYPRE_Int *relax_ordering;
 
    /// Rigid body modes
    Array<HYPRE_ParVector> rbms;
@@ -1033,6 +1034,8 @@ public:
        elasticity problems", Baker, Kolev, Yang, NLAA 2009, DOI:10.1002/nla.688.
        As with SetSystemsOptions(), this solver assumes Ordering::byVDIM. */
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
+
+   void SetRelaxationOrdering(int *ordering);
 
 #if MFEM_HYPRE_VERSION >= 21800
    /* distance parameter takes on values {1,2,15} for lAIR, meaning R is built using
