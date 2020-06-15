@@ -682,6 +682,5 @@ void FaceElementTransformations::Transform(const DenseMatrix &matrix,
                "for the face has not been configured.");
    IsoparametricTransformation::Transform(matrix, result);
 }
->>>>>>> 6ba8d18e382ead349e85429475be06b7857c62c2
 
 }
