@@ -76,7 +76,8 @@ int main(int argc, char *argv[])
     int dim              = 2;
     int meshOrder        = 4;
     int feOrder          = 4;
-    int refinementLevels = 2;
+    int ser_ref_levels   = 2;
+    int par_ref_levels   = 0;
     double theta         = 3*PI/16.0;
     int blocksize;
     int print_level      = 2;
@@ -100,8 +101,10 @@ int main(int argc, char *argv[])
                   "Tolerance to solve linear system.");
     args.AddOption(&cycle_type, "-c", "--cycle-type",
                   "Cycle type; 0=F, 1=V, 2=W.");
-    args.AddOption(&refinementLevels, "-l", "--level",
-                  "Number levels mesh refinement.");
+    args.AddOption(&ser_ref_levels, "-rs", "--level",
+                  "Number levels serial mesh refinement.");
+    args.AddOption(&par_ref_levels, "-rp", "--level",
+                  "Number levels parallel mesh refinement.");
     args.AddOption(&dim, "-d", "--dim",
                   "Problem dimension.");
     args.AddOption(&basis_type, "-b", "--basis-type",
@@ -153,10 +156,10 @@ int main(int argc, char *argv[])
     blocksize = (feOrder+1)*(feOrder+1);
 
     /* Set up a curved mesh and a finite element space */
-    const char *mesh_file = "./data/UnsQuad.0.mesh";
+    const char *mesh_file = "../data/UnsQuad.0.mesh";
     Mesh *mesh = new Mesh(mesh_file, 1, 1);
     dim = mesh->Dimension();
-    for (int lev = 0; lev<3; lev++) {
+    for (int lev = 0; lev<ser_ref_levels; lev++) {
         mesh->UniformRefinement();
     }
     if (mesh->NURBSext) {
@@ -169,11 +172,43 @@ int main(int argc, char *argv[])
 
     /* Define a parallel mesh by partitioning the serial mesh. */
     ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-    delete mesh;
-    for (int lev = 0; lev<(refinementLevels-3); lev++) {
+    for (int lev = 0; lev<par_ref_levels; lev++) {
         pmesh->UniformRefinement();
     }
     ParFiniteElementSpace pfes(pmesh, &fec);
+
+    // Get parallel element partitioning (this array has the processor
+    // ID on which a given element is in the "home" domain).
+    int *partitioning;
+    partitioning = mesh->GeneratePartitioning(num_procs);
+
+    // Mark elements stored on other processors as part of coarse-grid
+    int coarse_ind = 0;
+    for (int i=0; i<mesh->GetNE(); i++) {
+        if (partitioning[i] != myid) {
+            mesh->coarse_el = coarse_ind;
+            coarse_ind++;
+        }
+    }
+
+    // Refine "fine" elements par_ref_levels times to match parallel mesh
+    int non_conforming = 1;     // Bool to use nonconforming refinement on all elements
+        // + Could use automatic conforming refinement to avoid hanging nodes? Then
+        //   indexing for coarse-grid communication would be a lot harder though.
+        //   Also, composite grids would grow very quickly in 3d.
+    Array marked_elements;
+    for (int lev = 0; lev<par_ref_levels; lev++) {
+
+        marked_elements.SetSize(0);
+        current_sequence = mesh.GetSequence();
+        for (int el = 0; el < NE; el++)
+        {
+              marked_elements.Append(el);
+
+
+        mesh->GeneralRefinement(marked_elements, non_conforming);
+
+    }
 
     // Set h-dependent strength and filtering tolerance
     double h_min, h_max, k_min, k_max;
@@ -223,13 +258,12 @@ int main(int argc, char *argv[])
     HypreParVector B_s;
     delete bl_form;
     delete l_form;
-    delete pmesh;
 
     if (myid == 0) {
         std::cout << "Local n: " << A->GetNumRows() << "\nGlobal n = " << A->M() \
               << "\nNNZ = " << A->NNZ() << "\n";
     }
-    BlockInvScal(A, &A_s, B, &B_s, blocksize, 1);
+    BlockInverseScale(A, &A_s, B, &B_s, blocksize, 1);
 
     delete A;
     delete B;
@@ -291,6 +325,9 @@ int main(int argc, char *argv[])
         delete AMG_solver; 
     }
 
+    delete partitioning;
+    delete mesh;
+    delete pmesh;
     MPI_Finalize();
     return 0;
 }

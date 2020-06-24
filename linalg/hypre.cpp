@@ -4765,4 +4765,3 @@ HypreAME::StealEigenvectors()
 
 }
 
-#endif
