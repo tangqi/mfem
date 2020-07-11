@@ -38,7 +38,8 @@ protected:
 public:
 
    // ADDED : indexing for "coarse" and "fine" elements in mesh
-   int coarse_el;
+   int glob_coarse_el;
+   int loc_coarse_el;
    int fine_el;
 
    /// Constants for the classes derived from Element.
@@ -48,7 +49,7 @@ public:
 
    /// Default element constructor.
    explicit Element(Geometry::Type bg = Geometry::POINT)
-   { attribute = -1; base_geom = bg; coarse_el = -1; fine_el = -1;}
+   { attribute = -1; base_geom = bg; loc_coarse_ind = -1; glob_coarse_ind = -1; fine_el = -1;}
 
    /// Returns element's type
    virtual Type GetType() const = 0;

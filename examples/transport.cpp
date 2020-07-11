@@ -88,6 +88,9 @@ int main(int argc, char *argv[])
     int is_triangular    = 0;
     int gmres_switch     = -1;
 
+    // Mesh parameters
+    int num_coarse_els;
+
     AIR_parameters AIR = {15, "", "FA", 100, 6, 6, 0.1, 0.01, 0.0, 1e-4};
     const char* temp_prerelax = "";
     const char* temp_postrelax = "FFC";
@@ -155,74 +158,84 @@ int main(int argc, char *argv[])
     meshOrder = feOrder;
     blocksize = (feOrder+1)*(feOrder+1);
 
-    /* Set up a curved mesh and a finite element space */
+    // Set up serial coarse mesh
     const char *mesh_file = "../data/UnsQuad.0.mesh";
-    Mesh *mesh = new Mesh(mesh_file, 1, 1);
-    dim = mesh->Dimension();
+    Mesh *coarse_mesh = new Mesh(mesh_file, 1, 1);
+    dim = coarse_mesh->Dimension();
     for (int lev = 0; lev<ser_ref_levels; lev++) {
-        mesh->UniformRefinement();
+        coarse_mesh->UniformRefinement();
     }
-    if (mesh->NURBSext) {
-        mesh->SetCurvature(std::max(meshOrder, 1));
-    }
+    num_coarse_els = coarse_mesh->GetNE();
 
-    // Mesh &mesh = mesh_generator.getMesh();
-    DG_FECollection fec(feOrder, dim, basis_type);
-    FiniteElementSpace fes(mesh, &fec);
-
-    /* Define a parallel mesh by partitioning the serial mesh. */
-    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+    // Define a parallel mesh by partitioning the serial mesh.
+    // TODO ; might not need this eventually
+    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *coarse_mesh);
     for (int lev = 0; lev<par_ref_levels; lev++) {
         pmesh->UniformRefinement();
     }
-    ParFiniteElementSpace pfes(pmesh, &fec);
 
     // Get parallel element partitioning (this array has the processor
     // ID on which a given element is in the "home" domain).
+    Mesh *serial_mesh = new Mesh(*coarse_mesh);
+    std::vector<int> my_coarse_inds;
     int *partitioning;
-    partitioning = mesh->GeneratePartitioning(num_procs);
+    partitioning = coarse_mesh->GeneratePartitioning(num_procs);
 
-    // Mark elements stored on other processors as part of coarse-grid
+    // Mark elements stored on other processors as part of coarse-grid, save indices
     int coarse_ind = 0;
-    for (int i=0; i<mesh->GetNE(); i++) {
-        if (partitioning[i] != myid) {
-            mesh->coarse_el = coarse_ind;
+    for (int el=0; el<serial_mesh->GetNE(); el++) {
+        if (partitioning[el] != myid) {
+            serial_mesh->GetElement(el)->loc_coarse_el = coarse_ind;
+            serial_mesh->GetElement(el)->glob_coarse_el = el;
+            my_coarse_inds.push_back(el);
             coarse_ind++;
         }
     }
 
     // Refine "fine" elements par_ref_levels times to match parallel mesh
     int non_conforming = 1;     // Bool to use nonconforming refinement on all elements
-        // + Could use automatic conforming refinement to avoid hanging nodes? Then
-        //   indexing for coarse-grid communication would be a lot harder though.
-        //   Also, composite grids would grow very quickly in 3d.
     Array marked_elements;
     for (int lev = 0; lev<par_ref_levels; lev++) {
 
+        // Mark all fine elements (not indicated previously as coarse) for refinement
         marked_elements.SetSize(0);
-        current_sequence = mesh.GetSequence();
-        for (int el = 0; el < NE; el++)
-        {
-              marked_elements.Append(el);
+        for (int el = 0; el < serial_mesh->GetNE(); el++) {
+            if (serial_mesh->GetElement(i)->loc_coarse_el < 0) {            
+                marked_elements.Append(el);
+            }
+        }
 
-
-        mesh->GeneralRefinement(marked_elements, non_conforming);
-
+        // Apply non-conforming refinement on marked elements
+        serial_mesh->GeneralRefinement(marked_elements, non_conforming);
     }
 
-    // Set h-dependent strength and filtering tolerance
-    double h_min, h_max, k_min, k_max;
-    pmesh->GetCharacteristics(h_min, h_max, k_min, k_max);
-    // if (AIR.strength_tol < 0) {
-    //     AIR.strength_tol = -AIR.strength_tol * h_min;
-    //     if (myid == 0) std::cout << "Strength tolerance = " << AIR.strength_tol << std::endl;
-    // }
-    // if (AIR.filterA_tol < 0) {
-    //     AIR.filterA_tol = h_min;
-    //     if (myid == 0) std::cout << "Filtering tolerance = h = " << AIR.filterA_tol << std::endl;
-    // }
+    // Construct ghost domain around home domain
 
-    /* Define angle of flow, coefficients and integrators */
+        // -->  TODO (not necessary for initial implementation, probably later)
+
+    // Mark fine elements in serial mesh and construct mapping operators
+    // between parallel and serial spaces
+    int fine_el = 0;
+    std::vector<int> par_to_ser;
+    std::map<int, int> ser_to_par;
+    for (int el=0; el<serial_mesh->GetNE(); el++) {
+        if (serial_mesh->GetElement(el)->loc_coarse_el < 0) {
+            serial_mesh->GetElement(el)->fine_el = fine_el;
+            my_coarse_inds.push_back(el);
+            par_to_ser.push_back(el);
+            ser_to_par[el] = fine_el;
+            fine_el++;
+        }
+    }
+
+    // Define finite element spaces on parallel mesh, serial mesh, and original
+    // coarse serial mesh
+    DG_FECollection fec(feOrder, dim, basis_type);
+    FiniteElementSpace coarse_fes(coarse_mesh, &fec);
+    FiniteElementSpace serial_fes(serial_mesh, &fec);
+    ParFiniteElementSpace parallel_fes(pmesh, &fec);
+
+    // Define angle of flow, coefficients and integrators
     std::vector<double> omega0 {cos(theta), sin(theta)};
     Vector omega(&omega0[0],2);
 
@@ -233,7 +246,12 @@ int main(int argc, char *argv[])
     FunctionCoefficient sigma_t_coeff(sigma_t_function);
     VectorConstantCoefficient *direction = new VectorConstantCoefficient(omega); 
 
-    /* Set up the bilinear form for this angle */
+    // TODO : Construct bilinear form on serial mesh
+
+
+
+
+    // Construct parallel bilinear form on parallel mesh
     ParBilinearForm *bl_form = new ParBilinearForm(&pfes);
     bl_form -> AddDomainIntegrator(new MassIntegrator(sigma_t_coeff));
     bl_form -> AddDomainIntegrator(new TransposeIntegrator(
@@ -243,13 +261,13 @@ int main(int argc, char *argv[])
     bl_form -> Assemble();
     bl_form -> Finalize();
 
-    /* Form the right-hand side */
+    // Form the right-hand side
     ParLinearForm *l_form = new ParLinearForm(&pfes);
     l_form -> AddBdrFaceIntegrator(new BoundaryFlowIntegrator(inflow_coeff, *direction, -1.0, -0.5));
     l_form -> AddDomainIntegrator(new DomainLFIntegrator(Q_coeff));
     l_form -> Assemble();
 
-    /* Build sparse matrices and scale system by block-diagonal inverse */
+    // Build sparse matrices and scale system by block-diagonal inverse
     HypreParMatrix *A = bl_form -> ParallelAssemble();
     HypreParVector *B = l_form -> ParallelAssemble();
     Vector X(pfes.GetVSize());
@@ -268,7 +286,7 @@ int main(int argc, char *argv[])
     delete A;
     delete B;
 
-    /* Build Hypre solver and preconditioner; solve linear system */
+    // Build Hypre solver and preconditioner; solve linear system
     HypreBoomerAMG *AMG_solver = NULL;
     HypreGMRES *GMRES_solver = NULL;
     HypreTriSolve *preconditioner = NULL;
@@ -313,7 +331,7 @@ int main(int argc, char *argv[])
         GMRES_solver->iterative_mode = false;
     }
 
-    /* scale the rhs and solve system */
+    // scale the rhs and solve system
     if (use_gmres) {
         GMRES_solver->Mult(B_s, X);
         delete GMRES_solver;
