@@ -1643,6 +1643,19 @@ static void SmemPADiffusionApply3D(const int NE,
 }
 
 
+using team0 = RAJA::LoopPolicy<RAJA::loop_exec,
+                               RAJA::cuda_block_x_direct
+                               >;
+
+using thread1 = RAJA::LoopPolicy<RAJA::loop_exec,
+                                 RAJA::cuda_thread_y_direct>;
+
+using thread0 = RAJA::LoopPolicy<RAJA::loop_exec,
+                                 RAJA::cuda_thread_x_direct>;
+
+using thread01 = RAJA::LoopPolicy<RAJA::loop_exec,
+                                  RAJA::cuda_thread_xyz_direct<2>>;
+
 template<int T_D1D = 0, int T_Q1D = 0>
 void BP3Global_v0(const int NE,
                   const Array<double> &_b,
@@ -1667,8 +1680,27 @@ void BP3Global_v0(const int NE,
    auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
-   {
+   //Run time option
+   RAJA::ExecPlace select_cpu_or_gpu;
+   if(Device::Allows(Backend::CUDA_MASK))
+     {
+       select_cpu_or_gpu = RAJA::ExecPlace::DEVICE;
+     }else
+     {
+       select_cpu_or_gpu = RAJA::ExecPlace::HOST;
+     }
+
+   using launch_policy =
+     RAJA::LaunchPolicy<RAJA::seq_launch_t, RAJA::cuda_launch_t<true>>;
+
+   //MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+   //{
+   RAJA::launch<launch_policy>(select_cpu_or_gpu,
+     RAJA::Resources(RAJA::Teams(NE),RAJA::Threads(Q1D, Q1D)),
+      [=] RAJA_HOST_DEVICE (RAJA::LaunchContext ctx) {
+
+      RAJA::loop<team0>(ctx, RAJA::RangeSegment(0, NE), [&](int e) {
+
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
@@ -1680,14 +1712,19 @@ void BP3Global_v0(const int NE,
       MFEM_SHARED double s_Gqr[MQ1][MQ1];
       MFEM_SHARED double s_Gqs[MQ1][MQ1];
 
-      double MFEM_REGISTER_2D(r_qt,MQ1,MQ1);
-      double MFEM_REGISTER_2D(r_q,MQ1,MQ1)[MQ1];
-      double MFEM_REGISTER_2D(r_Aq,MQ1,MQ1)[MQ1];
+      RAJA::PrivateMemoryImpl<double, 1, MQ1, MQ1,1> r_qt;
+      RAJA::PrivateMemoryImpl<double, MQ1, MQ1, MQ1,1> r_q;
+      RAJA::PrivateMemoryImpl<double, MQ1, MQ1, MQ1,1> r_Aq;
 
-      MFEM_FOREACH_THREAD(j,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(i,x,Q1D)
-         {
+      //double MFEM_REGISTER_2D(r_qt,MQ1,MQ1);
+       //double MFEM_REGISTER_2D(r_q,MQ1,MQ1)[MQ1];
+       //double MFEM_REGISTER_2D(r_Aq,MQ1,MQ1)[MQ1];
+
+      //Bounds for all loops
+      RAJA::RangeSegment TBounds(0, Q1D);
+
+      RAJA::loop<thread1>(ctx, TBounds, [&](int j) {
+          RAJA::loop<thread0>(ctx, TBounds, [&](int i) {
             s_D[j][i] = g(i,j);
             if (i<D1D)
             {
@@ -1697,16 +1734,18 @@ void BP3Global_v0(const int NE,
             {
                for (int k = 0; k < D1D; k++)
                {
-                  MFEM_REGISTER_2D(r_q,j,i)[k] = x(i,j,k,e);
+                 //MFEM_REGISTER_2D(r_q,j,i)[k] = x(i,j,k,e);
+                 r_q(k,j,i) = x(i,j,k,e);
                }
             }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(b,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(a,x,Q1D)
-         {
+         });
+      });
+
+      //MFEM_SYNC_THREAD;
+      ctx.teamSync();
+
+      RAJA::loop<thread1>(ctx, TBounds, [&](int b) {
+          RAJA::loop<thread0>(ctx, TBounds, [&](int a) {
             if (a<D1D && b<D1D)
             {
                for (int k=0; k<Q1D; ++k)
@@ -1714,79 +1753,86 @@ void BP3Global_v0(const int NE,
                   double res = 0;
                   for (int c=0; c<D1D; ++c)
                   {
-                     res += s_I[k][c]*MFEM_REGISTER_2D(r_q,b,a)[c];
+                    //res += s_I[k][c]*MFEM_REGISTER_2D(r_q,b,a)[c];
+                    res += s_I[k][c]*r_q(c,b,a);
                   }
                   s_Iq[k][b][a] = res;
                }
             }
 
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(k,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(a,x,Q1D)
-         {
+         });
+      });
+
+      //MFEM_SYNC_THREAD;
+      ctx.teamSync();
+      RAJA::loop<thread1>(ctx, TBounds, [&](int k) {
+          RAJA::loop<thread0>(ctx, TBounds, [&](int a) {
             if (a<D1D)
             {
                for (int b=0; b<D1D; ++b)
                {
-                  MFEM_REGISTER_2D(r_Aq,k,a)[b] = s_Iq[k][b][a];
+                 //MFEM_REGISTER_2D(r_Aq,k,a)[b] = s_Iq[k][b][a];
+                  r_Aq(b,k,a) = s_Iq[k][b][a];
                }
                for (int j=0; j<Q1D; ++j)
                {
                   double res = 0;
                   for (int b=0; b<D1D; ++b)
                   {
-                     res += s_I[j][b]*MFEM_REGISTER_2D(r_Aq,k,a)[b];
+                    //res += s_I[j][b]*MFEM_REGISTER_2D(r_Aq,k,a)[b];
+                     res += s_I[j][b]*r_Aq(b,k,a);
                   }
                   s_Iq[k][j][a] = res;
                }
             }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(k,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(j,x,Q1D)
-         {
+       });
+      });
+      //MFEM_SYNC_THREAD;
+      ctx.teamSync();
+      RAJA::loop<thread1>(ctx, TBounds, [&](int k) {
+          RAJA::loop<thread0>(ctx, TBounds, [&](int j) {
             for (int a=0; a<D1D; ++a)
             {
-               MFEM_REGISTER_2D(r_Aq,k,j)[a] = s_Iq[k][j][a];
+              //MFEM_REGISTER_2D(r_Aq,k,j)[a] = s_Iq[k][j][a];
+                r_Aq(a,k,j) = s_Iq[k][j][a];
             }
             for (int i=0; i<Q1D; ++i)
             {
                double res = 0;
                for (int a=0; a<D1D; ++a)
                {
-                  res += s_I[i][a]*MFEM_REGISTER_2D(r_Aq,k,j)[a];
+                 //res += s_I[i][a]*MFEM_REGISTER_2D(r_Aq,k,j)[a];
+                 res += s_I[i][a]*r_Aq(a,k,j);
                }
                s_Iq[k][j][i] = res;
             }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(j,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(i,x,Q1D)
-         {
+         });
+      });
+
+      //MFEM_SYNC_THREAD;
+      ctx.teamSync();
+      RAJA::loop<thread1>(ctx, TBounds, [&](int j) {
+          RAJA::loop<thread0>(ctx, TBounds, [&](int i) {
             for (int k = 0; k < Q1D; k++)
             {
-               MFEM_REGISTER_2D(r_Aq,j,i)[k] = 0.0;
+              //MFEM_REGISTER_2D(r_Aq,j,i)[k] = 0.0;
+              r_Aq(k,j,i) = 0.0;
             }
-         }
-      }
-      MFEM_SYNC_THREAD;
+         });
+      });
+
+      //MFEM_SYNC_THREAD;
+      ctx.teamSync();
+
       MFEM_UNROLL(Q1D);
       for (int k = 0; k < Q1D; k++)
       {
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(j,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(i,x,Q1D)
-            {
-               double qr = 0.0, qs = 0.0;
-               MFEM_REGISTER_2D(r_qt,j,i) = 0.0;
+        ctx.teamSync();
+       RAJA::loop<thread1>(ctx, TBounds, [&](int j) {
+          RAJA::loop<thread0>(ctx, TBounds, [&](int i) {
+                double qr = 0.0, qs = 0.0;
+                //MFEM_REGISTER_2D(r_qt,j,i) = 0.0;
+               r_qt(0, j, i) = 0.0;
                MFEM_UNROLL(Q1D);
                for (int m = 0; m < Q1D; m++)
                {
@@ -1795,9 +1841,11 @@ void BP3Global_v0(const int NE,
                   double Dkm = s_D[k][m];
                   qr += Dim*s_Iq[k][j][m];
                   qs += Djm*s_Iq[k][m][i];
-                  MFEM_REGISTER_2D(r_qt,j,i) += Dkm*s_Iq[m][j][i];
+                  //MFEM_REGISTER_2D(r_qt,j,i) += Dkm*s_Iq[m][j][i];
+                  r_qt(0,j,i) += Dkm*s_Iq[m][j][i];
                }
-               const double qt = MFEM_REGISTER_2D(r_qt,j,i);
+               //const double qt = MFEM_REGISTER_2D(r_qt,j,i);
+               const double qt = r_qt(0,j,i);
                const int q = i + ((j*Q1D) + (k*Q1D*Q1D));
                const double G00 = d(q,0,e);
                const double G01 = d(q,1,e);
@@ -1807,14 +1855,15 @@ void BP3Global_v0(const int NE,
                const double G22 = d(q,5,e);
                s_Gqr[j][i] = (G00*qr + G01*qs + G02*qt);
                s_Gqs[j][i] = (G01*qr + G11*qs + G12*qt);
-               MFEM_REGISTER_2D(r_qt,j,i) = G02*qr + G12*qs + G22*qt;
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(j,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(i,x,Q1D)
-            {
+               //MFEM_REGISTER_2D(r_qt,j,i) = G02*qr + G12*qs + G22*qt;
+               r_qt(0,j,i) = G02*qr + G12*qs + G22*qt;
+            });
+         });
+
+         //MFEM_SYNC_THREAD;
+        ctx.teamSync();
+        RAJA::loop<thread1>(ctx, TBounds, [&](int j) {
+            RAJA::loop<thread0>(ctx, TBounds, [&](int i) {
                double Aqtmp = 0;
                MFEM_UNROLL(Q1D);
                for (int m = 0; m < Q1D; m++)
@@ -1824,80 +1873,84 @@ void BP3Global_v0(const int NE,
                   double Dkm = s_D[k][m];
                   Aqtmp += Dmi*s_Gqr[j][m];
                   Aqtmp += Dmj*s_Gqs[m][i];
-                  MFEM_REGISTER_2D(r_Aq,j,i)[m] += Dkm*MFEM_REGISTER_2D(r_qt,j,i);
+                  //MFEM_REGISTER_2D(r_Aq,j,i)[m] += Dkm*MFEM_REGISTER_2D(r_qt,j,i);
+                  r_Aq(m,j,i) += Dkm*r_qt(0,j,i);
                }
-               MFEM_REGISTER_2D(r_Aq,j,i)[k] += Aqtmp;
-            }
-         }
-         MFEM_SYNC_THREAD;
+               //MFEM_REGISTER_2D(r_Aq,j,i)[k] += Aqtmp;
+               r_Aq(k,j,i) += Aqtmp;
+              });
+          });
+        //MFEM_SYNC_THREAD;
+        ctx.teamSync();
       }
-      MFEM_FOREACH_THREAD(j,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(i,x,Q1D)
-         {
+
+        RAJA::loop<thread1>(ctx, TBounds, [&](int j) {
+            RAJA::loop<thread0>(ctx, TBounds, [&](int i) {
             for (int c=0; c<D1D; ++c)
             {
                double res = 0;
                for (int k=0; k<Q1D; ++k)
                {
-                  res += s_I[k][c]*MFEM_REGISTER_2D(r_Aq,j,i)[k];
+                 ///res += s_I[k][c]*MFEM_REGISTER_2D(r_Aq,j,i)[k];
+                 res += s_I[k][c]*r_Aq(k,j,i);
                }
                s_Iq[c][j][i] = res;
             }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(c,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(i,x,Q1D)
-         {
+         });
+      });
+        //MFEM_SYNC_THREAD;
+     ctx.teamSync();
+      RAJA::loop<thread1>(ctx, TBounds, [&](int c) {
+        RAJA::loop<thread0>(ctx, TBounds, [&](int i) {
             if (c<D1D)
             {
                for (int j=0; j<Q1D; ++j)
                {
-                  MFEM_REGISTER_2D(r_Aq,c,i)[j] = s_Iq[c][j][i];
+                 //MFEM_REGISTER_2D(r_Aq,c,i)[j] = s_Iq[c][j][i];
+                 r_Aq(j,c,i) = s_Iq[c][j][i];
                }
                for (int b=0; b<D1D; ++b)
                {
                   double res = 0;
                   for (int j=0; j<Q1D; ++j)
                   {
-                     res += s_I[j][b]*MFEM_REGISTER_2D(r_Aq,c,i)[j];
+                    //res += s_I[j][b]*MFEM_REGISTER_2D(r_Aq,c,i)[j];
+                     res += s_I[j][b]*r_Aq(j,c,i);
                   }
                   s_Iq[c][b][i] = res;
                }
             }
 
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(c,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(b,x,Q1D)
-         {
+          });
+        });
+      //MFEM_SYNC_THREAD;
+      ctx.teamSync();
+      RAJA::loop<thread1>(ctx, TBounds, [&](int c) {
+          RAJA::loop<thread0>(ctx, TBounds, [&](int b) {
             if (b<D1D && c<D1D)
             {
                for (int i=0; i<Q1D; ++i)
                {
-                  MFEM_REGISTER_2D(r_Aq,c,b)[i] = s_Iq[c][b][i];
+                 //MFEM_REGISTER_2D(r_Aq,c,b)[i] = s_Iq[c][b][i];
+                 r_Aq(i,c,b) = s_Iq[c][b][i];
                }
                for (int a=0; a<D1D; ++a)
                {
                   double res = 0;
                   for (int i=0; i<Q1D; ++i)
                   {
-                     res += s_I[i][a]*MFEM_REGISTER_2D(r_Aq,c,b)[i];
+                    //res += s_I[i][a]*MFEM_REGISTER_2D(r_Aq,c,b)[i];
+                    res += s_I[i][a]*r_Aq(i,c,b);
                   }
                   s_Iq[c][b][a] = res;
                }
             }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(j,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(i,x,Q1D)
-         {
+            });
+        });
+      //MFEM_SYNC_THREAD;
+      ctx.teamSync();
+      RAJA::loop<thread1>(ctx, TBounds, [&](int j) {
+          RAJA::loop<thread0>(ctx, TBounds, [&](int i) {
             if (i<D1D && j<D1D)
             {
                MFEM_UNROLL(D1D);
@@ -1906,8 +1959,11 @@ void BP3Global_v0(const int NE,
                   y(i,j,k,e) = s_Iq[k][j][i];
                }
             }
-         }
-      }
+         });
+     });
+
+        });//element loop
+
    });
 }
 
@@ -2069,7 +2125,7 @@ static void PADiffusionApply(const int dim,
    {
       const int DQ = (D1D << 4 ) | Q1D;
       //printf("\n\033[33m[Diff] D1D= %d, Q1D= %d => %x\033[m", D1D, Q1D, DQ);
-      static bool BP3Global = getenv("LBP");
+      static bool BP3Global = true; //getenv("LBP");
       if (BP3Global)
       {
          Array<double> coG(Q1D*Q1D);
@@ -2094,7 +2150,8 @@ static void PADiffusionApply(const int dim,
             case 0x111: return BP3Global_v0<16,17>(NE,B,coG,D,X,Y); // 15
             // kernels below use too much shared memory
             //case 0x112: return BP3Global_v0<17,18>(NE,B,coG,D,X,Y);
-            default:   return BP3Global_v0(NE,B,coG,D,X,Y,D1D,Q1D);
+              //default:   return BP3Global_v0(NE,B,coG,D,X,Y,D1D,Q1D);
+         default: mfem_error("Order not supported \n");
          }
       }
       else
