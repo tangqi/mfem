@@ -753,6 +753,9 @@ public:
 
    virtual ~QuadratureSpace() { delete [] element_offsets; }
 
++   /// Return the order used by the global rules from #IntRules.
++   int GetOrder() const { return order; }
+
    /// Return the total number of quadrature points.
    int GetSize() const { return size; }
 

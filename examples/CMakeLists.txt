@@ -10,6 +10,7 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND ALL_EXE_SRCS
+  sidre.cpp
   ex1.cpp
   ex2.cpp
   ex3.cpp
