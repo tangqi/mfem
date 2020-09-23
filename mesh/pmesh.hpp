@@ -78,6 +78,8 @@ protected:
    // sface ids: all triangles first, then all quads
    Array<int> sface_lface;
 
+   IsoparametricTransformation FaceNbrTransformation;
+
    // glob_elem_offset + local element number defines a global element numbering
    mutable long glob_elem_offset, glob_offset_sequence;
    void ComputeGlobalElementOffset() const;
@@ -104,15 +106,12 @@ protected:
    bool DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
                              const Array<unsigned> &codes, int &pos);
 
-   ElementTransformation* GetGhostFaceTransformation(
+   void GetFaceNbrElementTransformation(
+      int i, IsoparametricTransformation *ElTr);
+
+   void GetGhostFaceTransformation(
       FaceElementTransformations* FETr, Element::Type face_type,
       Geometry::Type face_geom);
-
-   // ADDED //
-   ElementTransformation* GetGhostFaceTransformation(FaceElementTransformations* FETr, 
-                                   IsoparametricTransformation &FaceTransformation,
-                                   Element::Type face_type, Geometry::Type face_geom);
-   // ADDED //
 
    /// Update the groups after triangle refinement
    void RefineGroups(const DSTable &v_to_v, int *middle);
@@ -259,11 +258,11 @@ public:
    Table            send_face_nbr_vertices;
 
    // ADDED //
-   Array<int> shared_face_to_global_face;
-   Array<int> shared_face_to_MPI_rank;
+   // Array<int> shared_face_to_global_face;
+   // Array<int> shared_face_to_MPI_rank;
    Array<int> vert_local_to_global;
-   int elem_local_to_global;
-   Table group_sface; // in 3D, union of group_stria and group_squad
+   // int elem_local_to_global;
+   // Table group_sface; // in 3D, union of group_stria and group_squad
    // ADDED //
 
    ParNCMesh* pncmesh;
@@ -298,8 +297,8 @@ public:
    // ADDED //
 
    // ADDED (Moved from protected) //
-   void GetFaceNbrElementTransformation(
-      int i, IsoparametricTransformation *ElTr);
+   // void GetFaceNbrElementTransformation(
+      // int i, IsoparametricTransformation *ElTr);
    // ADDED //
 
    ///@{ @name These methods require group > 0
@@ -338,13 +337,13 @@ public:
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
-   // ADDED //
-   FaceElementTransformations * GetSharedFaceTransformations(int sf, 
-                                     FaceElementTransformations &FaceElemTr,
-                                     IsoparametricTransformation &Transformation, 
-                                     IsoparametricTransformation &Transformation2,
-                                     IsoparametricTransformation &FTr);
-   // ADDED //
+   ElementTransformation *
+   GetFaceNbrElementTransformation(int i)
+   {
+      GetFaceNbrElementTransformation(i, &FaceNbrTransformation);
+
+      return &FaceNbrTransformation;
+   }
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
