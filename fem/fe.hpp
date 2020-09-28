@@ -3259,12 +3259,12 @@ public:
 class DistanceMetric
 {
 protected:
-   int dim;
+   int Dim;
 public:
-   DistanceMetric(int D) { dim = D; }
+   DistanceMetric(int D) { Dim = D; }
    virtual ~DistanceMetric() { }
 
-   virtual void SetDim(int D) { dim = D; }
+   virtual void SetDim(int D) { Dim = D; }
    
    virtual void Distance(const Vector &x,
                          double &r) const = 0;
@@ -3273,7 +3273,7 @@ public:
    virtual void DDDistance(const Vector &x,
                            DenseMatrix &ddr) const = 0;
    
-   static DistanceMetric *GetDistance(int dim, int pnorm);
+   static DistanceMetric *GetDistance(int Dim, int pnorm);
 };
 
 class L1Distance : public DistanceMetric
