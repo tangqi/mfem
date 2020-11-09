@@ -918,6 +918,7 @@ static void PAMassApply3D(const int NE,
    });
 }
 
+#if 0
 template<int T_D1D = 0, int T_Q1D = 0>
 static void RAJA_FORALLPAMassApply3D(const int NE,
                           const Array<double> &b_,
@@ -1060,6 +1061,7 @@ static void RAJA_FORALLPAMassApply3D(const int NE,
       }
    });
 }
+#endif
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPAMassApply3D(const int NE,
@@ -1312,12 +1314,12 @@ static void RAJATeamsPAMassApply3D(const int NE,
    //MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
    using namespace RAJA::expt;
    using RAJA::RangeSegment;
-   launch<cuda_launch_policy>
+   launch<hip_launch_policy>
    (DEVICE, Resources(Teams(NE), Threads(Q1D, Q1D, 1)),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
-     loop<cuda_teams_x>(ctx, RangeSegment(0, NE), [&] (int e) {
+     loop<hip_teams_x>(ctx, RangeSegment(0, NE), [&] (int e) {
 
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1337,10 +1339,10 @@ static void RAJATeamsPAMassApply3D(const int NE,
       double (*QDD)[MD1][MD1] = (double (*)[MD1][MD1]) sm1;
 
       //MFEM_FOREACH_THREAD(dy,y,D1D)
-      loop<cuda_threads_y>(ctx, RangeSegment(0, D1D), [&] (int dy)
+      loop<hip_threads_y>(ctx, RangeSegment(0, D1D), [&] (int dy)
       {
         //MFEM_FOREACH_THREAD(dx,x,D1D)
-        loop<cuda_threads_x>(ctx, RangeSegment(0, D1D), [&] (int dx)
+        loop<hip_threads_x>(ctx, RangeSegment(0, D1D), [&] (int dx)
          {
             MFEM_UNROLL(MD1)
             for (int dz = 0; dz < D1D; ++dz)
@@ -1349,7 +1351,7 @@ static void RAJATeamsPAMassApply3D(const int NE,
             }
          });
         //MFEM_FOREACH_THREAD(dx,x,Q1D)
-        loop<cuda_threads_x>(ctx, RangeSegment(0, Q1D), [&] (int dx)
+        loop<hip_threads_x>(ctx, RangeSegment(0, Q1D), [&] (int dx)
          {
             B[dx][dy] = b(dx,dy);
          });
@@ -1360,10 +1362,10 @@ static void RAJATeamsPAMassApply3D(const int NE,
       //MFEM_SYNC_THREAD;
 
       //MFEM_FOREACH_THREAD(dy,y,D1D)
-      loop<cuda_threads_y>(ctx, RangeSegment(0, D1D), [&] (int dy)
+      loop<hip_threads_y>(ctx, RangeSegment(0, D1D), [&] (int dy)
       {
         //MFEM_FOREACH_THREAD(qx,x,Q1D)
-        loop<cuda_threads_x>(ctx, RangeSegment(0, Q1D), [&] (int qx)
+        loop<hip_threads_x>(ctx, RangeSegment(0, Q1D), [&] (int qx)
          {
             double u[D1D];
             MFEM_UNROLL(MD1)
@@ -1392,10 +1394,10 @@ static void RAJATeamsPAMassApply3D(const int NE,
       ctx.teamSync();
 
       //MFEM_FOREACH_THREAD(qy,y,Q1D)
-      loop<cuda_threads_y>(ctx, RangeSegment(0, Q1D), [&] (int qy)
+      loop<hip_threads_y>(ctx, RangeSegment(0, Q1D), [&] (int qy)
       {
         //MFEM_FOREACH_THREAD(qx,x,Q1D)
-        loop<cuda_threads_x>(ctx, RangeSegment(0, Q1D), [&] (int qx)
+        loop<hip_threads_x>(ctx, RangeSegment(0, Q1D), [&] (int qx)
          {
             double u[D1D];
             MFEM_UNROLL(MD1)
@@ -1424,10 +1426,10 @@ static void RAJATeamsPAMassApply3D(const int NE,
       ctx.teamSync();
 
       //MFEM_FOREACH_THREAD(qy,y,Q1D)
-      loop<cuda_threads_y>(ctx, RangeSegment(0, Q1D), [&] (int qy)
+      loop<hip_threads_y>(ctx, RangeSegment(0, Q1D), [&] (int qy)
       {
         //MFEM_FOREACH_THREAD(qx,x,Q1D)
-        loop<cuda_threads_x>(ctx, RangeSegment(0, Q1D), [&] (int qx)
+        loop<hip_threads_x>(ctx, RangeSegment(0, Q1D), [&] (int qx)
          {
             double u[Q1D];
             MFEM_UNROLL(MQ1)
@@ -1456,10 +1458,10 @@ static void RAJATeamsPAMassApply3D(const int NE,
       //MFEM_SYNC_THREAD;
 
       //MFEM_FOREACH_THREAD(d,y,D1D)
-      loop<cuda_threads_y>(ctx, RangeSegment(0, D1D), [&] (int d)
+      loop<hip_threads_y>(ctx, RangeSegment(0, D1D), [&] (int d)
       {
         //MFEM_FOREACH_THREAD(q,x,Q1D)
-        loop<cuda_threads_x>(ctx, RangeSegment(0, Q1D), [&] (int q)
+        loop<hip_threads_x>(ctx, RangeSegment(0, Q1D), [&] (int q)
          {
             Bt[d][q] = b(q,d);
          });
@@ -1469,10 +1471,10 @@ static void RAJATeamsPAMassApply3D(const int NE,
       //MFEM_SYNC_THREAD;
 
         //MFEM_FOREACH_THREAD(qy,y,Q1D)
-      loop<cuda_threads_y>(ctx, RangeSegment(0, Q1D), [&] (int qy)
+      loop<hip_threads_y>(ctx, RangeSegment(0, Q1D), [&] (int qy)
       {
         //MFEM_FOREACH_THREAD(dx,x,D1D)
-        loop<cuda_threads_x>(ctx, RangeSegment(0, D1D), [&] (int dx)
+        loop<hip_threads_x>(ctx, RangeSegment(0, D1D), [&] (int dx)
          {
             double u[Q1D];
             MFEM_UNROLL(MQ1)
@@ -1501,10 +1503,10 @@ static void RAJATeamsPAMassApply3D(const int NE,
       //MFEM_SYNC_THREAD;
 
       //MFEM_FOREACH_THREAD(dy,y,D1D)
-      loop<cuda_threads_y>(ctx, RangeSegment(0, D1D), [&] (int dy)
+      loop<hip_threads_y>(ctx, RangeSegment(0, D1D), [&] (int dy)
       {
         //MFEM_FOREACH_THREAD(dx,x,D1D)
-        loop<cuda_threads_x>(ctx, RangeSegment(0, D1D), [&] (int dx)
+        loop<hip_threads_x>(ctx, RangeSegment(0, D1D), [&] (int dx)
          {
             double u[Q1D];
             MFEM_UNROLL(MQ1)
@@ -1532,10 +1534,10 @@ static void RAJATeamsPAMassApply3D(const int NE,
       ctx.teamSync();
       //MFEM_SYNC_THREAD;
      //MFEM_FOREACH_THREAD(dy,y,D1D)
-      loop<cuda_threads_y>(ctx, RangeSegment(0, D1D), [&] (int dy)
+      loop<hip_threads_y>(ctx, RangeSegment(0, D1D), [&] (int dy)
       {
         //MFEM_FOREACH_THREAD(dx,x,D1D)
-        loop<cuda_threads_x>(ctx, RangeSegment(0, D1D), [&] (int dx)
+        loop<hip_threads_x>(ctx, RangeSegment(0, D1D), [&] (int dx)
          {
             double u[D1D];
             MFEM_UNROLL(MD1)
@@ -1586,7 +1588,7 @@ static void RAJAPAMassApply3D(const int NE,
    auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   RAJA::forall<RAJA::cuda_exec<MFEM_CUDA_BLOCKS>> (RAJA::RangeSegment(0, NE),
+   RAJA::forall<RAJA::hip_exec<MFEM_CUDA_BLOCKS>> (RAJA::RangeSegment(0, NE),
    [=] RAJA_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1843,7 +1845,7 @@ static void PAMassApply(const int dim,
    else if (dim == 3)
    {
 
-     if(Device::Allows(Backend::RAJA_CUDA))
+     if(Device::Allows(Backend::RAJA_HIP))
      {
        switch (id)
        {

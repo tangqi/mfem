@@ -107,6 +107,10 @@ using hip_teams_x =
    RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_block_x_direct>;
 using hip_threads_z =
    RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_thread_z_direct>;
+using hip_threads_x =
+   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_thread_x_loop>;
+using hip_threads_y =
+   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_thread_y_loop>;
 #endif
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
