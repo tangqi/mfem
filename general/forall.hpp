@@ -23,8 +23,8 @@ namespace mfem
 {
 
 // Maximum size of dofs and quads in 1D.
-const int MAX_D1D = 14;
-const int MAX_Q1D = 14;
+const int MAX_D1D = 10;
+const int MAX_Q1D = 10;
 
 // MFEM pragma macros that can be used inside MFEM_FORALL macros.
 #define MFEM_PRAGMA(X) _Pragma(#X)
@@ -94,6 +94,10 @@ using cuda_teams_x =
    RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::cuda_block_x_direct>;
 using cuda_threads_z =
    RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::cuda_thread_z_direct>;
+using cuda_threads_x =
+   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::cuda_thread_x_loop>;
+using cuda_threads_y =
+   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::cuda_thread_y_loop>;
 #endif
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
