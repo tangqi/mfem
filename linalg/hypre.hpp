@@ -830,8 +830,11 @@ public:
        2) enable residual-based stopping criteria. */
    void SetResidualConvergenceOptions(int res_frequency=-1, double rtol=0.0);
 
+   /// deprecated: use SetZeroInitialIterate()
+   MFEM_DEPRECATED void SetZeroInintialIterate() { iterative_mode = false; }
+
    /// non-hypre setting
-   void SetZeroInintialIterate() { iterative_mode = false; }
+   void SetZeroInitialIterate() { iterative_mode = false; }
 
    // Old MFEM implementation, left to avoid errors.
    void GetNumIterations(int &num_iterations)
@@ -899,8 +902,11 @@ public:
    /// Set the hypre solver to be used as a preconditioner
    void SetPreconditioner(HypreSolver &precond);
 
+   /// deprecated: use SetZeroInitialIterate()
+   MFEM_DEPRECATED void SetZeroInintialIterate() { iterative_mode = false; }
+
    /// non-hypre setting
-   void SetZeroInintialIterate() { iterative_mode = false; }
+   void SetZeroInitialIterate() { iterative_mode = false; }
 
    /// The typecast to HYPRE_Solver returns the internal gmres_solver
    virtual operator HYPRE_Solver() const  { return gmres_solver; }
