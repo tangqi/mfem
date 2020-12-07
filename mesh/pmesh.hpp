@@ -294,13 +294,6 @@ public:
        }
    }
 
-   // ADDED //
-
-   // ADDED (Moved from protected) //
-   // void GetFaceNbrElementTransformation(
-      // int i, IsoparametricTransformation *ElTr);
-   // ADDED //
-
    ///@{ @name These methods require group > 0
    int GroupNVertices(int group) { return group_svert.RowSize(group-1); }
    int GroupNEdges(int group)    { return group_sedge.RowSize(group-1); }
@@ -336,6 +329,10 @@ public:
        elements, respectively. */
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
+
+   // --- added --- 
+   FaceElementTransformations* GetSharedFaceTransformations(FaceElementTransformationsData &fetd, int sf, bool fill2 = true); 
+   // --- added --- 
 
    ElementTransformation *
    GetFaceNbrElementTransformation(int i)
