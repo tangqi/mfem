@@ -2140,7 +2140,7 @@ protected:
 
 private:
 #ifndef MFEM_THREAD_SAFE
-   DenseMatrix dshape, adjJ, Q_ir;
+   DenseMatrix dshape, adjJ, Q_ir, pelmat;
    Vector shape, vec2, BdFidxT;
 #endif
 
