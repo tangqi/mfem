@@ -1087,7 +1087,7 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
    if (ir == NULL)
    {
       int order = Trans.OrderGrad(&el) + Trans.Order() + el.GetOrder();
-      ir = &ConvectionIntegrator::GetRule(el.GetGeomType(), order);
+      ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
    Q->Eval(Q_ir, Trans, *ir);
