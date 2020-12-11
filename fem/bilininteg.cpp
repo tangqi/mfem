@@ -1105,7 +1105,7 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
       CalcAdjugate(Trans.Jacobian(), adjJ);
       Q_ir.GetColumnReference(i, vec1);
       vec1 *= alpha * ip.weight;
-      vec1.print()
+      vec1.Print();
 
       adjJ.Mult(vec1, vec2);
       dshape.Mult(vec2, BdFidxT);
