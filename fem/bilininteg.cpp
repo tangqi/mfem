@@ -1105,6 +1105,7 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
       CalcAdjugate(Trans.Jacobian(), adjJ);
       Q_ir.GetColumnReference(i, vec1);
       vec1 *= alpha * ip.weight;
+      vec1.print()
 
       adjJ.Mult(vec1, vec2);
       dshape.Mult(vec2, BdFidxT);
@@ -1119,7 +1120,7 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
          for (int l = 0; l <nd; l++)
          {
             elmat(nd*d+k, nd*d+l) = pelmat(k, l);
-            cout << elmat(nd*d+k, nd*d+l) << endl;
+            //cout << elmat(nd*d+k, nd*d+l) << endl;
          }
       }
    }
