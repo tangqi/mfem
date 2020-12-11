@@ -2127,6 +2127,31 @@ public:
                                       DenseMatrix &);
 };
 
+class VectorConvectionIntegrator : public BilinearFormIntegrator
+{
+protected:
+   VectorCoefficient *Q;
+   double alpha;
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
+
+private:
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix dshape, adjJ, Q_ir;
+   Vector shape, vec2, BdFidxT;
+#endif
+
+public:
+   VectorConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
+      : Q(&q) { alpha = a; }
+   virtual void AssembleElementMatrix(const FiniteElement &,
+                                      ElementTransformation &,
+                                      DenseMatrix &);
+};
+
 /** Class for integrating the bilinear form a(u,v) := (Q u, v),
     where u=(u1,...,un) and v=(v1,...,vn); ui and vi are defined
     by scalar FE through standard transformation. */
