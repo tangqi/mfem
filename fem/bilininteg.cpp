@@ -1065,6 +1065,65 @@ void ConvectionIntegrator::AssembleElementMatrix(
    }
 }
 
+void VectorConvectionIntegrator::AssembleElementMatrix(
+   const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   int nd = el.GetDof();
+   int dim = el.GetDim();
+   const int sdim = Trans.GetSpaceDim();
+
+
+   elmat.SetSize(nd * sdim);
+   dshape.SetSize(nd,dim);
+   adjJ.SetSize(dim);
+   shape.SetSize(nd);
+   vec2.SetSize(dim);
+   BdFidxT.SetSize(nd);
+   pelmat.SetSize(nd);
+
+   Vector vec1;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order = Trans.OrderGrad(&el) + Trans.Order() + el.GetOrder();
+      ir = &ConvectionIntegrator::GetRule(el.GetGeomType(), order);
+   }
+
+   Q->Eval(Q_ir, Trans, *ir);
+
+   elmat = 0.0;
+   pelmat = 0.0;
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      el.CalcDShape(ip, dshape);
+      el.CalcShape(ip, shape);
+
+      Trans.SetIntPoint(&ip);
+      CalcAdjugate(Trans.Jacobian(), adjJ);
+      Q_ir.GetColumnReference(i, vec1);
+      vec1 *= alpha * ip.weight;
+
+      adjJ.Mult(vec1, vec2);
+      dshape.Mult(vec2, BdFidxT);
+
+      AddMultVWt(shape, BdFidxT, elmat);
+   }
+
+   for (int d = 0; d < sdim; d++)
+   {
+      for (int k = 0; k < nd; k++)
+      {
+         for (int l = 0; l <nd; l++)
+         {
+            elmat(nd*d+k, nd*d+l) = pelmat(k, l);
+         }
+      }
+   }
+}
+
 
 void GroupConvectionIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
