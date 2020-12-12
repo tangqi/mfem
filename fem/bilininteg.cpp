@@ -1117,9 +1117,9 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
    {
       for (int k = 0; k < nd; k++)
       {
-         for (int l = 0; l <nd; l++)
+         for (int l = 0; l < nd; l++)
          {
-            elmat(nd*d+k, nd*d+l) = pelmat(k, l);
+            elmat(nd*d+k, nd*d+l) = 10000000*pelmat(k, l);
             //cout << elmat(nd*d+k, nd*d+l) << endl;
          }
       }
