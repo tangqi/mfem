@@ -1105,12 +1105,12 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
       CalcAdjugate(Trans.Jacobian(), adjJ);
       Q_ir.GetColumnReference(i, vec1);
       vec1 *= alpha * ip.weight;
-      vec1.Print();
+      //vec1.Print(); //this is outpuing non-zero!`
 
       adjJ.Mult(vec1, vec2);
       dshape.Mult(vec2, BdFidxT);
 
-      AddMultVWt(shape, BdFidxT, elmat);
+      AddMultVWt(shape, BdFidxT, pelmat);
    }
 
    for (int d = 0; d < sdim; d++)
