@@ -415,9 +415,10 @@ void BilinearForm::Assemble(int skip_zeros)
             dbfi[0]->AssembleElementMatrix(fe, *eltrans, elmat);
             for (int k = 1; k < dbfi.Size(); k++)
             {
-               std::cout << &dbfi[k] << std::endl;
                dbfi[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
+               std::cout << elmat(0,0) << std::endl;
                elmat += elemmat;
+               std::cout << elmat(0,0) << std::endl;
             }
             elmat_p = &elmat;
          }
