@@ -1044,7 +1044,6 @@ void ConvectionIntegrator::AssembleElementMatrix(
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
-   Q->Eval(Q_ir, Trans, *ir);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -1055,7 +1054,6 @@ void ConvectionIntegrator::AssembleElementMatrix(
 
       Trans.SetIntPoint(&ip);
       CalcAdjugate(Trans.Jacobian(), adjJ);
-      Q_ir.GetColumnReference(i, vec1);
       vec1 *= alpha * ip.weight;
 
       adjJ.Mult(vec1, vec2);
@@ -1105,7 +1103,6 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
       CalcAdjugate(Trans.Jacobian(), adjJ);
       Q_ir.GetColumnReference(i, vec1);
       vec1 *= alpha * ip.weight;
-      //vec1.Print(); //this is outpuing non-zero!`
 
       adjJ.Mult(vec1, vec2);
       dshape.Mult(vec2, BdFidxT);
@@ -1119,8 +1116,7 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
       {
          for (int l = 0; l < nd; l++)
          {
-            elmat(nd*d+k, nd*d+l) = 10000000*pelmat(k, l);
-            //cout << elmat(nd*d+k, nd*d+l) << endl;
+            elmat(nd*d+k, nd*d+l) = pelmat(k, l);
          }
       }
    }
