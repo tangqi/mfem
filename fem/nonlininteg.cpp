@@ -813,6 +813,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    }
 }
 
+const IntegrationRule&
 ConvectiveVectorConvectionNLFIntegrator::GetRule(const FiniteElement &fe,
                                        ElementTransformation &T)
 {
