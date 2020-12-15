@@ -341,7 +341,7 @@ public:
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 };
 
-class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
+class ConvectiveVectorConvectionNLFIntegrator : public NonlinearFormIntegrator
 {
 private:
    Coefficient *Q{};
