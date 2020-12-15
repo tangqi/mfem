@@ -341,6 +341,33 @@ public:
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 };
 
+class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
+{
+private:
+   Coefficient *Q{};
+   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
+   Vector shape;
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq;
+public:
+   ConvectiveVectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+
+   ConvectiveVectorConvectionNLFIntegrator() = default;
+
+   static const IntegrationRule &GetRule(const FiniteElement &fe,
+                                         ElementTransformation &T);
+
+
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &trans,
+                                    const Vector &elfun,
+                                    DenseMatrix &elmat);
+
+};
+
 }
 
 #endif
