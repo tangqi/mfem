@@ -813,7 +813,14 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    }
 }
 
-void TempVectorConvectionNLFIntegrator::AssembleElementGrad(
+ConvectiveVectorConvectionNLFIntegrator::GetRule(const FiniteElement &fe,
+                                       ElementTransformation &T)
+{
+   const int order = 2 * fe.GetOrder() + T.OrderGrad(&fe);
+   return IntRules.Get(fe.GetGeomType(), order);
+}
+
+void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
    const FiniteElement &el,
    ElementTransformation &trans,
    const Vector &elfun,
