@@ -825,7 +825,7 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
    const FiniteElement &el,
    ElementTransformation &trans,
    const Vector &elfun,
-   DenseMatrix &elmat,)
+   DenseMatrix &elmat)
 {
    int nd = el.GetDof();
    int dim = el.GetDim();
