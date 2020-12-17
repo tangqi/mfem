@@ -32,6 +32,7 @@ void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
    mfem_error ("NonlinearFormIntegrator::AddMultPA(...)\n"
                "   is not implemented for this class.");
+}
 
 void NonlinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr,
@@ -728,11 +729,11 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
       el.CalcPhysDShape(T, dshape);
       double w = ip.weight * T.Weight();
       if (Q) { w *= Q->Eval(T, ip); }
-      MultAtB(EF, dshape, gradEF); // grad u
-      EF.MultTranspose(shape, vec1); // u
-      gradEF.Mult(vec1, vec2); // (u \cdot \grad u
+      MultAtB(EF, dshape, gradEF);
+      EF.MultTranspose(shape, vec1);
+      gradEF.Mult(vec1, vec2);
       vec2 *= w;
-      AddMultVWt(shape, vec2, ELV); // (u \cdot \grad u,v)
+      AddMultVWt(shape, vec2, ELV);
    }
 }
 
