@@ -31,7 +31,407 @@ void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace &,
 void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
    mfem_error ("NonlinearFormIntegrator::AddMultPA(...)\n"
-               "   is not implemented for this class.");
+               "   is not implemented for this class.");// Description:  This example code solves the 2D steady incompressible Navier Stokes problem using a mixed finite
+//               element formulation corresponding to the saddle point system
+//                                 -Delta u + u \cdot \grad u + grad p = f
+//                                 div u      = 0
+
+//                Here we use the method of manufactured solutions to verify that our code is working.
+//                The exact solution for this example is given by the Taylor-Green vortex at time 0 in 2D:
+//
+//                u1(x,y) = cos(x)sin(y)
+//                u2(x,y) = -sin(x)cos(y)
+//                p(x,y) = -1/4 * (cos(2x) + cos(2y))
+//
+//                See https://en.wikipedia.org/wiki/Taylor%E2%80%93Green_vortex and the references therein
+//
+
+
+#include "mfem.hpp"
+#include <fstream>
+#include <iostream>
+#include <algorithm>
+
+using namespace std;
+using namespace mfem;
+
+// Define the analytical solution and forcing terms / boundary conditions
+void u_ex(const Vector & x, Vector & u);
+double p_ex(const Vector & x);
+void fFun(const Vector & x, Vector & f);
+void velocity_function(const Vector &x, Vector &v);
+
+int main(int argc, char *argv[])
+{
+
+    // Parse command-line options.
+    const char *mesh_file = "../data/square.msh";
+    int order = 2;
+    const char *device_config = "cpu";
+
+    OptionsParser args(argc, argv);
+    args.AddOption(&mesh_file, "-m", "--mesh",
+                   "Mesh file to use.");
+    args.AddOption(&order, "-o", "--order",
+                   "Finite element order (polynomial degree).");
+    args.AddOption(&device_config, "-d", "--device",
+                   "Device configuration string, see Device::Configure().");
+
+    args.Parse();
+    if (!args.Good())
+    {
+        //args.PrintUsage(cout);
+        return 1;
+    }
+    //args.PrintOptions(cout);
+    // Read in mesh from the given mesh file.
+    Mesh *mesh = new Mesh(mesh_file, 1, 1);
+    int dim = mesh->Dimension();
+    //mesh->UniformRefinement();
+
+
+
+    Device device(device_config);
+    //device.Print();
+
+    // Define a finite element space on the mesh. Here we use the
+    // Taylor Hood finite elements of the specified order.
+    FiniteElementCollection *quad_coll(new H1_FECollection(order, dim));
+    FiniteElementCollection *lin_coll(new H1_FECollection(order-1, dim));
+
+    FiniteElementSpace *Xh_space = new FiniteElementSpace(mesh, quad_coll, dim);
+    FiniteElementSpace *Ph_space = new FiniteElementSpace(mesh, lin_coll, dim - 1);
+
+
+    int Xh_size = Xh_space->GetTrueVSize();
+    int Ph_size = Ph_space->GetTrueVSize();
+
+
+    //    Define the BlockStructure of the problem, i.e. define the array of
+    //    offsets for each variable. The last component of the Array is the sum
+    //    of the dimensions of each block.
+    Array<int> block_offsets(3); // number of variables + 1
+    block_offsets[0] = 0;
+    block_offsets[1] = Xh_space->GetVSize();
+    block_offsets[2] = Ph_space->GetVSize();
+    block_offsets.PartialSum();
+
+    Array<int> ess_bdr(mesh->bdr_attributes.Max());
+    ess_bdr = 1;
+    Array<int> ess_dof;
+    Array<int> ess_tdof_list;
+    Xh_space->GetEssentialVDofs(ess_bdr, ess_dof); // returns 0 and -1's
+    Xh_space->GetEssentialTrueDofs(ess_bdr, ess_tdof_list); // returns actually location of DOFs
+
+
+    // std::cout << "***********************************************************\n";
+    // std::cout << "dim(Xh) = " << block_offsets[1] - block_offsets[0] << "\n";
+    // std::cout << "dim(Ph) = " << block_offsets[2] - block_offsets[1] << "\n";
+    // std::cout << "dim(Xh + Ph) = " << block_offsets.Last() << "\n";
+    // std::cout << "***********************************************************\n";
+
+
+    //Define the coefficients, analytical solution, and rhs of the PDE.
+    VectorFunctionCoefficient fcoeff(dim, fFun);
+    VectorFunctionCoefficient ucoeff(dim, u_ex);
+    FunctionCoefficient pcoeff(p_ex);
+
+    ///////////////////////////////////////////////
+    //Solve Stokes to generate an initial condition
+    ///////////////////////////////////////////////
+
+    //    Allocate memory (x, rhs) for the analytical solution and the right hand
+    //    side.  Define the GridFunction u,p for the finite element solution and
+    //    linear forms fform for the right hand side.
+
+    MemoryType mt = device.GetMemoryType();
+    // BlockVector x(block_offsets, mt), rhs(block_offsets, mt); //Initialize block vectors, all blocks default to 0.
+
+    // GridFunction x_bdr(Xh_space);
+    // x_bdr.MakeRef(Xh_space, x.GetBlock(0), 0); // Make x_bdr point to the velocity block
+    // x_bdr.ProjectCoefficient(ucoeff); //project the boundary condition
+
+
+    // //Construct the righthand side of the system
+    // LinearForm *fform(new LinearForm);
+    // fform->Update(Xh_space, rhs.GetBlock(0), 0);
+    // fform->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
+    // fform->Assemble();
+    // fform->SyncAliasMemory(rhs);
+
+    // //  Assemble the finite element matrices for the Stokes operator 
+    // BilinearForm *aVar(new BilinearForm(Xh_space));
+    // MixedBilinearForm *bVar(new MixedBilinearForm(Xh_space, Ph_space));
+    // BilinearForm *cVar(new BilinearForm(Ph_space));
+
+
+    // aVar->AddDomainIntegrator(new VectorDiffusionIntegrator());
+    // aVar->Assemble();
+    // aVar->EliminateEssentialBC(ess_bdr, x_bdr, rhs.GetBlock(0));
+    // aVar->Finalize();
+
+    // ConstantCoefficient k(-1.0);
+    // bVar->AddDomainIntegrator(new VectorDivergenceIntegrator(k));
+    // bVar->Assemble();
+    // bVar->EliminateTrialDofs(ess_bdr, x, rhs.GetBlock(1));
+    // bVar->Finalize();
+
+
+    // ConstantCoefficient pen(1e-16);
+    // cVar->AddDomainIntegrator(new MassIntegrator(pen));
+    // cVar->Assemble();
+    // cVar->Finalize();
+
+    // BlockMatrix stokesOp(block_offsets);
+
+
+
+    // SparseMatrix &A(aVar->SpMat());
+    // SparseMatrix &B(bVar->SpMat());
+    // SparseMatrix &C(cVar->SpMat()); 
+    // SparseMatrix *Bt = Transpose(B);
+
+    // stokesOp.SetBlock(0,0, &A);
+    // stokesOp.SetBlock(0,1, Bt);
+    // stokesOp.SetBlock(1,0, &B);
+    // stokesOp.SetBlock(1,1, &C);
+    // SparseMatrix *sparse_stokes = stokesOp.CreateMonolithic(); //Converts BlockMatrix to SparseMatrix. Note this approach will not work in parallel.
+
+    // //Zero out the last last row and column of the matrix and then sets the last entry in the matrix to 1 and the rhs to 0.
+    // //This is equivalent to setting the pressure at that point equal to 0.
+    // sparse_stokes->EliminateRowCol(block_offsets.Last()-1,0.0,rhs);
+
+    // //  Solve the linear system A X = B.
+    // UMFPackSolver umf_solver;
+    // umf_solver.SetOperator(*sparse_stokes);
+    // umf_solver.Mult(rhs, x);
+
+    // Recover the solutions into finite element grid functions.
+    
+    // u.MakeRef(Xh_space, x.GetBlock(0), 0);
+    // p.MakeRef(Ph_space, x.GetBlock(1), 0);
+
+    ///////////////////////////////////////////////
+    //Steady NSE solve
+    ///////////////////////////////////////////////
+    //Take the initial condtion to be the solution of the stokes problem
+
+   BlockVector x_NSE(block_offsets, mt), rhs_NSE(block_offsets, mt); //Initialize block vectors, all blocks default to 0
+   GridFunction u, p;
+   u.MakeRef(Xh_space, x_NSE.GetBlock(0), 0);
+   p.MakeRef(Ph_space, x_NSE.GetBlock(1), 0);
+
+
+    GridFunction x_bdr0(Xh_space); //Grid function for the NSE solve. Since the initial condition satisfies the BC, each iteration of Picard/Newton should be 0
+    //VectorFunctionCoefficient u0coeff(dim, u_0);
+    x_bdr0.MakeRef(Xh_space, x_NSE.GetBlock(0), 0); // Make x_bdr point to the velocity block
+
+    
+    //VectorFunctionCoefficient u_test(dim, u_ex);
+    
+    u *= 0.0;
+    p *= 0.0;
+    UMFPackSolver umf_solver_NSE;
+    BlockMatrix NSEOp(block_offsets);
+    ConstantCoefficient k_NSE(-1.0);
+    ConstantCoefficient pen_NSE(1e-16);
+    double err_u, err_p;
+    GridFunction u_test(Xh_space);
+    VectorFunctionCoefficient u0(dim, u_ex);
+    x_bdr0.ProjectCoefficient(u0); //project the boundary condition
+    //u_test.ProjectCoefficient(velocity_function);
+    //VectorFunctionCoefficient u_test1(dim,velocity_function);
+    //SparseMatrix *Non;
+
+
+    for(int ti = 0; ti < 1; ti++ )
+    {
+        rhs_NSE *= 0.0;
+
+
+        //Construct the righthand side of the system
+        LinearForm *fform_NSE(new LinearForm);
+        fform_NSE->Update(Xh_space, rhs_NSE.GetBlock(0), 0);
+        fform_NSE->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
+        fform_NSE->Assemble();
+        fform_NSE->SyncAliasMemory(rhs_NSE);
+
+        BilinearForm *aVar_NSE(new BilinearForm(Xh_space));
+        MixedBilinearForm *bVar_NSE(new MixedBilinearForm(Xh_space, Ph_space));
+        BilinearForm *cVar_NSE(new BilinearForm(Ph_space));
+
+        NonlinearForm *N_NSE(new NonlinearForm(Xh_space));
+        N_NSE->AddDomainIntegrator(new ConvectiveVectorConvectionNLFIntegrator());
+        
+
+
+
+
+        
+        SparseMatrix *Non = dynamic_cast<SparseMatrix*>(&N_NSE->GetGradient(u));
+        Non->PrintMatlab();
+        for (int i = 0; i < ess_tdof_list.Size(); i++)
+            {
+               Non->EliminateRowColDiag(ess_tdof_list[i], 0.0); //Should probably figure out how to do this with dpolicy call to be consistent with what is going on in getGradient approach
+            }
+       
+       
+        aVar_NSE->AddDomainIntegrator(new VectorDiffusionIntegrator()); //add diffusion term
+        aVar_NSE->Assemble();
+        aVar_NSE->EliminateEssentialBC(ess_bdr, x_bdr0, rhs_NSE.GetBlock(0));
+        aVar_NSE->Finalize();
+
+        bVar_NSE->AddDomainIntegrator(new VectorDivergenceIntegrator(k_NSE));
+        bVar_NSE->Assemble();
+        bVar_NSE->EliminateTrialDofs(ess_bdr, x_NSE, rhs_NSE.GetBlock(1));
+        bVar_NSE->Finalize();
+
+    
+        //Penalty block, ideally want to set single point for pressure to 0 and not use this.
+        cVar_NSE->AddDomainIntegrator(new MassIntegrator(pen_NSE));
+        cVar_NSE->Assemble();
+        cVar_NSE->Finalize();
+
+
+
+        SparseMatrix &A_NSE(aVar_NSE->SpMat());
+        SparseMatrix &B_NSE(bVar_NSE->SpMat());
+        SparseMatrix &C_NSE(cVar_NSE->SpMat()); 
+        SparseMatrix *Bt_NSE = Transpose(B_NSE);
+
+        //Non->PrintMatlab();
+        //A_NSE.Add(1.0,*Non);// += *Non;
+        //A_NSE += *Non;
+        //A_NSE.PrintMatlab();
+
+        NSEOp.SetBlock(0,0, &A_NSE);
+        NSEOp.SetBlock(0,1, Bt_NSE);
+        NSEOp.SetBlock(1,0, &B_NSE);
+        NSEOp.SetBlock(1,1, &C_NSE); 
+        SparseMatrix *sparse_NSE = NSEOp.CreateMonolithic(); //Converts BlockMatrix to SparseMatrix. Note this approach will not work in parallel.
+
+        //Zero out the last last row and column of the matrix and then sets the last entry in the matrix to 1 and the rhs to 0.
+        //This is equivalent to setting the pressure at that point equal to 0.
+        sparse_NSE->EliminateRowCol(block_offsets.Last()-1,0.0,rhs_NSE);
+
+
+        //  Solve the linear system A X = B.
+        umf_solver_NSE.SetOperator(*sparse_NSE);
+        umf_solver_NSE.Mult(rhs_NSE, x_NSE);
+
+        //Reference the new solution
+        u.MakeRef(Xh_space, x_NSE.GetBlock(0), 0);
+        p.MakeRef(Ph_space, x_NSE.GetBlock(1), 0);
+
+        //Calculate the L2 error
+        err_u  = u.ComputeL2Error(ucoeff);
+        err_p  = p.ComputeL2Error(pcoeff);
+
+        //std::cout << "|| u_h - u_ex ||  = " <<setprecision(10) << err_u  << "\n";
+        //std::cout << "|| p_h - p_ex ||  = " <<setprecision(10) << err_p  << "\n";
+
+
+        //std::cout << Non << std::endl;
+        //std::cout << N_NSE << std::endl;
+
+        //delete Non;
+        delete fform_NSE;
+        delete aVar_NSE;
+        delete bVar_NSE;
+        delete cVar_NSE; 
+        delete N_NSE;
+        delete Bt_NSE;
+        delete sparse_NSE;
+        
+        //std::cout << Non << std::endl;
+
+        
+    }
+    
+
+
+
+
+    // Recover the solutions into finite element grid functions.
+
+
+    //Plotting. This is pretty sloppy right now, fix later.
+    ParaViewDataCollection *pdu = NULL;
+    pdu = new ParaViewDataCollection("NSE_manufacture_velocity", mesh);
+    pdu->SetPrefixPath("ParaView");
+    pdu->RegisterField("velocity", &u);
+    pdu->SetLevelsOfDetail(order);
+    pdu->SetDataFormat(VTKFormat::BINARY);
+    pdu->SetHighOrderOutput(true);
+    pdu->Save();
+
+    ParaViewDataCollection *pdp = NULL;
+    pdp = new ParaViewDataCollection("NSE_manufacture_pressure", mesh);
+    pdp->SetPrefixPath("ParaView");
+    pdp->RegisterField("pressure", &p);
+    pdp->SetLevelsOfDetail(order);
+    pdp->SetDataFormat(VTKFormat::BINARY);
+    pdp->SetHighOrderOutput(true);
+    pdp->Save();
+
+
+    
+
+    // Free the used memory.
+    delete Xh_space;
+    delete Ph_space;
+    delete quad_coll;
+    delete lin_coll;
+    delete pdp;
+    delete pdu;
+    delete mesh;
+
+    return 0;
+}
+
+
+void u_ex(const Vector & x, Vector & u)
+{
+    double xi(x(0));
+    double yi(x(1));
+
+
+    u(0) = cos(xi)*sin(yi);
+    u(1) = -1*sin(xi)*cos(yi);
+
+
+}
+
+
+double p_ex(const Vector & x)
+{
+    double xi(x(0));
+    double yi(x(1));
+
+    return 0.0;
+    //return -1./4 * (cos(2*xi) + cos(2*yi));
+}
+
+void fFun(const Vector & x, Vector & f)
+{
+    double xi(x(0));
+    double yi(x(1));
+
+    f(0) = 2.0*sin(yi)*cos(xi);
+    f(1) = -2.0*sin(xi)*cos(yi);
+
+    //f(0) = (1.0*sin(xi) + 2.0*sin(yi))*cos(xi);
+    //f(1) = (-2.0*sin(xi) + 1.0*sin(yi))*cos(yi);
+
+}
+
+void velocity_function(const Vector &x, Vector &v)
+{
+
+   
+    v(0) = 1.0;
+    v(1) = 1.0;
+}
 }
 
 void NonlinearFormIntegrator::AssembleElementVector(
@@ -838,6 +1238,16 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
    gradEF.SetSize(dim);
 
    EF.UseExternalData(elfun.GetData(), nd, dim);
+
+   elfun.Print();
+
+   // for(int i = 0; i < nd; i++)
+   // {
+   //    for(int j = 0; j < dim; j++)
+   //    {
+
+   //    }
+   // }
 
    double w;
    Vector vec1(dim), vec2(dim), vec3(nd);
