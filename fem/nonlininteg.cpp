@@ -839,7 +839,7 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
 
    EF.UseExternalData(elfun.GetData(), nd, dim);
 
-   elfun.Print();
+   //elfun.Print();
 
    // for(int i = 0; i < nd; i++)
    // {
