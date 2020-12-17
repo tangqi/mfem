@@ -9,43 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "fem.hpp"
-#include "../general/forall.hpp"
-
-namespace mfem
-{
-
-void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
-{
-   mfem_error ("NonlinearFormIntegrator::AssemblePA(...)\n"
-               "   is not implemented for this class.");
-}
-
-void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace &,
-                                         const FiniteElementSpace &)
-{
-   mfem_error ("NonlinearFormIntegrator::AssemblePA(...)\n"
-               "   is not implemented for this class.");
-}
-
-void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
-{
-   mfem_error ("NonlinearFormIntegrator::AddMultPA(...)\n"
-               "   is not implemented for this class.");// Description:  This example code solves the 2D steady incompressible Navier Stokes problem using a mixed finite
-//               element formulation corresponding to the saddle point system
-//                                 -Delta u + u \cdot \grad u + grad p = f
-//                                 div u      = 0
-
-//                Here we use the method of manufactured solutions to verify that our code is working.
-//                The exact solution for this example is given by the Taylor-Green vortex at time 0 in 2D:
-//
-//                u1(x,y) = cos(x)sin(y)
-//                u2(x,y) = -sin(x)cos(y)
-//                p(x,y) = -1/4 * (cos(2x) + cos(2y))
-//
-//                See https://en.wikipedia.org/wiki/Taylor%E2%80%93Green_vortex and the references therein
-//
-
 
 #include "mfem.hpp"
 #include <fstream>
