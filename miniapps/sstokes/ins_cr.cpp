@@ -15,17 +15,18 @@ class INSOperator : public TimeDependentOperator
 {
 protected:
    FiniteElementSpace &cr, &l2;
-   Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c.
+   Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c. (need to be updated if we do Dirichelt)
 
-   BilinearForm *M;
-   BilinearForm *K;
+   BilinearForm *M, *K, *Dx, *Dy;
 
-   SparseMatrix Mmat, Kmat;
-   SparseMatrix *T; // T = M + dt K
+   SparseMatrix Mmat, Kmat, Dxmat, Dymat;
+   SparseMatrix *DxT, *DyT, *T, *S; // T = M + dt K
    double current_dt;
 
    MINRESSolver *solver;
    BlockDiagonalPreconditioner *prec;
+
+   DSmoother *Tinv;
 
    mutable Vector z; // auxiliary vector
 
@@ -50,8 +51,6 @@ int main(int argc, char *argv[])
    int ode_solver_type = 1;
    double t_final = 0.5;
    double dt = 1.0e-2;
-   double alpha = 1.0e-2;
-   double kappa = 0.5;
    bool visualization = true;
    bool visit = false;
    int vis_steps = 5;
@@ -65,16 +64,11 @@ int main(int argc, char *argv[])
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
-                  "\t   11 - Forward Euler, 12 - RK2, 13 - RK3 SSP, 14 - RK4.");
+                  "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3.\n");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
-   args.AddOption(&alpha, "-a", "--alpha",
-                  "Alpha coefficient.");
-   args.AddOption(&kappa, "-k", "--kappa",
-                  "Kappa coefficient offset.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -146,7 +140,7 @@ int main(int argc, char *argv[])
    std::cout << "***********************************************************\n";
    std::cout << "TrueVSize in CR = " << block_offsets[1] - block_offsets[0] << "\n";
    std::cout << "TrueVSize in L2 = " << block_offsets[3] - block_offsets[2] << "\n";
-   std::cout << "Total TrueVSize = " << block_offsets.Last() << "\n";
+   std::cout << "Total TrueVSize (2*CR+L2) = " << block_offsets.Last() << "\n";
    std::cout << "***********************************************************\n";
 
    GridFunction u_gf(&fespace);
@@ -231,12 +225,13 @@ int main(int argc, char *argv[])
 //this is where the operator M, K, Dx, Dy should be assembled
 INSOperator::INSOperator(FiniteElementSpace &cr_, FiniteElementSpace &l2_)
    : TimeDependentOperator(f.GetTrueVSize(), 0.0), cr(cr_), l2(l2_), 
-     M(NULL), K(NULL), T(NULL), current_dt(0.0), z(height)
+     M(NULL), K(NULL), T(NULL), DxT(NULL), DyT(NULL), Minv(NULL)
+     current_dt(0.0), z(height)
 {
    M = new BilinearForm(&cr);
    M->AddDomainIntegrator(new MassIntegrator());
    M->Assemble();
-   M->FormSystemMatrix(ess_tdof_list, Mmat);
+   M->FormSystemMatrix(ess_tdof_list, Mmat);    //ess_tdof_list is empty for now!!
 
    K = new BilinearForm(&cr);
    K->AddDomainIntegrator(new DiffusionIntegrator());
@@ -255,13 +250,13 @@ INSOperator::INSOperator(FiniteElementSpace &cr_, FiniteElementSpace &l2_)
    Dy->Assemble();
    Dy->FormSystemMatrix(ess_tdof_list, Dymat);
 
-   DxT = Dx->Transpose();
-   DyT = Dy->Transpose();
+   DxT = Transpose(Dxmat);
+   DyT = Transpose(Dymat);
 
     /*
     * the block operator should be 
-    * [ M+kK           DxT ]  
-    * [        M+kK    DyT ]
+    * [ M+dtK          DxT ]  
+    * [        M+dtK   DyT ]
     * [  Dx     Dy         ]
     * but M+kK needs to be updated on the fly 
     * (or maybe we can fix time step with backward Euler for now)
@@ -271,7 +266,7 @@ INSOperator::INSOperator(FiniteElementSpace &cr_, FiniteElementSpace &l2_)
    blockOp->SetBlock(1,2, DyT);
    blockOp->SetBlock(2,0, Dx);
    blockOp->SetBlock(2,1, Dy);
-   //blockOp (0,0) and (1,1) need to be updated on the fly
+   //blockOp (0,0) and (1,1) will be updated on the fly
    
    /*
     * the preconditioenr should be 
@@ -315,12 +310,31 @@ void INSOperator::ImplicitSolve(const double dt,
       blockOp->SetBlock(1,1, T);
       solver->SetOperator(blockOp); 
 
-      //follow ex5 to define prec
-      prec->SetBlock(0,0,...
+      Vector Td(M->Height());
+      T.GetDiag(Td);
+      Tinv = new DSmoother(T);
+
+      //need to work out the block preconditioner
+      //I believe the schur complement is  Dx Td^-1 DxT + Dy Td^-1 DyT
+      //But we need to double check
+      for (int i = 0; i < Td.Size(); i++)
+      {
+         DxT->ScaleRow(i, 1./Td(i));
+         DyT->ScaleRow(i, 1./Td(i));
+      }
+      SparseMatrix *Stmp;
+      S = Mult(Dx, *DxT);
+      Stmp = Mult(Dy, *DyT);
+      S += Stmp;
+      delete Stmp;
+      prec->SetBlock(0,0,Tinv);
+      prec->SetBlock(1,1,Tinv);
+      prec->SetBlock(2,2,S);
    }
    MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
 
-   // update RHS
+   // update RHS = [u, v]+[f, v] (both are vector and the third component is 0)
+   // use block vector
 
    // solve the system
    solver->Mult(z, du_dt);
@@ -331,6 +345,11 @@ INSOperator::~INSOperator()
    delete T;
    delete M;
    delete K;
+   delete Dx;
+   delete Dy;
+   delete DxT;
+   delete DyT;
+   delete Tinv;
 }
 
 
