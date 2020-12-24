@@ -21,11 +21,11 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SSTOKES_COMMON_SRC = stokes.cpp stokesp.cpp
+SSTOKES_COMMON_SRC = ins_th.cpp 
 SSTOKES_COMMON_OBJ = $(SSTOKES_COMMON_SRC:.cpp=.o)
 
-SER_MINIAPPS = stokes
-PAR_MINIAPPS = stokesp
+SER_MINIAPPS = 
+PAR_MINIAPPS = ins_th
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SER_MINIAPPS)
@@ -41,7 +41,7 @@ endif
 %: %.cpp
 %.o: %.cpp
 
-%: %.o $(NAVIER_COMMON_OBJ)
+%: %.o $(ins_COMMON_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
@@ -55,14 +55,8 @@ include $(MFEM_TEST_MK)
 
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 
-navier_mms-test-par: navier_mms
-	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr)
-
-navier_kovasznay-test-par: navier_kovasznay
-	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr)
-
-navier_tgv-test-par: navier_tgv
-	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr)
+ins_th-test-par: ins_th
+	@$(call mfem-test,$<, $(RUN_MPI), ins, -rs 2)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
