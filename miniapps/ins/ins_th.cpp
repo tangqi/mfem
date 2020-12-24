@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
    stokesop->SetBlock(1, 0, D.Ptr(), -1.);
 
    // The first diagonal block part of the preconditioner is approximately
-   // solved by a Vcycle of AMG.
+   // solved by a Vcycle of AMG. (no outer solver at all?)
    HypreSolver *invS = new HypreBoomerAMG(S);
    static_cast<HypreBoomerAMG *>(invS)->SetPrintLevel(0);
    invS->iterative_mode = false;
@@ -259,6 +259,14 @@ int main(int argc, char *argv[])
    double err_p = p_gf->ComputeL2Error(pexcoeff, irs);
    double norm_p = ComputeGlobalLpNorm(2, pexcoeff, *pmesh, irs);
 
+   ParGridFunction u_error(vel_fes);
+   u_error.ProjectCoefficient(uexcoeff);
+   u_error-=(*u_gf);
+
+   ParGridFunction p_error(pres_fes);
+   p_error.ProjectCoefficient(pexcoeff);
+   p_error-=(*p_gf);
+
    if (myid == 0)
    {
       cout << "|| u_h - u_ex || = " << err_u << "\n";
@@ -287,6 +295,24 @@ int main(int argc, char *argv[])
              << *pmesh << *p_gf << "window_title 'pressure'"
              << "keys Rjlc\n"
              << endl;
+
+      socketstream uerr_sock(vishost, visport);
+      uerr_sock << "parallel " << num_procs << " " << myid << "\n";
+      uerr_sock.precision(8);
+      uerr_sock << "solution\n"
+             << *pmesh << u_error << "window_title 'velocity error'"
+             << "keys Rjlc\n"
+             << endl;
+ 
+
+      socketstream perr_sock(vishost, visport);
+      perr_sock << "parallel " << num_procs << " " << myid << "\n";
+      perr_sock.precision(8);
+      perr_sock << "solution\n"
+             << *pmesh << p_error << "window_title 'pressure error'"
+             << "keys Rjlc\n"
+             << endl;
+ 
    }
 
    // Free used memory.
