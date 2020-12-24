@@ -253,10 +253,13 @@ int main(int argc, char *argv[])
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 
+   double inf=infinity();
    double err_u = u_gf->ComputeL2Error(uexcoeff, irs);
+   double errinf_u = u_gf->ComputeLpError(inf,uexcoeff);
    double norm_u = ComputeGlobalLpNorm(2, uexcoeff, *pmesh, irs);
 
    double err_p = p_gf->ComputeL2Error(pexcoeff, irs);
+   double errinf_p = p_gf->ComputeLpError(inf,pexcoeff);
    double norm_p = ComputeGlobalLpNorm(2, pexcoeff, *pmesh, irs);
 
    ParGridFunction u_error(vel_fes);
@@ -269,10 +272,12 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-      cout << "|| u_h - u_ex || = " << err_u << "\n";
-      cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-      cout << "|| p_h - p_ex || = " << err_p << "\n";
-      cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
+      cout << "|| u_h - u_ex ||_2 = " << err_u << "\n";
+      cout << "|| u_h - u_ex ||_2 / || u_ex ||_2 = " << err_u / norm_u << "\n";
+      cout << "|| u_h - u_ex ||_i = " << errinf_u << "\n";
+      cout << "|| p_h - p_ex ||_2 = " << err_p << "\n";
+      cout << "|| p_h - p_ex ||_2 / || p_ex ||_2 = " << err_p / norm_p << "\n";
+      cout << "|| p_h - p_ex ||_i = " << errinf_p << "\n";
    }
 
    if (visualization)
@@ -287,6 +292,8 @@ int main(int argc, char *argv[])
              << *pmesh << *u_gf << "window_title 'velocity'"
              << "keys Rjlc\n"
              << endl;
+      u_sock << flush;
+      MPI_Barrier(MPI_COMM_WORLD);
 
       socketstream p_sock(vishost, visport);
       p_sock << "parallel " << num_procs << " " << myid << "\n";
@@ -295,6 +302,8 @@ int main(int argc, char *argv[])
              << *pmesh << *p_gf << "window_title 'pressure'"
              << "keys Rjlc\n"
              << endl;
+      p_sock << flush;
+      MPI_Barrier(MPI_COMM_WORLD);
 
       socketstream uerr_sock(vishost, visport);
       uerr_sock << "parallel " << num_procs << " " << myid << "\n";
@@ -303,7 +312,8 @@ int main(int argc, char *argv[])
              << *pmesh << u_error << "window_title 'velocity error'"
              << "keys Rjlc\n"
              << endl;
- 
+      uerr_sock << flush;
+      MPI_Barrier(MPI_COMM_WORLD);
 
       socketstream perr_sock(vishost, visport);
       perr_sock << "parallel " << num_procs << " " << myid << "\n";
@@ -312,7 +322,7 @@ int main(int argc, char *argv[])
              << *pmesh << p_error << "window_title 'pressure error'"
              << "keys Rjlc\n"
              << endl;
- 
+      perr_sock << flush;
    }
 
    // Free used memory.
