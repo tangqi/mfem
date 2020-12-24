@@ -246,6 +246,19 @@ public:
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
 
+   /// Form the rectangular matrix A and eliminate essential dofs.
+   virtual void FormColSystemMatrix(const Array<int> &ess_tdof_list,
+                                    OperatorHandle &A);
+
+   /// Form the rectangular matrix A and eliminate essential dofs.
+   /** Form the rectangular matrix A and eliminate (zero out) the columns
+       corresponding to @a ess_trial_tdof_list. This takes the essential values
+       from @a x and puts them into @a b. Finally the vectors @a X and @a B
+       are created on the true dofs. This method can be called multiple times. */
+   virtual void FormColLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
+                                    Vector &b, OperatorHandle &A, Vector &X,
+                                    Vector &B, int copy_interior = 0); 
+
    /** @brief Return in @a A a parallel (on truedofs) version of this operator.
 
        This returns the same operator as FormRectangularLinearSystem(), but does

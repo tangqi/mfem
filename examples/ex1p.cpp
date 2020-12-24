@@ -74,6 +74,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   int refine_serial = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -81,6 +82,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&refine_serial, "-rs", "--refine-serial",
+                  "serial refine");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -120,6 +123,14 @@ int main(int argc, char *argv[])
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
+   if (refine_serial>0)
+   {
+      for (int l = 0; l < refine_serial; l++)
+      {
+         mesh.UniformRefinement();
+      }
+   }
+   else
    {
       int ref_levels =
          (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
@@ -233,7 +244,7 @@ int main(int argc, char *argv[])
       prec = new HypreBoomerAMG;
    }
    CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
+   cg.SetRelTol(1e-8);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(1);
    if (prec) { cg.SetPreconditioner(*prec); }

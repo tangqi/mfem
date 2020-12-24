@@ -482,6 +482,48 @@ void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A)
    A.MakeRAP(P_test, dA, P_trial);
 }
 
+void ParMixedBilinearForm::FormColSystemMatrix(const Array<int> &ess_tdof_list,
+                                               OperatorHandle &A)
+{
+   if (mat)
+   {
+      Finalize();
+      ParallelAssemble(p_mat);
+      delete mat;
+      mat = nullptr;
+      delete mat_e;
+      mat_e = nullptr;
+      HypreParMatrix *temp =
+         p_mat.As<HypreParMatrix>()->EliminateCols(ess_tdof_list);
+      p_mat_e.Reset(temp, true);
+      //p_mat_e = p_mat->EliminateCols(ess_tdof_list);
+   }
+
+   A = p_mat;
+}
+
+void ParMixedBilinearForm::FormColLinearSystem(const Array<int> &ess_tdof_list,
+                                               Vector &x,
+                                               Vector &b,
+                                               OperatorHandle &A,
+                                               Vector &X,
+                                               Vector &B,
+                                               int copy_interior)
+{
+   FormColSystemMatrix(ess_tdof_list, A);
+
+   const Operator *test_P = test_pfes->GetProlongationMatrix();
+   const SparseMatrix *trial_R = trial_pfes->GetRestrictionMatrix();
+
+   X.SetSize(trial_pfes->TrueVSize());
+   B.SetSize(test_pfes->TrueVSize());
+   test_P->MultTranspose(b, B);
+   trial_R->Mult(x, X);
+
+   p_mat_e.As<HypreParMatrix>()->Mult(-1.0, X, 1.0, B);
+   if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+}  
+
 /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
 void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
                                        const double a) const
