@@ -1,6 +1,6 @@
 //                       MFEM stokes - Serial Version
 //
-// Compile with: make int_th
+// Compile with: make stokes
 //
 // Sample runs:  ./stokes -rs 2 -vis
 //
@@ -168,8 +168,8 @@ int main(int argc, char *argv[])
    //Note it gets confused if I put *.GetBlock(0) in the FormLinearSystem directly
    //(must be a bug in mfem). That works in parallel however.
    sform->FormLinearSystem(ess_tdof_list, u_gf, *fform, S, X, B);
-   rhs.GetBlock(0)=B;
    x.GetBlock(0)=X;
+   rhs.GetBlock(0)=B;
 
    MixedBilinearForm *dform = new MixedBilinearForm(vel_fes, pres_fes);
    dform->AddDomainIntegrator(new VectorDivergenceIntegrator);
@@ -200,9 +200,14 @@ int main(int argc, char *argv[])
    stokesop.SetBlock(0, 1, Dt, -1.);
    stokesop.SetBlock(1, 0, &D, -1.);
 
-   // The first diagonal block part of the preconditioner is approximately
-   // solved by a Vcycle of AMG. (no outer solver at all?)
-   Solver *invS = new GSSmoother(S);
+   //For the serial solver, it is better to use suitesparse.
+   //The issue is there is no good native smoother for S in the serial mfem
+   Solver *invS;
+#ifndef MFEM_USE_SUITESPARSE
+      invS = new GSSmoother(S);
+#else
+      invS = new UMFPackSolver(S);
+#endif
    Solver *invM = new DSmoother(Mp);
    invM->iterative_mode = false;
    invS->iterative_mode = false;
@@ -222,7 +227,7 @@ int main(int argc, char *argv[])
    solver.SetPrintLevel(print_level);
    solver.Mult(rhs, x);
 
-   //recover finite element solutions
+   // Recover finite element solutions
    u_gf.SetFromTrueDofs(x.GetBlock(0));
    p_gf.SetFromTrueDofs(x.GetBlock(1));
 
