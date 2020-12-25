@@ -55,12 +55,15 @@ int main(int argc, char *argv[])
    int serial_ref_levels = 0;
    int order = 2;
    bool visualization = 0;
+   int basis_type=0;
    double tol = 1e-8;
    const char *mesh_file = "../../data/inline-quad.mesh";
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order", "");
+   args.AddOption(&basis_type, "-basis", "--basis", 
+                    "basis type: 0 - H1-H1 (Pn-Pn-1); 1 - H1-L2 (Pn-Pn-1); else - CR-L2");
    args.AddOption(&tol, "-tol", "--tolerance", "Solver relative tolerance");
    args.AddOption(&print_level, "-pl", "--print-level", "Solver print level");
    args.AddOption(&serial_ref_levels,
@@ -95,8 +98,20 @@ int main(int argc, char *argv[])
    }
 
    // Define a finite element space on the mesh.
-   FiniteElementCollection *vel_fec = new H1_FECollection(vel_order, dim);
-   FiniteElementCollection *pres_fec = new H1_FECollection(pres_order);
+   FiniteElementCollection *vel_fec, *pres_fec;
+   if (basis_type==0){
+      vel_fec = new H1_FECollection(vel_order, dim);
+      pres_fec = new H1_FECollection(pres_order, dim);
+   }
+   else if (basis_type==1){
+      vel_fec = new H1_FECollection(vel_order, dim);
+      pres_fec = new L2_FECollection(pres_order, dim);
+   }
+   else{
+      vel_fec = new CrouzeixRaviartFECollection();
+      pres_fec = new L2_FECollection(0, dim);
+   }
+
 
    FiniteElementSpace *vel_fes = new FiniteElementSpace(mesh, vel_fec, dim);
    FiniteElementSpace *pres_fes = new FiniteElementSpace(mesh, pres_fec);
@@ -124,11 +139,11 @@ int main(int argc, char *argv[])
 
    rhs = 0.0;
    x = 0.0;
-   p_gf = 0.0;
 
    // Define a coefficient for the exact solution for u and p and
    // a coefficient for the rhs.
    VectorFunctionCoefficient uexcoeff(dim, vel_ex);
+
    VectorFunctionCoefficient fcoeff(dim, forcefun);
    FunctionCoefficient pexcoeff(p_ex);
 
@@ -148,11 +163,11 @@ int main(int argc, char *argv[])
    SparseMatrix S;
    Vector X, B;
    // Form the linear system for the first block. This takes the boundary values
-   // projected before for the velocity and moves them to the the first block
-   // of the rhs.
+   // projected before for the velocity (u_gf) and moves them to B (first component 
+   // of rhs).
+   //Note it gets confused if I put *.GetBlock(0) in the FormLinearSystem directly
+   //(must be a bug in mfem). That works in parallel however.
    sform->FormLinearSystem(ess_tdof_list, u_gf, *fform, S, X, B);
-   //Note it gets confused if I put *.GetBlock(0) in the FormLinearSystem above
-   //(must be a bug in mfem)
    rhs.GetBlock(0)=B;
    x.GetBlock(0)=X;
 
@@ -163,14 +178,12 @@ int main(int argc, char *argv[])
    SparseMatrix D;
    // Form a rectangular matrix of the block system and eliminate the
    // columns (trial dofs). Like in FormLinearSystem, the boundary values
-   // are moved from the first block of the x vector into the second block
-   // of the rhs.
+   // are moved from u_gf into the second block of the rhs (B).
    dform->FormColLinearSystem(ess_tdof_list, u_gf, rhs.GetBlock(1), D, X, B);
    x.GetBlock(0)=X;
    rhs.GetBlock(1)=B;
 
    SparseMatrix *Dt = Transpose(D);
-
    // Flip signs of the second block part to make system symmetric.
    rhs.GetBlock(1) *= -1.0;
    
@@ -203,12 +216,13 @@ int main(int argc, char *argv[])
    solver.iterative_mode = false;
    solver.SetAbsTol(0.0);
    solver.SetRelTol(tol);
-   solver.SetMaxIter(500);
+   solver.SetMaxIter(5000);
    solver.SetOperator(stokesop);
    solver.SetPreconditioner(stokesprec);
    solver.SetPrintLevel(print_level);
    solver.Mult(rhs, x);
 
+   //recover finite element solutions
    u_gf.SetFromTrueDofs(x.GetBlock(0));
    p_gf.SetFromTrueDofs(x.GetBlock(1));
 
