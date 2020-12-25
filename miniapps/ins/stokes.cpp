@@ -275,6 +275,15 @@ int main(int argc, char *argv[])
       p_sock << flush;
    }
 
+   ofstream mesh_ofs("refined.mesh");
+   mesh_ofs.precision(8);
+   mesh->Print(mesh_ofs);
+   ofstream sol_ofs("u.gf"), p_ofs("p.gf");
+   sol_ofs.precision(8);
+   u_gf.Save(sol_ofs);
+   p_ofs.precision(8);
+   p_gf.Save(p_ofs);
+
    // Free used memory.
    delete vel_fec;
    delete pres_fec;
