@@ -21,16 +21,16 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SSTOKES_COMMON_SRC = ins_th.cpp 
+SSTOKES_COMMON_SRC = stokes.cpp stokesp.cpp
 SSTOKES_COMMON_OBJ = $(SSTOKES_COMMON_SRC:.cpp=.o)
 
-SER_MINIAPPS = 
-PAR_MINIAPPS = ins_th
+SER_MINIAPPS = stokes
+PAR_MINIAPPS = stokesp
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SER_MINIAPPS)
 else
-   MINIAPPS = $(PAR_MINIAPPS)
+   MINIAPPS = $(SER_MINIAPPS) $(PAR_MINIAPPS)
 endif
 
 .SUFFIXES:

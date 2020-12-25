@@ -1,8 +1,8 @@
-//                       MFEM ins_th - Parallel Version
+//                       MFEM stokesp - Parallel Version
 //
-// Compile with: make int_th
+// Compile with: make stokesp
 //
-// Sample runs:  mpirun -np 4 ins_th -rs 2 -vis
+// Sample runs:  mpirun -np 4 stokesp -rs 2 -vis
 //
 // Description:  This example code solves a 2D Stokes problem and compares
 //               the solution to a manufactured solution. The system we are
