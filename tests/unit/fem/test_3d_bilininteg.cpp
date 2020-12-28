@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
+#include "../../miniapps/ins/InsIntegrator.hpp"
 #include "unit_tests.hpp"
 
 using namespace mfem;
@@ -28,6 +29,30 @@ void F3(const Vector & x, Vector & v)
    v[0] =  1.234 * x[0] - 2.357 * x[1] + 3.572 * x[2];
    v[1] =  2.537 * x[0] + 4.321 * x[1] - 1.234 * x[2];
    v[2] = -2.572 * x[0] + 1.321 * x[1] + 3.234 * x[2];
+}
+
+void G3(const Vector & x, Vector & v)
+{
+   v.SetSize(3);
+   v[0] =  1.234 * x[0] * x[0] - 2.357 * x[1] * x[1] + 3.572 * x[2] * x[2];
+   v[1] =  2.537 * x[0] * x[2] + 4.321 * x[1] * x[1] - 1.234 * x[2] * x[2];
+   v[2] = -2.572 * x[0] * x[1] + 1.321 * x[1] * x[1] + 3.234 * x[2] * x[2];
+}
+
+double DivG3(const Vector & x)
+{
+   return  2.*1.234 * x[0] + 2.* 4.321 * x[1] + 2.* 3.234 * x[2];
+}
+
+void CurlCurlG3(const Vector & x, Vector & v)
+{
+   v.SetSize(3);
+   v[0] = 2.*1.234;
+   v[1] = 2.*4.321;
+   v[2] = 2.*3.234;
+   v[0]-= 2.*(1.234 - 2.357 + 3.572);
+   v[1]-= 2.*(4.321 - 1.234 );
+   v[2]-= 2.*(1.321 + 3.234 );
 }
 
 double q3(const Vector & x)
@@ -5084,6 +5109,53 @@ TEST_CASE("3D Bilinear Mixed Cross Grad Grad Integrators",
                REQUIRE( g_h1.ComputeL2Error(dVxdf3_coef) < tol );
             }
          }
+      }
+   }
+}
+
+TEST_CASE("3D Bilinear Special INS Integrators",
+          "[CurlNormalCrossGradIntegrator]")
+{
+   int order = 2, n = 1, dim = 3;
+   double tol = 1e-9;
+
+   VectorFunctionCoefficient G3_coeff(dim, G3);
+   VectorFunctionCoefficient CurlCurl_coeff(dim, CurlCurlG3);
+   FunctionCoefficient        zero3_coef(zero3);
+
+   for (int type = (int)Element::TETRAHEDRON;
+        type <= (int)Element::HEXAHEDRON; type++)
+   {
+      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+
+
+      SECTION("Operators on H1 for element type " + std::to_string(type))
+      {
+         H1_FECollection    fec_h1(order, dim);
+         FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+         FiniteElementSpace fespace_v(&mesh, &fec_h1, dim);
+
+         GridFunction G_v(&fespace_v); G_v.ProjectCoefficient(G3_coeff);
+
+         MixedBilinearForm blf(&fespace_v, &fespace_h1);
+         blf.AddBdrTraceFaceIntegrator(
+            new CurlNormalCrossGradIntegrator());
+         blf.Assemble();
+         blf.Finalize();
+
+         //blf.Print();
+         //blf is still wrong
+
+         LinearForm lf(&fespace_h1);
+         lf.AddBoundaryIntegrator(
+            new BoundaryNormalLFIntegrator(CurlCurl_coeff));
+         lf.Assemble();
+
+         GridFunction f_h1(&fespace_h1);
+         blf.Mult(G_v,f_h1); 
+         f_h1 += lf; 
+
+         REQUIRE( f_h1.ComputeL2Error(zero3_coef) < tol );
       }
    }
 }
