@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace *pres_fes = new FiniteElementSpace(mesh, pres_fec);
 
    // Create arrays for the essential boundary conditions.
-   Array<int> ess_tdof_list;
+   Array<int> ess_tdof_list, pres_ess_tdof_list;
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
    vel_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -179,7 +179,8 @@ int main(int argc, char *argv[])
    // Form a rectangular matrix of the block system and eliminate the
    // columns (trial dofs). Like in FormLinearSystem, the boundary values
    // are moved from u_gf into the second block of the rhs (B).
-   dform->FormColLinearSystem(ess_tdof_list, u_gf, rhs.GetBlock(1), D, X, B);
+   // pres_ess_tdof_list is empty (so we do not eliminate it)
+   dform->FormRectangularLinearSystem(ess_tdof_list, pres_ess_tdof_list, u_gf, rhs.GetBlock(1), D, X, B);
    x.GetBlock(0)=X;
    rhs.GetBlock(1)=B;
 

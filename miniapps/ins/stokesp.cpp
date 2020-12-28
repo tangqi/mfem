@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *pres_fes = new ParFiniteElementSpace(pmesh, pres_fec);
 
    // Create arrays for the essential boundary conditions.
-   Array<int> ess_tdof_list;
+   Array<int> ess_tdof_list, pres_ess_tdof_list;
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
    ess_bdr = 1;
    vel_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
    // columns (trial dofs). Like in FormLinearSystem, the boundary values
    // are moved from the first block of the x vector into the second block
    // of the rhs.
-   dform->FormColLinearSystem(ess_tdof_list, x.GetBlock(0), rhs.GetBlock(1), D,
+   dform->FormRectangularLinearSystem(ess_tdof_list, pres_ess_tdof_list, x.GetBlock(0), rhs.GetBlock(1), D,
                               trueX.GetBlock(0), trueRhs.GetBlock(1));
 
    // Define the gradient matrix by transposing the discretized divergence matrix.
