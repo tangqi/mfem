@@ -269,6 +269,38 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+OrthoSolver::OrthoSolver() : Solver(0, true) {}
+
+void OrthoSolver::SetOperator(const Operator &op)
+{
+   oper = &op;
+}
+
+void OrthoSolver::Mult(const Vector &b, Vector &x) const
+{
+   // Orthogonalize input
+   Orthogonalize(b, b_ortho);
+
+   // Apply operator
+   oper->Mult(b_ortho, x);
+
+   // Orthogonalize output
+   Orthogonalize(x, x);
+}
+
+void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
+{
+   double global_sum = v.Sum();
+   int global_size = v.Size();
+
+   double ratio = global_sum / static_cast<double>(global_size);
+   v_ortho.SetSize(v.Size());
+   for (int i = 0; i < v_ortho.Size(); ++i)
+   {
+      v_ortho(i) = v(i) - ratio;
+   }
+}
+
 INSOperator::INSOperator(FiniteElementSpace &vel_fes, 
                          FiniteElementSpace &pres_fes, double visc, 
                          Array<int> &ess_bdr_, 
@@ -423,6 +455,7 @@ void INSOperator::ImplicitSolve(const double dt,
 
    // solve the system (dup_dt is used to hold up_new here)
    //solver->Mult(rhs, dup_dt);
+   //OrthoSolver::Mult(rhs,dup_dt);
    OrthoSolver::Mult(rhs,dup_dt);
 
    // upate dup_dt = (up_new-up_old)/dt
@@ -451,34 +484,3 @@ INSOperator::~INSOperator()
 }
 
 
-OrthoSolver::OrthoSolver() : Solver(0, true) {}
-
-void OrthoSolver::SetOperator(const Operator &op)
-{
-   oper = &op;
-}
-
-void OrthoSolver::Mult(const Vector &b, Vector &x) const
-{
-   // Orthogonalize input
-   Orthogonalize(b, b_ortho);
-
-   // Apply operator
-   oper->Mult(b_ortho, x);
-
-   // Orthogonalize output
-   Orthogonalize(x, x);
-}
-
-void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
-{
-   double global_sum = v.Sum();
-   int global_size = v.Size();
-
-   double ratio = global_sum / static_cast<double>(global_size);
-   v_ortho.SetSize(v.Size());
-   for (int i = 0; i < v_ortho.Size(); ++i)
-   {
-      v_ortho(i) = v(i) - ratio;
-   }
-}
