@@ -57,7 +57,7 @@ void vel_ex(const Vector &x, double t, Vector &u)
    double Tt = 1.+t/2.+t*t/3.;
 
    u(0) = (xi*xi+2*xi*yi+yi*yi)*Tt;
-   u(1) = (xi*xi-2*xi*yi+yi*yi)*Tt;
+   u(1) = (xi*xi-2*xi*yi-yi*yi)*Tt;
 }
 
 double pres_ex(const Vector &x, double t)
@@ -77,9 +77,9 @@ void forcefun(const Vector &x, double t, Vector &u)
    double Tt = 1.+t/2.+t*t/3.;
    double dTt= 0.5+2.*t/3.;
 
-   //f = du/dt - nu Delta u + grad p
-   u(0) = (xi*xi+2*xi*yi+yi*yi)*dTt - visc*4.*Tt + (2*xi+yi*4/3.)*Tt;
-   u(1) = (xi*xi-2*xi*yi+yi*yi)*dTt - visc*4.*Tt + (xi*4/3.+2*yi)*Tt;
+   //f = du/dt + grad p - nu Delta u
+   u(0) = (xi*xi+2*xi*yi+yi*yi)*dTt + (2*xi+yi*4/3.)*Tt - visc*4.*Tt ;
+   u(1) = (xi*xi-2*xi*yi-yi*yi)*dTt + (xi*4/3.+2*yi)*Tt;
 }
 
 
