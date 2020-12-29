@@ -367,9 +367,9 @@ void INSOperator::ImplicitSolve(const double dt,
       delete Mtmp;
 
 #ifndef MFEM_USE_SUITESPARSE
-      invS = new GSSmoother(S);
+      invS = new GSSmoother(*S);
 #else
-      invS = new UMFPackSolver(S);
+      invS = new UMFPackSolver(*S);
 #endif
       prec->SetDiagonalBlock(0,invT);
       prec->SetDiagonalBlock(1,invS);
