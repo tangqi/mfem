@@ -23,8 +23,11 @@ protected:
    SparseMatrix Mmat, Kmat, Dmat;
    SparseMatrix *DmatT, *T, *S; 
    double current_dt, viscosity;
+   VectorFunctionCoefficient *u_coeff;
+   VectorFunctionCoefficient *force_coeff;
 
    MINRESSolver *solver;
+   BlockOperator *blockOp;
    BlockDiagonalPreconditioner *prec;
    Solver *invS, *invT;
 
@@ -33,7 +36,7 @@ protected:
 
 public:
    INSOperator(FiniteElementSpace &vel_fes, FiniteElementSpace &pres_fes, double visc, 
-               Array<int> &ess_bdr_, Array<int> &block_offsets_)
+               Array<int> &ess_bdr_, Array<int> &block_offsets_);
 
    virtual void Mult(const Vector &u, Vector &du_dt) const;
 
@@ -53,18 +56,18 @@ void vel_ex(const Vector &x, double t, Vector &u)
    double yi = x(1);
    double Tt = 1.+t/2.+t*t/3.;
 
-   u(0) = (xi*xi+2*xi*yi+yi*yi)*T;
-   u(1) = (xi*xi-2*xi*yi+yi*yi)*T;
+   u(0) = (xi*xi+2*xi*yi+yi*yi)*Tt;
+   u(1) = (xi*xi-2*xi*yi+yi*yi)*Tt;
 }
 
-void pres_ex(const Vector &x, double t)
+double pres_ex(const Vector &x, double t)
 {
    double xi = x(0);
    double yi = x(1);
    double Tt = 1.+t/2.+t*t/3.;
 
    //this pressure has 0 average in [0, 1]^2
-   return (xi*xi+xi*yi/3.+yi*yi-1)*T;
+   return (xi*xi+xi*yi/3.+yi*yi-1)*Tt;
 }
 
 void forcefun(const Vector &x, double t, Vector &u)
@@ -75,8 +78,8 @@ void forcefun(const Vector &x, double t, Vector &u)
    double dTt= 0.5+2.*t/3.;
 
    //f = du/dt - nu Delta u + grad p
-   u(0) = (xi*xi+2*xi*yi+yi*yi)*dTt - visc*4.*T + (2*xi+yi/3.)*T;
-   u(1) = (xi*xi-2*xi*yi+yi*yi)*dTt - visc*4.*T + (xi/3.+2*yi)*T;
+   u(0) = (xi*xi+2*xi*yi+yi*yi)*dTt - visc*4.*Tt + (2*xi+yi/3.)*Tt;
+   u(1) = (xi*xi-2*xi*yi+yi*yi)*dTt - visc*4.*Tt + (xi/3.+2*yi)*Tt;
 }
 
 
@@ -178,14 +181,15 @@ int main(int argc, char *argv[])
    ess_bdr = 1;
 
    // Create BlockVector and GridFunctions
-   BlockVector up(block_offset);
+   BlockVector up(block_offsets);
 
    GridFunction u_gf, p_gf;
-   u_gf.MakeRef(vel_space,  up.GetBlock(0), 0);
-   p_gf.MakeRef(pres_space, up.GetBlock(1), 0);
+   u_gf.MakeRef(vel_fes,  up.GetBlock(0), 0);
+   p_gf.MakeRef(pres_fes, up.GetBlock(1), 0);
 
    // initial conditions
    VectorFunctionCoefficient v0coeff(dim, vel_ex);
+   v0coeff.SetTime(0.);
    u_gf.ProjectCoefficient(v0coeff);
 
    INSOperator oper(*vel_fes, *pres_fes, visc, ess_bdr, block_offsets);
@@ -233,7 +237,6 @@ int main(int argc, char *argv[])
       {
          cout << "step " << ti << ", t = " << t << endl;
 
-         u_gf.SetFromTrueDofs(u);
          if (visualization)
          {
             sout << "solution\n" << *mesh << u_gf << flush;
@@ -248,10 +251,9 @@ int main(int argc, char *argv[])
       mesh->Print(mesh_ofs);
       ofstream sol_ofs("u.gf"), p_ofs("p.gf");
       sol_ofs.precision(8);
-      u_gf.Save(sol_ofs);
       p_ofs.precision(8);
+      u_gf.Save(sol_ofs);
       p_gf.Save(p_ofs);
-      u_gf.Save(osol);
    }
 
    delete ode_solver;
@@ -270,13 +272,13 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
                          Array<int> &block_offsets_)
    : TimeDependentOperator(vel_fes.GetVSize()+pres_fes.GetVSize(), 0.0), 
      U_space(vel_fes), P_space(pres_fes), 
-     ess_bdr(see_bdr_), block_offsets(block_offsets_)
+     ess_bdr(ess_bdr_), block_offsets(block_offsets_),
      M(NULL), K(NULL), D(NULL), DmatT(NULL), S(NULL),
-     invS(NULL), invT(NULL),
-     current_dt(0.0), viscosity(visc), u_bdr(&vel_fes),
-     z(block_offsets), rhs(block_offsets)
+     invS(NULL), invT(NULL), blockOp(NULL),
+     current_dt(0.0), viscosity(visc), u_coeff(NULL), force_coeff(NULL),
+     z(block_offsets), rhs(block_offsets), u_bdr(&vel_fes)
 {
-   vel_fes->GetEssentialTrueDofs(ess_bdr, vel_ess_tdof_list);
+   vel_fes.GetEssentialTrueDofs(ess_bdr, vel_ess_tdof_list);
    //note pres_ess_tdof_list remains empty
 
    M = new BilinearForm(&U_space);
@@ -288,22 +290,28 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
    K->Assemble();
    K->FormSystemMatrix(vel_ess_tdof_list, Kmat);
 
-   dform = new MixedBilinearForm(vel_fes, pres_fes);
+   dform = new MixedBilinearForm(&vel_fes, &pres_fes);
    dform->AddDomainIntegrator(new VectorDivergenceIntegrator);
    dform->Assemble();
    dform->FormRectangularSystemMatrix(vel_ess_tdof_list, pres_ess_tdof_list, Dmat);
     
    DmatT = Transpose(Dmat);
 
+   u_coeff = new VectorFunctionCoefficient(2, vel_ex);  //this assumes 2D
+   force_coeff = new VectorFunctionCoefficient(2, forcefun);
+
+   fform = new LinearForm(&vel_fes);
+   fform->AddDomainIntegrator(new VectorDomainLFIntegrator(*force_coeff));
+
    /*
    * the block operator should be 
-   * [ M/dt+K  DmatT ]  
-   * [  D      0     ]
+   * [ M/dt+K  -DmatT ]  
+   * [ -D       0     ]
    * but M/dt+K needs to be updated on the fly 
    */
    blockOp = new BlockOperator(block_offsets);
-   blockOp->SetBlock(0,1, DmatT,   -1.);
-   blockOp->SetBlock(1,0, Dmat, -1.);
+   blockOp->SetBlock(0,1, DmatT, -1.);
+   blockOp->SetBlock(1,0, &Dmat, -1.);
    
    /*
     * the preconditioenr should be 
@@ -332,12 +340,13 @@ void INSOperator::ImplicitSolve(const double dt,
    // Define T = M/dt + K and so on (it is updated in the first call of implicitSolve)
    if (!T)
    {
-      M->AddDomainIntegrator(new VectorMassIntegrator(1./dt));
+      ConstantCoefficient rdt_coeff(1./dt);
+      M->AddDomainIntegrator(new VectorMassIntegrator(rdt_coeff));
       M->Assemble();
       M->FormSystemMatrix(vel_ess_tdof_list, Mmat);    
 
       //we do not eliminate boundary in Mrhs
-      Mrhs->AddDomainIntegrator(new VectorMassIntegrator(1./dt));
+      Mrhs->AddDomainIntegrator(new VectorMassIntegrator(rdt_coeff));
       Mrhs->Assemble();
 
       T = Add(Mmat, Kmat);
@@ -346,15 +355,15 @@ void INSOperator::ImplicitSolve(const double dt,
       blockOp->SetBlock(0,0, T);
 
       Vector Td(M->Height());
-      T.GetDiag(Td);
-      invT = new DSmoother(T);
+      T->GetDiag(Td);
+      invT = new DSmoother(*T);
 
-      SparseMatrix Mtmp = new SparseMatrix(*DmatT);         //deep copy DmatT
+      SparseMatrix *Mtmp = new SparseMatrix(*DmatT);         //deep copy DmatT
       for (int i = 0; i < Td.Size(); i++)
       {
          Mtmp->ScaleRow(i, 1./Td(i));
       }
-      S = Mult(D, *Mtmp);
+      S = mfem::Mult(Dmat, *Mtmp);  //Here mfem is needed otherwise it will pick up INSOperator::Mult
       delete Mtmp;
 
 #ifndef MFEM_USE_SUITESPARSE
@@ -365,40 +374,41 @@ void INSOperator::ImplicitSolve(const double dt,
       prec->SetDiagonalBlock(0,invT);
       prec->SetDiagonalBlock(1,invS);
 
-      solver->SetOperator(blockOp); 
-      solver->SetPreconditioner(prec);
+      solver->SetOperator(*blockOp); 
+      solver->SetPreconditioner(*prec);
    }
    MFEM_VERIFY(dt == current_dt, "It needs dt fixed"); 
 
-   // update RHS = [u, v]+[f, v] 
-   int sc = block_offsets[1]-block_offset[0];
+   // update RHS  
+   int sc = block_offsets[1]-block_offsets[0];
 
-   Vector uold(vx.GetData() + 0, sc);
+   Vector uold(up.GetData() + 0, sc);
 
-   double time=GetTime();
-   F0_coeff->SetTime(time);
+   double time=GetTime();   //this will return current time
+   u_coeff->SetTime(time);
+   force_coeff->SetTime(time);
+
+   //update boundary and force with the coefficients
+   u_bdr.ProjectBdrCoefficient(*u_coeff, ess_bdr);
    fform->Assemble();
 
-   u_coeff->SetTime(time);
-   u_bdr.ProjectBdrCoefficient(u_coeff, ess_bdr);
-
    rhs=0.;
-   Mrhs->Mult(uold, rhs.GetBlock(0))
-   rhs.GetBlock(0)+=fform;
+   Mrhs->Mult(uold, rhs.GetBlock(0));
+   rhs.GetBlock(0)+=(*fform);
 
    SparseMatrix Mdummy;
    Vector X, B;
 
    //apply boundary condition
-   M->FormLinearSystem(ess_tdof_list, u_bdr, rhs.GetBlock(0), Mdummy, X, B);
+   M->FormLinearSystem(vel_ess_tdof_list, u_bdr, rhs.GetBlock(0), Mdummy, X, B);
    rhs.GetBlock(0)=B;
 
-   K->FormLinearSystem(ess_tdof_list, u_bdr, rhs.GetBlock(0), Mdummy, X, B);
+   K->FormLinearSystem(vel_ess_tdof_list, u_bdr, rhs.GetBlock(0), Mdummy, X, B);
    rhs.GetBlock(0)=B;
 
-   dform->FormRectangularLinearSystem(ess_tdof_list, pres_ess_tdof_list, u_bdr, rhs.GetBlock(1), Mdummy, X, B);
+   dform->FormRectangularLinearSystem(vel_ess_tdof_list, pres_ess_tdof_list, u_bdr, rhs.GetBlock(1), Mdummy, X, B);
    rhs.GetBlock(1)=B;
-   rhs.GetBlock(1) *= -1.0;
+   rhs.GetBlock(1)*=-1.0;
 
    // solve the system
    solver->Mult(rhs, dup_dt);
@@ -419,13 +429,14 @@ INSOperator::~INSOperator()
    delete fform;
    delete T;
    delete S; 
-   delete Dmat;
    delete DmatT;
-   delete Tinv;
    delete solver;
+   delete blockOp;
    delete prec;
    delete invS;
    delete invT;
+   delete u_coeff;
+   delete force_coeff;
 }
 
 
