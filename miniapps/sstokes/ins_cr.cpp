@@ -48,7 +48,7 @@ public:
 };
 
 
-double visc=0.1;
+double visc=1.0;
 
 void vel_ex(const Vector &x, double t, Vector &u)
 {
@@ -245,6 +245,7 @@ int main(int argc, char *argv[])
       }
    }
 
+   if (true)
    {
       ofstream mesh_ofs("refined.mesh");
       mesh_ofs.precision(8);
@@ -273,12 +274,12 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
    : TimeDependentOperator(vel_fes.GetVSize()+pres_fes.GetVSize(), 0.0), 
      U_space(vel_fes), P_space(pres_fes), 
      ess_bdr(ess_bdr_), block_offsets(block_offsets_),
-     M(NULL), K(NULL), D(NULL), DmatT(NULL), S(NULL),
+     M(NULL), K(NULL), D(NULL), DmatT(NULL), T(NULL), S(NULL),
      invS(NULL), invT(NULL), blockOp(NULL),
      current_dt(0.0), viscosity(visc), u_coeff(NULL), force_coeff(NULL),
      z(block_offsets), rhs(block_offsets), u_bdr(&vel_fes)
 {
-   vel_fes.GetEssentialTrueDofs(ess_bdr, vel_ess_tdof_list);
+   U_space.GetEssentialTrueDofs(ess_bdr, vel_ess_tdof_list);
    //note pres_ess_tdof_list remains empty
 
    M = new BilinearForm(&U_space);
@@ -290,7 +291,7 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
    K->Assemble();
    K->FormSystemMatrix(vel_ess_tdof_list, Kmat);
 
-   dform = new MixedBilinearForm(&vel_fes, &pres_fes);
+   dform = new MixedBilinearForm(&U_space, &P_space);
    dform->AddDomainIntegrator(new VectorDivergenceIntegrator);
    dform->Assemble();
    dform->FormRectangularSystemMatrix(vel_ess_tdof_list, pres_ess_tdof_list, Dmat);
@@ -300,7 +301,7 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
    u_coeff = new VectorFunctionCoefficient(2, vel_ex);  //this assumes 2D
    force_coeff = new VectorFunctionCoefficient(2, forcefun);
 
-   fform = new LinearForm(&vel_fes);
+   fform = new LinearForm(&U_space);
    fform->AddDomainIntegrator(new VectorDomainLFIntegrator(*force_coeff));
 
    /*
@@ -321,8 +322,9 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
     */
    prec = new BlockDiagonalPreconditioner(block_offsets);
 
+   solver = new MINRESSolver;
    solver->SetAbsTol(0.);
-   solver->SetRelTol(1e-6);
+   solver->SetRelTol(1e-8);
    solver->SetMaxIter(10000);
    solver->SetPrintLevel(1);
    solver->iterative_mode = false;  //this might be okay to use true
@@ -381,7 +383,7 @@ void INSOperator::ImplicitSolve(const double dt,
       solver->SetOperator(*blockOp); 
       solver->SetPreconditioner(*prec);
    }
-   MFEM_VERIFY(dt == current_dt, "It needs dt fixed"); 
+   MFEM_VERIFY(dt == current_dt, "It only supports fixed dt for now."); 
 
    // update RHS  
    int sc = block_offsets[1]-block_offsets[0];
@@ -411,7 +413,9 @@ void INSOperator::ImplicitSolve(const double dt,
    K->FormLinearSystem(vel_ess_tdof_list, u_bdr, rhs.GetBlock(0), Mdummy, X, B);
    rhs.GetBlock(0)=B;
 
-   dform->FormRectangularLinearSystem(vel_ess_tdof_list, pres_ess_tdof_list, u_bdr, rhs.GetBlock(1), Mdummy, X, B);
+   // The wrong FormRectangularSystemMatrix will be called here, likely a bug
+   // So we use FormColLinearSystem instead
+   dform->FormColLinearSystem(vel_ess_tdof_list, u_bdr, rhs.GetBlock(1), Mdummy, X, B);
    rhs.GetBlock(1)=B;
    rhs.GetBlock(1)*=-1.0;
 
