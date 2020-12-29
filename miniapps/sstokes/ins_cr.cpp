@@ -67,7 +67,7 @@ double pres_ex(const Vector &x, double t)
    double Tt = 1.+t/2.+t*t/3.;
 
    //this pressure has 0 average in [0, 1]^2
-   return (xi*xi+xi*yi/3.+yi*yi-1)*Tt;
+   return (xi*xi+xi*yi*4/3.+yi*yi-1)*Tt;
 }
 
 void forcefun(const Vector &x, double t, Vector &u)
@@ -78,8 +78,8 @@ void forcefun(const Vector &x, double t, Vector &u)
    double dTt= 0.5+2.*t/3.;
 
    //f = du/dt - nu Delta u + grad p
-   u(0) = (xi*xi+2*xi*yi+yi*yi)*dTt - visc*4.*Tt + (2*xi+yi/3.)*Tt;
-   u(1) = (xi*xi-2*xi*yi+yi*yi)*dTt - visc*4.*Tt + (xi/3.+2*yi)*Tt;
+   u(0) = (xi*xi+2*xi*yi+yi*yi)*dTt - visc*4.*Tt + (2*xi+yi*4/3.)*Tt;
+   u(1) = (xi*xi-2*xi*yi+yi*yi)*dTt - visc*4.*Tt + (xi*4/3.+2*yi)*Tt;
 }
 
 
@@ -381,17 +381,18 @@ void INSOperator::ImplicitSolve(const double dt,
 
    // update RHS  
    int sc = block_offsets[1]-block_offsets[0];
-
    Vector uold(up.GetData() + 0, sc);
 
    double time=GetTime();   //this will return current time
-   u_coeff->SetTime(time);
-   force_coeff->SetTime(time);
 
    //update boundary and force with the coefficients
+   u_coeff->SetTime(time);
    u_bdr.ProjectBdrCoefficient(*u_coeff, ess_bdr);
+
+   force_coeff->SetTime(time);
    fform->Assemble();
 
+   // Compute rhs[0]=M/dt*uold+fform
    rhs=0.;
    Mrhs->Mult(uold, rhs.GetBlock(0));
    rhs.GetBlock(0)+=(*fform);
@@ -410,10 +411,10 @@ void INSOperator::ImplicitSolve(const double dt,
    rhs.GetBlock(1)=B;
    rhs.GetBlock(1)*=-1.0;
 
-   // solve the system
+   // solve the system (dup_dt is used to hold up_new here)
    solver->Mult(rhs, dup_dt);
 
-   // upate dup_dt
+   // upate dup_dt = (up_new-up_old)/dt
    dup_dt-=up;
    dup_dt/=dt;
 }
