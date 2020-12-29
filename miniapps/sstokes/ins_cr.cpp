@@ -325,6 +325,7 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
    solver->SetRelTol(1e-6);
    solver->SetMaxIter(10000);
    solver->SetPrintLevel(1);
+   solver->iterative_mode = false;  //this might be okay to use true
 }
 
 //this should never be called
@@ -357,6 +358,7 @@ void INSOperator::ImplicitSolve(const double dt,
       Vector Td(M->Height());
       T->GetDiag(Td);
       invT = new DSmoother(*T);
+      invT->iterative_mode = false;
 
       SparseMatrix *Mtmp = new SparseMatrix(*DmatT);         //deep copy DmatT
       for (int i = 0; i < Td.Size(); i++)
@@ -371,6 +373,8 @@ void INSOperator::ImplicitSolve(const double dt,
 #else
       invS = new UMFPackSolver(*S);
 #endif
+      invS->iterative_mode = false;
+
       prec->SetDiagonalBlock(0,invT);
       prec->SetDiagonalBlock(1,invS);
 
