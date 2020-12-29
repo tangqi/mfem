@@ -18,19 +18,22 @@ protected:
    FiniteElementSpace &U_space, &P_space;
    Array<int> &ess_bdr, &block_offsets, vel_ess_tdof_list, pres_ess_tdof_list;    
 
-   BilinearForm *M, *Mrhs, *K, *D;
+   BilinearForm *M, *Mrhs, *K, *D, *tform;
    MixedBilinearForm *dform;
    LinearForm *fform;
-   SparseMatrix Mmat, Kmat, Dmat;
-   SparseMatrix *DmatT, *T, *S; 
+   SparseMatrix Tmat, Kmat, Dmat;
+   SparseMatrix *DmatT, *S; 
    double current_dt, viscosity;
    VectorFunctionCoefficient *u_coeff;
    VectorFunctionCoefficient *force_coeff;
+   ConstantCoefficient visc_coeff;
 
    MINRESSolver *solver;
    BlockOperator *blockOp;
    BlockDiagonalPreconditioner *prec;
    Solver *invS, *invOrthoS, *invT;
+
+   bool initT;
 
    mutable BlockVector z, rhs; // auxiliary BlockVector
    mutable GridFunction u_bdr;
@@ -72,8 +75,7 @@ void vel_ex(const Vector &x, double t, Vector &u)
 {
    double xi = x(0);
    double yi = x(1);
-   //double Tt = 1.+t/2.+t*t/3.;
-   double Tt = 1.;
+   double Tt = 1.+t/2.+t*t/3.;
 
    u(0) = (xi*xi+2*xi*yi+yi*yi)*Tt;
    u(1) = (xi*xi-2*xi*yi-yi*yi)*Tt;
@@ -83,28 +85,22 @@ double pres_ex(const Vector &x, double t)
 {
    double xi = x(0);
    double yi = x(1);
-   //double Tt = 1.+t/2.+t*t/3.;
-   double Tt = 1.;
+   double Tt = 1.+t/2.+t*t/3.;
 
    //this pressure has 0 average in [0, 1]^2
    return (xi*xi+xi*yi*4/3.+yi*yi-1)*Tt;
-   
 }
 
 void forcefun(const Vector &x, double t, Vector &u)
 {
    double xi = x(0);
    double yi = x(1);
-   //double Tt = 1.+t/2.+t*t/3.;
-   //double dTt= 0.5+2.*t/3.;
-   double Tt = 1.;
-   double dTt= 0.;
+   double Tt = 1.+t/2.+t*t/3.;
+   double dTt= 0.5+2.*t/3.;
 
    //f = du/dt + grad p - nu Delta u
    u(0) = (xi*xi+2*xi*yi+yi*yi)*dTt + (2*xi+yi*4/3.)*Tt - visc*4.*Tt ;
    u(1) = (xi*xi-2*xi*yi-yi*yi)*dTt + (xi*4/3.+2*yi)*Tt;
-   
-
 }
 
 
@@ -282,8 +278,8 @@ int main(int argc, char *argv[])
 
       }
    }
-   
-   //Exact soln at final time 
+
+   //9. Exact soln at final time 
    VectorFunctionCoefficient vfinalcoeff(dim, vel_ex);
    vfinalcoeff.SetTime(t_final);
    u_gf.ProjectCoefficient(vfinalcoeff);
@@ -292,9 +288,7 @@ int main(int argc, char *argv[])
    pfinalcoeff.SetTime(t_final);
    p_gf.ProjectCoefficient(pfinalcoeff);
 
-    // Create the grid functions u and p. Compute the L2 error norms.
-   
-
+    // 10.  Create the grid functions u and p. Compute the L2 error norms.
    int order_quad = max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
    for (int i=0; i < Geometry::NumGeom; ++i)
@@ -314,9 +308,10 @@ int main(int argc, char *argv[])
 
 
 
-   //  Save the mesh and the solution. This output can be viewed later using
+   // 11. Save the mesh and the solution. This output can be viewed later using
    //     GLVis: "glvis -m refined.mesh -g u.gf" or "glvis -m refined.mesh -g
    //     sol_p.gf".
+
    if (true)
    {
       ofstream mesh_ofs("refined.mesh");
@@ -380,23 +375,24 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
                          Array<int> &block_offsets_)
    : TimeDependentOperator(vel_fes.GetVSize()+pres_fes.GetVSize(), 0.0), 
      U_space(vel_fes), P_space(pres_fes), 
-     ess_bdr(ess_bdr_), block_offsets(block_offsets_),
-     M(NULL), K(NULL), D(NULL), DmatT(NULL), T(NULL), S(NULL),
+     ess_bdr(ess_bdr_), block_offsets(block_offsets_),visc_coeff(viscosity),
+     M(NULL), K(NULL), D(NULL), DmatT(NULL), S(NULL), 
      invS(NULL), invT(NULL), blockOp(NULL),
      current_dt(0.0), viscosity(visc), u_coeff(NULL), force_coeff(NULL),
-     z(block_offsets), rhs(block_offsets), u_bdr(&vel_fes)
+     initT(false), z(block_offsets), rhs(block_offsets), u_bdr(&vel_fes)
 {
    U_space.GetEssentialTrueDofs(ess_bdr, vel_ess_tdof_list);
    //note pres_ess_tdof_list remains empty
 
-   M = new BilinearForm(&U_space);
    Mrhs = new BilinearForm(&U_space);
 
-   ConstantCoefficient visc_coeff(viscosity);
    K = new BilinearForm(&U_space);
    K->AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
    K->Assemble();
    K->FormSystemMatrix(vel_ess_tdof_list, Kmat);
+
+   tform = new BilinearForm(&U_space);
+   tform->AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
 
    dform = new MixedBilinearForm(&U_space, &P_space);
    dform->AddDomainIntegrator(new VectorDivergenceIntegrator);
@@ -448,25 +444,26 @@ void INSOperator::ImplicitSolve(const double dt,
                                 const Vector &up, Vector &dup_dt)
 {
    // Define T = M/dt + K and so on (it is updated in the first call of implicitSolve)
-   if (!T)
+   if (!initT)
    {
+      initT = true;
+
       ConstantCoefficient rdt_coeff(1./dt);
-      M->AddDomainIntegrator(new VectorMassIntegrator(rdt_coeff));
-      M->Assemble();
-      M->FormSystemMatrix(vel_ess_tdof_list, Mmat);    
+      tform->AddDomainIntegrator(new VectorMassIntegrator(rdt_coeff));
+      tform->Assemble();
+      tform->FormSystemMatrix(vel_ess_tdof_list, Tmat);    
 
       //we do not eliminate boundary in Mrhs
       Mrhs->AddDomainIntegrator(new VectorMassIntegrator(rdt_coeff));
       Mrhs->Assemble();
 
-      T = Add(Mmat, Kmat);
       current_dt = dt;
 
-      blockOp->SetBlock(0,0, T);
+      blockOp->SetBlock(0,0, &Tmat);
 
-      Vector Td(M->Height());
-      T->GetDiag(Td);
-      invT = new DSmoother(*T);
+      Vector Td(Tmat.Height());
+      Tmat.GetDiag(Td);
+      invT = new DSmoother(Tmat);
       invT->iterative_mode = false;
 
       SparseMatrix *Mtmp = new SparseMatrix(*DmatT);         //deep copy DmatT
@@ -500,7 +497,7 @@ void INSOperator::ImplicitSolve(const double dt,
    Vector uold(up.GetData() + 0, sc);
 
    double time=GetTime();   //this will return current time
-
+   
    //update boundary and force with the coefficients
    u_coeff->SetTime(time);
    u_bdr.ProjectBdrCoefficient(*u_coeff, ess_bdr);
@@ -517,10 +514,7 @@ void INSOperator::ImplicitSolve(const double dt,
    Vector X, B;
 
    //apply boundary condition
-   M->FormLinearSystem(vel_ess_tdof_list, u_bdr, rhs.GetBlock(0), Mdummy, X, B);
-   rhs.GetBlock(0)=B;
-
-   K->FormLinearSystem(vel_ess_tdof_list, u_bdr, rhs.GetBlock(0), Mdummy, X, B);
+   tform->FormLinearSystem(vel_ess_tdof_list, u_bdr, rhs.GetBlock(0), Mdummy, X, B);
    rhs.GetBlock(0)=B;
 
    // The wrong FormRectangularSystemMatrix will be called here, likely a bug
@@ -538,12 +532,12 @@ void INSOperator::ImplicitSolve(const double dt,
 
 INSOperator::~INSOperator()
 {
-   delete T;
    delete M;
    delete Mrhs;
    delete D;
    delete K;
    delete dform;
+   delete tform;
    delete fform;
    delete S; 
    delete DmatT;
