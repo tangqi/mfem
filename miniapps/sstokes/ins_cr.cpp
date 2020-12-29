@@ -14,45 +14,80 @@ using namespace mfem;
 class INSOperator : public TimeDependentOperator
 {
 protected:
-   FiniteElementSpace &cr, &l2;
-   Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c. (need to be updated if we do Dirichelt)
+   FiniteElementSpace &U_space, &P_space;
+   Array<int> &ess_bdr, &block_offsets, vel_ess_tdof_list, pres_ess_tdof_list;    
 
-   BilinearForm *M, *K, *Dx, *Dy;
-
-   SparseMatrix Mmat, Kmat, Dxmat, Dymat;
-   SparseMatrix *DxT, *DyT, *T, *S; // T = M + dt K
-   double current_dt;
+   BilinearForm *M, *Mrhs, *K, *D;
+   MixedBilinearForm *dform;
+   LinearForm *fform;
+   SparseMatrix Mmat, Kmat, Dmat;
+   SparseMatrix *DmatT, *T, *S; 
+   double current_dt, viscosity;
 
    MINRESSolver *solver;
    BlockDiagonalPreconditioner *prec;
+   Solver *invS, *invT;
 
-   DSmoother *Tinv;
-
-   mutable Vector z; // auxiliary vector
+   mutable BlockVector z, rhs; // auxiliary BlockVector
+   mutable GridFunction u_bdr;
 
 public:
-   INSOperator(FiniteElementSpace &cr_, FiniteElementSpace &l2_);
+   INSOperator(FiniteElementSpace &vel_fes, FiniteElementSpace &pres_fes, double visc, 
+               Array<int> &ess_bdr_, Array<int> &block_offsets_)
 
    virtual void Mult(const Vector &u, Vector &du_dt) const;
 
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k);
+   virtual void ImplicitSolve(const double dt, const Vector &up, Vector &dup_dt);
 
    virtual ~INSOperator();
 };
 
 
+double visc=0.1;
+
+void vel_ex(const Vector &x, double t, Vector &u)
+{
+   double xi = x(0);
+   double yi = x(1);
+   double Tt = 1.+t/2.+t*t/3.;
+
+   u(0) = (xi*xi+2*xi*yi+yi*yi)*T;
+   u(1) = (xi*xi-2*xi*yi+yi*yi)*T;
+}
+
+void pres_ex(const Vector &x, double t)
+{
+   double xi = x(0);
+   double yi = x(1);
+   double Tt = 1.+t/2.+t*t/3.;
+
+   //this pressure has 0 average in [0, 1]^2
+   return (xi*xi+xi*yi/3.+yi*yi-1)*T;
+}
+
+void forcefun(const Vector &x, double t, Vector &u)
+{
+   double xi = x(0);
+   double yi = x(1);
+   double Tt = 1.+t/2.+t*t/3.;
+   double dTt= 0.5+2.*t/3.;
+
+   //f = du/dt - nu Delta u + grad p
+   u(0) = (xi*xi+2*xi*yi+yi*yi)*dTt - visc*4.*T + (2*xi+yi/3.)*T;
+   u(1) = (xi*xi-2*xi*yi+yi*yi)*dTt - visc*4.*T + (xi/3.+2*yi)*T;
+}
+
+
 int main(int argc, char *argv[])
 {
-   // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../../data/inline-quad.mesh";
    int ref_levels = 2;
    int ode_solver_type = 1;
    double t_final = 0.5;
    double dt = 1.0e-2;
-   bool visualization = true;
-   bool visit = false;
+   bool visualization = false;
    int vis_steps = 5;
 
    int precision = 8;
@@ -69,12 +104,10 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
+   args.AddOption(&visc, "-visc", "--viscosity", "Viscosity.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
-                  "--no-visit-datafiles",
-                  "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.Parse();
@@ -89,6 +122,13 @@ int main(int argc, char *argv[])
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+
+   if (dim!=2)
+   {         
+       cout << "only 2D (tri and quad) is supported for now" << '\n';
+       delete mesh;
+       return 3;
+   }
 
    // 3. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
@@ -109,44 +149,46 @@ int main(int argc, char *argv[])
          return 3;
    }
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement, where 'ref_levels' is a
-   //    command-line parameter.
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh->UniformRefinement();
    }
 
-   // 5. Define finite element space
-   CrouzeixRaviartFECollection  cr_coll;
-   L2_FECollection l2_coll(0, dim);
-   FiniteElementSpace cr_fespace(mesh, &cr_coll);
-   FiniteElementSpace l2_fespace(mesh, &l2_coll);
+   // Define a finite element space on the mesh.
+   FiniteElementCollection *vel_fec, *pres_fec;
+   vel_fec = new CrouzeixRaviartFECollection();
+   pres_fec = new L2_FECollection(0, dim);
+   FiniteElementSpace *vel_fes = new FiniteElementSpace(mesh, vel_fec, dim);
+   FiniteElementSpace *pres_fes = new FiniteElementSpace(mesh, pres_fec);
 
-   if (dim!=2)
-   {         
-       cout << "only 2D is supported for now" << '\n';
-       delete mesh;
-       return 3;
-   }
-
-   Array<int> block_offsets(4); // number of variables + 1
+   Array<int> block_offsets(3); 
    block_offsets[0] = 0;
-   block_offsets[1] = cr_space->GetTrueVSize();
-   block_offsets[2] = cr_space->GetTrueVSize();
-   block_offsets[3] = l2_space->GetTrueVSize();
+   block_offsets[1] = vel_fes->GetVSize();
+   block_offsets[2] = pres_fes->GetVSize();
    block_offsets.PartialSum();
 
    std::cout << "***********************************************************\n";
-   std::cout << "TrueVSize in CR = " << block_offsets[1] - block_offsets[0] << "\n";
-   std::cout << "TrueVSize in L2 = " << block_offsets[3] - block_offsets[2] << "\n";
-   std::cout << "Total TrueVSize (2*CR+L2) = " << block_offsets.Last() << "\n";
+   std::cout << "Dofs in CR = " << block_offsets[1] - block_offsets[0] << "\n";
+   std::cout << "Dofs in L2 = " << block_offsets[2] - block_offsets[1] << "\n";
+   std::cout << "Total Dofs = " << block_offsets.Last() << "\n";
    std::cout << "***********************************************************\n";
 
-   GridFunction u_gf(&fespace);
+   // Create arrays for the essential boundary conditions.
+   Array<int> ess_bdr(mesh->bdr_attributes.Max());
+   ess_bdr = 1;
 
-   // 7. Initialize the conduction operator and the visualization.
-   INSOperator oper(cr_space, l2_space);
+   // Create BlockVector and GridFunctions
+   BlockVector up(block_offset);
+
+   GridFunction u_gf, p_gf;
+   u_gf.MakeRef(vel_space,  up.GetBlock(0), 0);
+   p_gf.MakeRef(pres_space, up.GetBlock(1), 0);
+
+   // initial conditions
+   VectorFunctionCoefficient v0coeff(dim, vel_ex);
+   u_gf.ProjectCoefficient(v0coeff);
+
+   INSOperator oper(*vel_fes, *pres_fes, visc, ess_bdr, block_offsets);
 
    socketstream sout;
    if (visualization)
@@ -185,7 +227,7 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      ode_solver->Step(u, t, dt);
+      ode_solver->Step(up, t, dt);
 
       if (last_step || (ti % vis_steps) == 0)
       {
@@ -197,93 +239,84 @@ int main(int argc, char *argv[])
             sout << "solution\n" << *mesh << u_gf << flush;
          }
 
-         if (visit)
-         {
-            visit_dc.SetCycle(ti);
-            visit_dc.SetTime(t);
-            visit_dc.Save();
-         }
       }
    }
 
-   // 9. Save the final solution. This output can be viewed later using GLVis:
-   //    "glvis -m ex16.mesh -g ex16-final.gf".
    {
-      ofstream osol("ex16-final.gf");
-      osol.precision(precision);
+      ofstream mesh_ofs("refined.mesh");
+      mesh_ofs.precision(8);
+      mesh->Print(mesh_ofs);
+      ofstream sol_ofs("u.gf"), p_ofs("p.gf");
+      sol_ofs.precision(8);
+      u_gf.Save(sol_ofs);
+      p_ofs.precision(8);
+      p_gf.Save(p_ofs);
       u_gf.Save(osol);
    }
 
-   // 10. Free the used memory.
    delete ode_solver;
    delete mesh;
+   delete vel_fec;
+   delete pres_fec;
+   delete vel_fes;
+   delete pres_fes;
 
    return 0;
 }
 
-//TODO: double check and define a block operator
-//this is where the operator M, K, Dx, Dy should be assembled
-INSOperator::INSOperator(FiniteElementSpace &cr_, FiniteElementSpace &l2_)
-   : TimeDependentOperator(f.GetTrueVSize(), 0.0), cr(cr_), l2(l2_), 
-     M(NULL), K(NULL), T(NULL), DxT(NULL), DyT(NULL), Minv(NULL)
-     current_dt(0.0), z(height)
+INSOperator::INSOperator(FiniteElementSpace &vel_fes, 
+                         FiniteElementSpace &pres_fes, double visc, 
+                         Array<int> &ess_bdr_, 
+                         Array<int> &block_offsets_)
+   : TimeDependentOperator(vel_fes.GetVSize()+pres_fes.GetVSize(), 0.0), 
+     U_space(vel_fes), P_space(pres_fes), 
+     ess_bdr(see_bdr_), block_offsets(block_offsets_)
+     M(NULL), K(NULL), D(NULL), DmatT(NULL), S(NULL),
+     invS(NULL), invT(NULL),
+     current_dt(0.0), viscosity(visc), u_bdr(&vel_fes),
+     z(block_offsets), rhs(block_offsets)
 {
-   M = new BilinearForm(&cr);
-   M->AddDomainIntegrator(new MassIntegrator());
-   M->Assemble();
-   M->FormSystemMatrix(ess_tdof_list, Mmat);    //ess_tdof_list is empty for now!!
+   vel_fes->GetEssentialTrueDofs(ess_bdr, vel_ess_tdof_list);
+   //note pres_ess_tdof_list remains empty
 
-   K = new BilinearForm(&cr);
-   K->AddDomainIntegrator(new DiffusionIntegrator());
+   M = new BilinearForm(&U_space);
+   Mrhs = new BilinearForm(&U_space);
+
+   ConstantCoefficient visc_coeff(viscosity);
+   K = new BilinearForm(&U_space);
+   K->AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
    K->Assemble();
-   K->FormSystemMatrix(ess_tdof_list, Kmat);
+   K->FormSystemMatrix(vel_ess_tdof_list, Kmat);
 
-   ConstantCoefficient one(1.0);
+   dform = new MixedBilinearForm(vel_fes, pres_fes);
+   dform->AddDomainIntegrator(new VectorDivergenceIntegrator);
+   dform->Assemble();
+   dform->FormRectangularSystemMatrix(vel_ess_tdof_list, pres_ess_tdof_list, Dmat);
+    
+   DmatT = Transpose(Dmat);
 
-   Dx = new MixedBilinearForm(&cr, &l2);
-   Dx->AddDomainIntegrator(new DerivativeIntegrator(one, 0));
-   Dx->Assemble();
-   Dx->FormSystemMatrix(ess_tdof_list, Dxmat);
-
-   Dy = new MixedBilinearForm(&cr, &l2);
-   Dy->AddDomainIntegrator(new DerivativeIntegrator(one, 1));
-   Dy->Assemble();
-   Dy->FormSystemMatrix(ess_tdof_list, Dymat);
-
-   DxT = Transpose(Dxmat);
-   DyT = Transpose(Dymat);
-
-    /*
-    * the block operator should be 
-    * [ M+dtK          DxT ]  
-    * [        M+dtK   DyT ]
-    * [  Dx     Dy         ]
-    * but M+kK needs to be updated on the fly 
-    * (or maybe we can fix time step with backward Euler for now)
-    */
+   /*
+   * the block operator should be 
+   * [ M/dt+K  DmatT ]  
+   * [  D      0     ]
+   * but M/dt+K needs to be updated on the fly 
+   */
    blockOp = new BlockOperator(block_offsets);
-   blockOp->SetBlock(0,2, DxT);
-   blockOp->SetBlock(1,2, DyT);
-   blockOp->SetBlock(2,0, Dx);
-   blockOp->SetBlock(2,1, Dy);
-   //blockOp (0,0) and (1,1) will be updated on the fly
+   blockOp->SetBlock(0,1, DmatT,   -1.);
+   blockOp->SetBlock(1,0, Dmat, -1.);
    
    /*
     * the preconditioenr should be 
-    * [ diag(M+kK)                              ]  
-    * [            diag(M+kK)                   ]
-    * [                        B diag(M+kK) B^T ]
+    * [ diag(M/dt+K)                  ]  
+    * [              B diag(M+kK) B^T ]
     * which needs to be updated on the fly
     */
    prec = new BlockDiagonalPreconditioner(block_offsets);
 
-   solver->SetAbsTol(1e-10);
+   solver->SetAbsTol(0.);
    solver->SetRelTol(1e-6);
    solver->SetMaxIter(10000);
-   solver->SetOperator(blockOp); //this needs to be updated every implicitSolve
-   solver->SetPreconditioner(prec);
    solver->SetPrintLevel(1);
-
 }
 
 //this should never be called
@@ -292,64 +325,107 @@ void INSOperator::Mult(const Vector &u, Vector &du_dt) const
     MFEM_ABORT("No explicit integrator should be called");
 }
 
-//TODO
-//this is where du/dt is computed, 
-//we can simply solved for u^{n+1}, then let du/dt = (u^{n+1}-u^{n})/dt
+//backward Euler update
 void INSOperator::ImplicitSolve(const double dt,
-                                       const Vector &u, Vector &du_dt)
+                                const Vector &up, Vector &dup_dt)
 {
-   //first update blockOp and prec
-
-   // Define T = M + dt K (it is updated in the first call of implicitSolve)
+   // Define T = M/dt + K and so on (it is updated in the first call of implicitSolve)
    if (!T)
    {
-      T = Add(1.0, Mmat, dt, Kmat);
+      M->AddDomainIntegrator(new VectorMassIntegrator(1./dt));
+      M->Assemble();
+      M->FormSystemMatrix(vel_ess_tdof_list, Mmat);    
+
+      //we do not eliminate boundary in Mrhs
+      Mrhs->AddDomainIntegrator(new VectorMassIntegrator(1./dt));
+      Mrhs->Assemble();
+
+      T = Add(Mmat, Kmat);
       current_dt = dt;
 
       blockOp->SetBlock(0,0, T);
-      blockOp->SetBlock(1,1, T);
-      solver->SetOperator(blockOp); 
 
       Vector Td(M->Height());
       T.GetDiag(Td);
-      Tinv = new DSmoother(T);
+      invT = new DSmoother(T);
 
-      //need to work out the block preconditioner
-      //I believe the schur complement is  Dx Td^-1 DxT + Dy Td^-1 DyT
-      //But we need to double check
+      SparseMatrix Mtmp = new SparseMatrix(*DmatT);         //deep copy DmatT
       for (int i = 0; i < Td.Size(); i++)
       {
-         DxT->ScaleRow(i, 1./Td(i));
-         DyT->ScaleRow(i, 1./Td(i));
+         Mtmp->ScaleRow(i, 1./Td(i));
       }
-      SparseMatrix *Stmp;
-      S = Mult(Dx, *DxT);
-      Stmp = Mult(Dy, *DyT);
-      S += Stmp;
-      delete Stmp;
-      prec->SetBlock(0,0,Tinv);
-      prec->SetBlock(1,1,Tinv);
-      prec->SetBlock(2,2,S);
-   }
-   MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
+      S = Mult(D, *Mtmp);
+      delete Mtmp;
 
-   // update RHS = [u, v]+[f, v] (both are vector and the third component is 0)
-   // use block vector
+#ifndef MFEM_USE_SUITESPARSE
+      invS = new GSSmoother(S);
+#else
+      invS = new UMFPackSolver(S);
+#endif
+      prec->SetDiagonalBlock(0,invT);
+      prec->SetDiagonalBlock(1,invS);
+
+      solver->SetOperator(blockOp); 
+      solver->SetPreconditioner(prec);
+   }
+   MFEM_VERIFY(dt == current_dt, "It needs dt fixed"); 
+
+   // update RHS = [u, v]+[f, v] 
+   int sc = block_offsets[1]-block_offset[0];
+
+   Vector uold(vx.GetData() + 0, sc);
+
+   double time=GetTime();
+   F0_coeff->SetTime(time);
+   fform->Assemble();
+
+   u_coeff->SetTime(time);
+   u_bdr.ProjectBdrCoefficient(u_coeff, ess_bdr);
+
+   rhs=0.;
+   Mrhs->Mult(uold, rhs.GetBlock(0))
+   rhs.GetBlock(0)+=fform;
+
+   SparseMatrix Mdummy;
+   Vector X, B;
+
+   //apply boundary condition
+   M->FormLinearSystem(ess_tdof_list, u_bdr, rhs.GetBlock(0), Mdummy, X, B);
+   rhs.GetBlock(0)=B;
+
+   K->FormLinearSystem(ess_tdof_list, u_bdr, rhs.GetBlock(0), Mdummy, X, B);
+   rhs.GetBlock(0)=B;
+
+   dform->FormRectangularLinearSystem(ess_tdof_list, pres_ess_tdof_list, u_bdr, rhs.GetBlock(1), Mdummy, X, B);
+   rhs.GetBlock(1)=B;
+   rhs.GetBlock(1) *= -1.0;
 
    // solve the system
-   solver->Mult(z, du_dt);
+   solver->Mult(rhs, dup_dt);
+
+   // upate dup_dt
+   dup_dt-=up;
+   dup_dt/=dt;
 }
 
 INSOperator::~INSOperator()
 {
    delete T;
    delete M;
+   delete Mrhs;
+   delete D;
    delete K;
-   delete Dx;
-   delete Dy;
-   delete DxT;
-   delete DyT;
+   delete dform;
+   delete fform;
+   delete T;
+   delete S; 
+   delete Dmat;
+   delete DmatT;
    delete Tinv;
+   delete solver;
+   delete prec;
+   delete invS;
+   delete invT;
 }
 
 
