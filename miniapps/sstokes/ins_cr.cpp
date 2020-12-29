@@ -212,6 +212,10 @@ int main(int argc, char *argv[])
    v0coeff.SetTime(0.);
    u_gf.ProjectCoefficient(v0coeff);
 
+   FunctionCoefficient p0coeff(pres_ex);
+   p0coeff.SetTime(0.);
+   p_gf.ProjectCoefficient(p0coeff);
+
    INSOperator oper(*vel_fes, *pres_fes, visc, ess_bdr, block_offsets);
    socketstream sout;
    if (visualization)
@@ -242,7 +246,14 @@ int main(int argc, char *argv[])
    ode_solver->Init(oper);
    double t = 0.0;
 
-   bool last_step = false;
+   bool last_step;
+   if (t<t_final) {
+      last_step= false;
+   }
+   else{
+      last_step= true;
+   }
+
    for (int ti = 1; !last_step; ti++)
    {
       if (t + dt >= t_final - dt/2)
@@ -291,6 +302,8 @@ OrthoSolver::OrthoSolver() : Solver(0, true) {}
 void OrthoSolver::SetOperator(const Operator &op)
 {
    oper = &op;
+   height = op.Height();
+   width = op.Width();
 }
 
 void OrthoSolver::Mult(const Vector &b, Vector &x) const
@@ -424,15 +437,16 @@ void INSOperator::ImplicitSolve(const double dt,
 
 #ifndef MFEM_USE_SUITESPARSE
       invS = new GSSmoother(*S);
-      invOrthoS = new OrthoSolver();
-      invOrthoS->SetOperator(*invS);
 #else
       invS = new UMFPackSolver(*S);
 #endif
       invS->iterative_mode = false;
 
+      invOrthoS = new OrthoSolver();
+      invOrthoS->SetOperator(*invS);
+
       prec->SetDiagonalBlock(0,invT);
-      prec->SetDiagonalBlock(1,invS);
+      prec->SetDiagonalBlock(1,invOrthoS);
 
       solver->SetOperator(*blockOp); 
       solver->SetPreconditioner(*prec);
@@ -495,6 +509,7 @@ INSOperator::~INSOperator()
    delete blockOp;
    delete prec;
    delete invS;
+   delete invOrthoS;
    delete invT;
    delete u_coeff;
    delete force_coeff;
