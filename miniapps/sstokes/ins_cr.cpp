@@ -6,7 +6,9 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "ortho_solver.hpp"
 
+using namespace mfem::navier;
 using namespace std;
 using namespace mfem;
 
@@ -256,7 +258,7 @@ int main(int argc, char *argv[])
       u_gf.Save(sol_ofs);
       p_gf.Save(p_ofs);
    }
-
+  
    delete ode_solver;
    delete mesh;
    delete vel_fec;
@@ -420,7 +422,8 @@ void INSOperator::ImplicitSolve(const double dt,
    rhs.GetBlock(1)*=-1.0;
 
    // solve the system (dup_dt is used to hold up_new here)
-   solver->Mult(rhs, dup_dt);
+   //solver->Mult(rhs, dup_dt);
+   OrthoSolver::Mult(rhs,dup_dt);
 
    // upate dup_dt = (up_new-up_old)/dt
    dup_dt-=up;
@@ -436,7 +439,6 @@ INSOperator::~INSOperator()
    delete K;
    delete dform;
    delete fform;
-   delete T;
    delete S; 
    delete DmatT;
    delete solver;
@@ -449,3 +451,34 @@ INSOperator::~INSOperator()
 }
 
 
+OrthoSolver::OrthoSolver() : Solver(0, true) {}
+
+void OrthoSolver::SetOperator(const Operator &op)
+{
+   oper = &op;
+}
+
+void OrthoSolver::Mult(const Vector &b, Vector &x) const
+{
+   // Orthogonalize input
+   Orthogonalize(b, b_ortho);
+
+   // Apply operator
+   oper->Mult(b_ortho, x);
+
+   // Orthogonalize output
+   Orthogonalize(x, x);
+}
+
+void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
+{
+   double global_sum = v.Sum();
+   int global_size = v.Size();
+
+   double ratio = global_sum / static_cast<double>(global_size);
+   v_ortho.SetSize(v.Size());
+   for (int i = 0; i < v_ortho.Size(); ++i)
+   {
+      v_ortho(i) = v(i) - ratio;
+   }
+}
