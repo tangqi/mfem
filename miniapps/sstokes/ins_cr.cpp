@@ -6,9 +6,8 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "ortho_solver.hpp"
 
-using namespace mfem::navier;
+//using namespace mfem::navier;
 using namespace std;
 using namespace mfem;
 
@@ -31,7 +30,7 @@ protected:
    MINRESSolver *solver;
    BlockOperator *blockOp;
    BlockDiagonalPreconditioner *prec;
-   Solver *invS, *invT;
+   Solver *invS, *invOrthoS, *invT;
 
    mutable BlockVector z, rhs; // auxiliary BlockVector
    mutable GridFunction u_bdr;
@@ -47,6 +46,23 @@ public:
    virtual void ImplicitSolve(const double dt, const Vector &up, Vector &dup_dt);
 
    virtual ~INSOperator();
+};
+
+class OrthoSolver : public Solver
+{
+public:
+   OrthoSolver();
+
+   virtual void SetOperator(const Operator &op);
+
+   void Mult(const Vector &b, Vector &x) const;
+
+private:
+   const Operator *oper = nullptr;
+
+   mutable Vector b_ortho;
+
+   void Orthogonalize(const Vector &v, Vector &v_ortho) const;
 };
 
 
@@ -94,6 +110,8 @@ int main(int argc, char *argv[])
    double dt = 1.0e-2;
    bool visualization = false;
    int vis_steps = 5;
+   
+
 
    int precision = 8;
    cout.precision(precision);
@@ -195,7 +213,6 @@ int main(int argc, char *argv[])
    u_gf.ProjectCoefficient(v0coeff);
 
    INSOperator oper(*vel_fes, *pres_fes, visc, ess_bdr, block_offsets);
-
    socketstream sout;
    if (visualization)
    {
@@ -300,6 +317,7 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
       v_ortho(i) = v(i) - ratio;
    }
 }
+
 
 INSOperator::INSOperator(FiniteElementSpace &vel_fes, 
                          FiniteElementSpace &pres_fes, double visc, 
@@ -406,6 +424,8 @@ void INSOperator::ImplicitSolve(const double dt,
 
 #ifndef MFEM_USE_SUITESPARSE
       invS = new GSSmoother(*S);
+      invOrthoS = new OrthoSolver();
+      invOrthoS->SetOperator(*invS);
 #else
       invS = new UMFPackSolver(*S);
 #endif
@@ -454,10 +474,7 @@ void INSOperator::ImplicitSolve(const double dt,
    rhs.GetBlock(1)*=-1.0;
 
    // solve the system (dup_dt is used to hold up_new here)
-   //solver->Mult(rhs, dup_dt);
-   //OrthoSolver::Mult(rhs,dup_dt);
-   OrthoSolver::Mult(rhs,dup_dt);
-
+   solver->Mult(rhs, dup_dt);
    // upate dup_dt = (up_new-up_old)/dt
    dup_dt-=up;
    dup_dt/=dt;
