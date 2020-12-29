@@ -72,7 +72,8 @@ void vel_ex(const Vector &x, double t, Vector &u)
 {
    double xi = x(0);
    double yi = x(1);
-   double Tt = 1.+t/2.+t*t/3.;
+   //double Tt = 1.+t/2.+t*t/3.;
+   double Tt = 1.;
 
    u(0) = (xi*xi+2*xi*yi+yi*yi)*Tt;
    u(1) = (xi*xi-2*xi*yi-yi*yi)*Tt;
@@ -82,22 +83,28 @@ double pres_ex(const Vector &x, double t)
 {
    double xi = x(0);
    double yi = x(1);
-   double Tt = 1.+t/2.+t*t/3.;
+   //double Tt = 1.+t/2.+t*t/3.;
+   double Tt = 1.;
 
    //this pressure has 0 average in [0, 1]^2
    return (xi*xi+xi*yi*4/3.+yi*yi-1)*Tt;
+   
 }
 
 void forcefun(const Vector &x, double t, Vector &u)
 {
    double xi = x(0);
    double yi = x(1);
-   double Tt = 1.+t/2.+t*t/3.;
-   double dTt= 0.5+2.*t/3.;
+   //double Tt = 1.+t/2.+t*t/3.;
+   //double dTt= 0.5+2.*t/3.;
+   double Tt = 1.;
+   double dTt= 0.;
 
    //f = du/dt + grad p - nu Delta u
    u(0) = (xi*xi+2*xi*yi+yi*yi)*dTt + (2*xi+yi*4/3.)*Tt - visc*4.*Tt ;
    u(1) = (xi*xi-2*xi*yi-yi*yi)*dTt + (xi*4/3.+2*yi)*Tt;
+   
+
 }
 
 
@@ -110,6 +117,7 @@ int main(int argc, char *argv[])
    double dt = 1.0e-2;
    bool visualization = false;
    int vis_steps = 5;
+   int order = 1;
    
 
 
@@ -274,7 +282,41 @@ int main(int argc, char *argv[])
 
       }
    }
+   
+   //Exact soln at final time 
+   VectorFunctionCoefficient vfinalcoeff(dim, vel_ex);
+   vfinalcoeff.SetTime(t_final);
+   u_gf.ProjectCoefficient(vfinalcoeff);
 
+   FunctionCoefficient pfinalcoeff(pres_ex);
+   pfinalcoeff.SetTime(t_final);
+   p_gf.ProjectCoefficient(pfinalcoeff);
+
+    // Create the grid functions u and p. Compute the L2 error norms.
+   
+
+   int order_quad = max(2, 2*order+1);
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i=0; i < Geometry::NumGeom; ++i)
+   {
+      irs[i] = &(IntRules.Get(i, order_quad));
+   }
+
+   double err_u  = u_gf.ComputeL2Error(vfinalcoeff, irs);
+   double norm_u = ComputeLpNorm(2., vfinalcoeff, *mesh, irs);
+   double err_p  = p_gf.ComputeL2Error(pfinalcoeff, irs);
+   double norm_p = ComputeLpNorm(2., pfinalcoeff, *mesh, irs);
+
+   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+   std::cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
+
+
+
+
+
+   //  Save the mesh and the solution. This output can be viewed later using
+   //     GLVis: "glvis -m refined.mesh -g u.gf" or "glvis -m refined.mesh -g
+   //     sol_p.gf".
    if (true)
    {
       ofstream mesh_ofs("refined.mesh");
