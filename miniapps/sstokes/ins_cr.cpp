@@ -6,6 +6,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <math.h>
 
 //using namespace mfem::navier;
 using namespace std;
@@ -97,6 +98,8 @@ private:
 
 double visc=1.0;
 
+//Example1: 
+/*
 void vel_ex(const Vector &x, double t, Vector &u)
 {
    double xi = x(0);
@@ -128,8 +131,44 @@ void forcefun(const Vector &x, double t, Vector &u)
    u(0) = (xi*xi+2*xi*yi+yi*yi)*dTt + (2*xi+yi*4/3.)*Tt - visc*4.*Tt ;
    u(1) = (xi*xi-2*xi*yi-yi*yi)*dTt + (xi*4/3.+2*yi)*Tt;
 }
+*/
 
+//Example 2
 
+void vel_ex(const Vector &x, double t, Vector &u)
+{
+   double xi = x(0);
+   double yi = x(1);
+   
+
+   u(0) = sin(M_PI*xi)*sin(M_PI*xi)*sin(2*M_PI*yi)*cos(t);
+   u(1) = -sin(2*M_PI*xi)*sin(M_PI*yi)*sin(M_PI*yi)*cos(t);
+}
+
+double pres_ex(const Vector &x, double t)
+{
+   double xi = x(0);
+   double yi = x(1);
+   
+
+   //this pressure has 0 average in [0, 1]^2
+   return sin(2*M_PI*xi)*sin(2*M_PI*yi)*cos(t);
+}
+
+void forcefun(const Vector &x, double t, Vector &u)
+{
+   double xi = x(0);
+   double yi = x(1);
+   
+
+   //f = du/dt + grad p - nu Delta u
+   u(0) = sin(M_PI*xi)*sin(M_PI*xi)*sin(2*M_PI*yi)*(-sin(t))
+          -visc*(2*M_PI*M_PI*cos(M_PI*xi)*cos(M_PI*xi)*sin(2*M_PI*yi)*cos(t)-6*M_PI*M_PI*sin(M_PI*xi)*sin(M_PI*xi)*sin(2*M_PI*yi)*cos(t))
+          +2*M_PI*cos(2*M_PI*xi)*sin(2*M_PI*yi)*cos(t);
+   u(1) = sin(2*M_PI*xi)*sin(M_PI*yi)*sin(M_PI*yi)*sin(t)
+          -visc*(6*M_PI*M_PI*sin(2*M_PI*xi)*sin(M_PI*yi)*sin(M_PI*yi)*cos(t)-2*M_PI*M_PI*sin(2*M_PI*xi)*cos(M_PI*yi)*cos(M_PI*yi)*cos(t))
+          +2*M_PI*sin(2*M_PI*xi)*cos(2*M_PI*yi)*cos(t);
+}
 int main(int argc, char *argv[])
 {
    const char *mesh_file = "../../data/inline-quad.mesh";
