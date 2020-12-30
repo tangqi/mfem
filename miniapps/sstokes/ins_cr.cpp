@@ -18,7 +18,7 @@ protected:
    FiniteElementSpace &U_space, &P_space;
    Array<int> &ess_bdr, &block_offsets, vel_ess_tdof_list, pres_ess_tdof_list;    
 
-   BilinearForm *M, *Mrhs, *K, *D, *tform;
+   BilinearForm *Mrhs, *K, *D, *tform;
    MixedBilinearForm *dform;
    LinearForm *fform;
    SparseMatrix Tmat, Kmat, Dmat;
@@ -54,18 +54,44 @@ public:
 class OrthoSolver : public Solver
 {
 public:
-   OrthoSolver();
+   OrthoSolver() : Solver(0, true) {};
 
-   virtual void SetOperator(const Operator &op);
+   virtual void SetOperator(const Operator &op)
+   {
+      oper = &op;
+      height = op.Height();
+      width = op.Width();
+   };
 
-   void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const
+   {
+      // Orthogonalize input
+      Orthogonalize(b, b_ortho);
+
+      // Apply operator
+      oper->Mult(b_ortho, x);
+
+      // Orthogonalize output
+      Orthogonalize(x, x);
+   };
 
 private:
    const Operator *oper = nullptr;
 
    mutable Vector b_ortho;
 
-   void Orthogonalize(const Vector &v, Vector &v_ortho) const;
+   void Orthogonalize(const Vector &v, Vector &v_ortho) const
+   {
+      double global_sum = v.Sum();
+      int global_size = v.Size();
+   
+      double ratio = global_sum / static_cast<double>(global_size);
+      v_ortho.SetSize(v.Size());
+      for (int i = 0; i < v_ortho.Size(); ++i)
+      {
+         v_ortho(i) = v(i) - ratio;
+      }
+   };
 };
 
 
@@ -113,7 +139,6 @@ int main(int argc, char *argv[])
    double dt = 1.0e-2;
    bool visualization = false;
    int vis_steps = 5;
-   int order = 1;
    
 
 
@@ -279,38 +304,26 @@ int main(int argc, char *argv[])
       }
    }
 
-   //9. Exact soln at final time 
-   VectorFunctionCoefficient vfinalcoeff(dim, vel_ex);
-   vfinalcoeff.SetTime(t_final);
-   u_gf.ProjectCoefficient(vfinalcoeff);
-
-   FunctionCoefficient pfinalcoeff(pres_ex);
-   pfinalcoeff.SetTime(t_final);
-   p_gf.ProjectCoefficient(pfinalcoeff);
+   // Exact soln at final time 
+   v0coeff.SetTime(t_final);
+   p0coeff.SetTime(t_final);
 
     // 10.  Create the grid functions u and p. Compute the L2 error norms.
-   int order_quad = max(2, 2*order+1);
+   int order_quad = 3;
    const IntegrationRule *irs[Geometry::NumGeom];
    for (int i=0; i < Geometry::NumGeom; ++i)
    {
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 
-   double err_u  = u_gf.ComputeL2Error(vfinalcoeff, irs);
-   double norm_u = ComputeLpNorm(2., vfinalcoeff, *mesh, irs);
-   double err_p  = p_gf.ComputeL2Error(pfinalcoeff, irs);
-   double norm_p = ComputeLpNorm(2., pfinalcoeff, *mesh, irs);
+   double err_u  = u_gf.ComputeL2Error(v0coeff, irs);
+   double norm_u = ComputeLpNorm(2., v0coeff, *mesh, irs);
+   double err_p  = p_gf.ComputeL2Error(p0coeff, irs);
+   double norm_p = ComputeLpNorm(2., p0coeff, *mesh, irs);
 
    std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
    std::cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
 
-
-
-
-
-   // 11. Save the mesh and the solution. This output can be viewed later using
-   //     GLVis: "glvis -m refined.mesh -g u.gf" or "glvis -m refined.mesh -g
-   //     sol_p.gf".
 
    if (true)
    {
@@ -334,40 +347,6 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-OrthoSolver::OrthoSolver() : Solver(0, true) {}
-
-void OrthoSolver::SetOperator(const Operator &op)
-{
-   oper = &op;
-   height = op.Height();
-   width = op.Width();
-}
-
-void OrthoSolver::Mult(const Vector &b, Vector &x) const
-{
-   // Orthogonalize input
-   Orthogonalize(b, b_ortho);
-
-   // Apply operator
-   oper->Mult(b_ortho, x);
-
-   // Orthogonalize output
-   Orthogonalize(x, x);
-}
-
-void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
-{
-   double global_sum = v.Sum();
-   int global_size = v.Size();
-
-   double ratio = global_sum / static_cast<double>(global_size);
-   v_ortho.SetSize(v.Size());
-   for (int i = 0; i < v_ortho.Size(); ++i)
-   {
-      v_ortho(i) = v(i) - ratio;
-   }
-}
-
 
 INSOperator::INSOperator(FiniteElementSpace &vel_fes, 
                          FiniteElementSpace &pres_fes, double visc, 
@@ -376,7 +355,7 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
    : TimeDependentOperator(vel_fes.GetVSize()+pres_fes.GetVSize(), 0.0), 
      U_space(vel_fes), P_space(pres_fes), 
      ess_bdr(ess_bdr_), block_offsets(block_offsets_),visc_coeff(viscosity),
-     M(NULL), K(NULL), D(NULL), DmatT(NULL), S(NULL), 
+     K(NULL), D(NULL), DmatT(NULL), S(NULL), 
      invS(NULL), invT(NULL), blockOp(NULL),
      current_dt(0.0), viscosity(visc), u_coeff(NULL), force_coeff(NULL),
      initT(false), z(block_offsets), rhs(block_offsets), u_bdr(&vel_fes)
@@ -429,8 +408,8 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
    solver->SetAbsTol(0.);
    solver->SetRelTol(1e-8);
    solver->SetMaxIter(10000);
-   solver->SetPrintLevel(1);
-   solver->iterative_mode = false;  //this might be okay to use true
+   solver->SetPrintLevel(2);
+   solver->iterative_mode = false;
 }
 
 //this should never be called
@@ -463,8 +442,6 @@ void INSOperator::ImplicitSolve(const double dt,
 
       Vector Td(Tmat.Height());
       Tmat.GetDiag(Td);
-      invT = new DSmoother(Tmat);
-      invT->iterative_mode = false;
 
       SparseMatrix *Mtmp = new SparseMatrix(*DmatT);         //deep copy DmatT
       for (int i = 0; i < Td.Size(); i++)
@@ -474,11 +451,13 @@ void INSOperator::ImplicitSolve(const double dt,
       S = mfem::Mult(Dmat, *Mtmp);  //Here mfem is needed otherwise it will pick up INSOperator::Mult
       delete Mtmp;
 
+      invT = new DSmoother(Tmat);
 #ifndef MFEM_USE_SUITESPARSE
       invS = new GSSmoother(*S);
 #else
       invS = new UMFPackSolver(*S);
 #endif
+      invT->iterative_mode = false;
       invS->iterative_mode = false;
 
       invOrthoS = new OrthoSolver();
@@ -525,6 +504,7 @@ void INSOperator::ImplicitSolve(const double dt,
 
    // solve the system (dup_dt is used to hold up_new here)
    solver->Mult(rhs, dup_dt);
+
    // upate dup_dt = (up_new-up_old)/dt
    dup_dt-=up;
    dup_dt/=dt;
@@ -532,7 +512,6 @@ void INSOperator::ImplicitSolve(const double dt,
 
 INSOperator::~INSOperator()
 {
-   delete M;
    delete Mrhs;
    delete D;
    delete K;
