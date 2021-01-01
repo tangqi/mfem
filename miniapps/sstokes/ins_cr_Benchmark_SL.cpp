@@ -96,7 +96,7 @@ private:
 };
 
 
-double visc=1.0;
+double visc=1.0e-3;
 
 //Example1: 
 /*
@@ -134,7 +134,7 @@ void forcefun(const Vector &x, double t, Vector &u)
 */
 
 //Example 2
-
+/*
 void vel_ex(const Vector &x, double t, Vector &u) //SL
 {
    double xi = x(0);
@@ -157,6 +157,7 @@ void vel_init(const Vector &x, double t, Vector &u) //SL
    double xi = x(0);
    double yi = x(1);
    
+   
    if (fabs(yi-1)<1e-12)
    {
       u(0)=1.;
@@ -167,6 +168,7 @@ void vel_init(const Vector &x, double t, Vector &u) //SL
    u(0) = sin(M_PI*xi)*sin(M_PI*xi)*sin(2*M_PI*yi)*cos(t);
    u(1) = -sin(2*M_PI*xi)*sin(M_PI*yi)*sin(M_PI*yi)*cos(t);
    }
+   
 }
 
 
@@ -195,12 +197,80 @@ void forcefun(const Vector &x, double t, Vector &u)
           +2*M_PI*sin(2*M_PI*xi)*cos(2*M_PI*yi)*cos(t);
 }
 
+*/
+
+//Benchmark test
+void vel_ex(const Vector &x, double t, Vector &u) //SL
+{
+   double xi = x(0);
+   double yi = x(1);
+   
+   if (fabs(yi-1)<1e-12)
+   {
+      u(0)=1.;
+      u(1)=0.;
+   }
+   else if ((fabs(xi-0)<1e-12) || (fabs(xi-1)<1e-12) || (fabs(yi-0)<1e-12))
+   {
+      u(0)=0.;
+      u(1)=0.;
+   }
+   else
+   {
+   u(0) = sin(M_PI*xi)*sin(M_PI*xi)*sin(2*M_PI*yi)*sin(t);
+   u(1) = -sin(2*M_PI*xi)*sin(M_PI*yi)*sin(M_PI*yi)*sin(t);
+   }
+}
+
+void vel_init(const Vector &x, double t, Vector &u) //SL
+{
+   double xi = x(0);
+   double yi = x(1);
+   
+   if (fabs(yi-1)<1e-12)
+   {
+      u(0)=1.;
+      u(1)=0.;
+   }
+   else
+   {
+      u(0)=0.;
+      u(1)=0.;
+   }
+}
+
+
+double pres_ex(const Vector &x, double t)
+{
+   double xi = x(0);
+   double yi = x(1);
+   
+
+   //this pressure has 0 average in [0, 1]^2
+   return sin(2*M_PI*xi)*sin(2*M_PI*yi)*sin(t);
+}
+
+void forcefun(const Vector &x, double t, Vector &u)
+{
+   double xi = x(0);
+   double yi = x(1);
+   
+
+   //f = du/dt + grad p - nu Delta u
+   u(0) = sin(M_PI*xi)*sin(M_PI*xi)*sin(2*M_PI*yi)*(cos(t))
+          -visc*(2*M_PI*M_PI*cos(M_PI*xi)*cos(M_PI*xi)*sin(2*M_PI*yi)*sin(t)-6*M_PI*M_PI*sin(M_PI*xi)*sin(M_PI*xi)*sin(2*M_PI*yi)*sin(t))
+          +2*M_PI*cos(2*M_PI*xi)*sin(2*M_PI*yi)*sin(t);
+   u(1) = -sin(2*M_PI*xi)*sin(M_PI*yi)*sin(M_PI*yi)*cos(t)
+          -visc*(6*M_PI*M_PI*sin(2*M_PI*xi)*sin(M_PI*yi)*sin(M_PI*yi)*sin(t)-2*M_PI*M_PI*sin(2*M_PI*xi)*cos(M_PI*yi)*cos(M_PI*yi)*sin(t))
+          +2*M_PI*sin(2*M_PI*xi)*cos(2*M_PI*yi)*sin(t);
+}
+
 int main(int argc, char *argv[])
 {
    const char *mesh_file = "../../data/inline-quad.mesh";
    int ref_levels = 2;
    int ode_solver_type = 1;
-   double t_final = 0.5;
+   double t_final = 50.;
    double dt = 1.0e-2;
    bool visualization = false;
    int vis_steps = 5;
