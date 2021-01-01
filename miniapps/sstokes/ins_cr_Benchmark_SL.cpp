@@ -135,15 +135,40 @@ void forcefun(const Vector &x, double t, Vector &u)
 
 //Example 2
 
-void vel_ex(const Vector &x, double t, Vector &u)
+void vel_ex(const Vector &x, double t, Vector &u) //SL
 {
    double xi = x(0);
    double yi = x(1);
    
-
+   if (fabs(yi-1)<1e-12)
+   {
+      u(0)=1.;
+      u(1)=0.;
+   }
+   else
+   {
    u(0) = sin(M_PI*xi)*sin(M_PI*xi)*sin(2*M_PI*yi)*cos(t);
    u(1) = -sin(2*M_PI*xi)*sin(M_PI*yi)*sin(M_PI*yi)*cos(t);
+   }
 }
+
+void vel_init(const Vector &x, double t, Vector &u) //SL
+{
+   double xi = x(0);
+   double yi = x(1);
+   
+   if (fabs(yi-1)<1e-12)
+   {
+      u(0)=1.;
+      u(1)=0.;
+   }
+   else
+   {
+   u(0) = sin(M_PI*xi)*sin(M_PI*xi)*sin(2*M_PI*yi)*cos(t);
+   u(1) = -sin(2*M_PI*xi)*sin(M_PI*yi)*sin(M_PI*yi)*cos(t);
+   }
+}
+
 
 double pres_ex(const Vector &x, double t)
 {
@@ -277,7 +302,7 @@ int main(int argc, char *argv[])
    p_gf.MakeRef(pres_fes, up.GetBlock(1), 0);
 
    //7. initial conditions
-   VectorFunctionCoefficient v0coeff(dim, vel_ex);
+   VectorFunctionCoefficient v0coeff(dim, vel_init);//SL
    v0coeff.SetTime(0.);
    u_gf.ProjectCoefficient(v0coeff);
 
@@ -343,27 +368,7 @@ int main(int argc, char *argv[])
 
       }
    }
-
-   //9. Create the grid functions u and p. Exact soln at final time 
-   v0coeff.SetTime(t_final);
-   p0coeff.SetTime(t_final);
-
-    // 10. Compute the L2 error norms.
-   int order_quad = 3;
-   const IntegrationRule *irs[Geometry::NumGeom];
-   for (int i=0; i < Geometry::NumGeom; ++i)
-   {
-      irs[i] = &(IntRules.Get(i, order_quad));
-   }
-
-   double err_u  = u_gf.ComputeL2Error(v0coeff, irs);
-   double norm_u = ComputeLpNorm(2., v0coeff, *mesh, irs);
-   double err_p  = p_gf.ComputeL2Error(p0coeff, irs);
-   double norm_p = ComputeLpNorm(2., p0coeff, *mesh, irs);
-
-   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-   std::cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
-
+   
 
    if (true)
    {
