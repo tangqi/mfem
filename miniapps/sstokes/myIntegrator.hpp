@@ -3,6 +3,8 @@
 using namespace std;
 using namespace mfem;
 
+//this supports test is H(div) and trial is L2 P0 element
+//this is the transpose of what we want
 class NormalTraceIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -25,24 +27,23 @@ void NormalTraceIntegrator::AssembleFaceMatrix(
    const FiniteElement &test_fe2, FaceElementTransformations &Trans,
    DenseMatrix &elmat)
 {
-   int i, j, face_ndof, ndof1, ndof2, dim;
+   int i, j, face_ndof, te_ndof, dim;
    int order;
    double face_weight;
 
    MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::VALUE, "");
 
    face_ndof = trial_face_fe.GetDof();
-   ndof1 = test_fe1.GetDof();
+   te_ndof = test_fe1.GetDof();
    dim = test_fe1.GetDim();
 
    face_shape.SetSize(face_ndof);
    normal.SetSize(dim);
    norN.SetSize(dim);
-   shape1.SetSize(ndof1,dim);
-   shape1_n.SetSize(ndof1);
+   shape1.SetSize(te_ndof,dim);
+   shape1_n.SetSize(te_ndof);
 
-   ndof2 = 0;
-   elmat.SetSize(ndof1 + ndof2, face_ndof);
+   elmat.SetSize(te_ndof, face_ndof);
    elmat = 0.0;
 
    const IntegrationRule *ir = IntRule;
@@ -64,7 +65,7 @@ void NormalTraceIntegrator::AssembleFaceMatrix(
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip1, eip2;
+      IntegrationPoint eip1;
 
       // Trace finite element shape function
       trial_face_fe.CalcShape(ip, face_shape);
@@ -80,9 +81,19 @@ void NormalTraceIntegrator::AssembleFaceMatrix(
       test_fe1.CalcVShape(eip1, shape1);
       shape1.Mult(norN, shape1_n);
 
-      // Here Trans.Weight() should not matter as long as it is consistent both sides!
+      /*
+      shape1.Print();
+      norN.Print();
+      */
+
+      // I believe the integrator I copied (NormalTraceJumpIntegrator) is designed for trace of H(div)
+      // Since it uses its trace space, somehow everything can be done in a normalized way
+      // Here we do not care just need to perform an evaluation along normal direction (we used H(div)) 
+      // Nevertheless, Trans.Weight() should not matter as long as it is consistent on both sides
+      
       face_shape *= ip.weight*Trans.Weight();
-      for (i = 0; i < ndof1; i++)
+
+      for (i = 0; i < te_ndof; i++)
          for (j = 0; j < face_ndof; j++)
          {
             elmat(i, j) -= shape1_n(i) * face_shape(j);
@@ -92,6 +103,8 @@ void NormalTraceIntegrator::AssembleFaceMatrix(
 }
 
 //this is for Vector of Scalar component when CalcVShape is not available
+//this supports test is H1^d and trial is L2 P0 element
+//this is the transpose of what we want
 class NormalVectorTraceIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -152,7 +165,7 @@ void NormalVectorTraceIntegrator::AssembleFaceMatrix(
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip1, eip2;
+      IntegrationPoint eip1;
 
       // Trace finite element shape function
       trial_face_fe.CalcShape(ip, face_shape);
