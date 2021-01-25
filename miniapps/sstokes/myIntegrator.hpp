@@ -96,7 +96,7 @@ void NormalTraceIntegrator::AssembleFaceMatrix(
       for (i = 0; i < te_ndof; i++)
          for (j = 0; j < face_ndof; j++)
          {
-            elmat(i, j) -= shape1_n(i) * face_shape(j);
+            elmat(i, j) += shape1_n(i) * face_shape(j);
          }
       
    }
@@ -152,10 +152,10 @@ void NormalVectorTraceIntegrator::AssembleFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      order = test_fe1.GetOrder() - 1;
+      order = test_fe1.GetOrder();
       order += trial_face_fe.GetOrder();
 
-      if (order>1)
+      if (order!=2)
       {
         mfem_error("this should never happen!");
       }

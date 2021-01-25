@@ -11,7 +11,9 @@ int main(int argc, char *argv[])
 {
    //this define a single QUADRILATERAL element on the domain of [0, 2]x[0, 3]
    //See CrouzeixRaviartQuadFiniteElement::CalcShape for bases in the reference space
-   Mesh *mesh = new Mesh(1, 1, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   //Mesh *mesh = new Mesh(1, 1, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh *mesh = new Mesh(1, 2, Element::QUADRILATERAL, 2, 2.0, 3.0);
+   //Mesh *mesh = new Mesh(1, 1, Element::TRIANGLE, 1, 2.0, 3.0);
    int dim = 2;
 
    FiniteElementCollection *vel_fec, *trace_fec, *rt_fec;
@@ -35,6 +37,24 @@ int main(int argc, char *argv[])
    mform.Assemble();
    mform.Finalize();
 
+   cout<<"mass matrix before slip diagonal"<<endl;
+   mform.SpMat().Print();
+
+   Vector diag;
+   mform.SpMat().GetDiag(diag);
+   diag.Print();
+   //set the matrix being positive diagonal
+   for (int i=0; i<mform.SpMat().Size(); i++)
+   {
+       if (diag(i)>0)
+        {continue;}
+       else
+       {
+         mform.SpMat()._Set_(i,i,-diag(i));
+       }
+
+   }
+
    //this matrix needs to be transformed!!
    MixedBilinearForm pform(&trace_fes, &vel_fes);
    pform.AddTraceFaceIntegrator(new NormalVectorTraceIntegrator());
@@ -46,6 +66,10 @@ int main(int argc, char *argv[])
 
    cout<<"projection matrix is"<<endl;
    pform.SpMat().Print();
+
+   ofstream mesh_ofs("refined.mesh");
+   mesh_ofs.precision(8);
+   mesh->Print(mesh_ofs);
 
    delete mesh;
    delete rt_fec;
