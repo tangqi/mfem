@@ -18,13 +18,13 @@ class INSOperator : public TimeDependentOperator
 {
 protected:
    FiniteElementSpace &U_space, &P_space;
-   Array<int> &ess_bdr, &block_offsets, vel_ess_tdof_list, pres_ess_tdof_list;    
+   Array<int> &ess_bdr, &block_offsets, vel_ess_tdof_list, pres_ess_tdof_list, trace_ess_tdof_list,rt_ess_tdof_list;    
 
    BilinearForm *Mrhs, *K, *D, *tform;
-   MixedBilinearForm *dform;
+   MixedBilinearForm *dform, *mform, *pform;
    LinearForm *fform;
-   SparseMatrix Tmat, Kmat, Dmat;
-   SparseMatrix *DmatT, *S; 
+   SparseMatrix Tmat, Kmat, Dmat, Mmat, Pmat, Bmat;
+   SparseMatrix *DmatT, *S, *PmatT,  *BmatT; 
    double current_dt, viscosity;
    VectorFunctionCoefficient *u_coeff;
    VectorFunctionCoefficient *force_coeff;
@@ -414,9 +414,7 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
    K->Assemble();
    K->FormSystemMatrix(vel_ess_tdof_list, Kmat);
 
-   tform = new BilinearForm(&U_space);
-   tform->AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
-
+   
    dform = new MixedBilinearForm(&U_space, &P_space);
    dform->AddDomainIntegrator(new VectorDivergenceIntegrator);
    dform->Assemble();
@@ -431,6 +429,7 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
    fform->AddDomainIntegrator(new VectorDomainLFIntegrator(*force_coeff));
 
 ///////////////////////////////////////////SL/////////////////////////////////////////
+  
    // step1: Calculate Mass matrix M and Projection matrix P; SL  
    FiniteElementCollection  *trace_fec, *rt_fec;
    rt_fec = new RT_FECollection(0, dim);
@@ -438,36 +437,40 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
 
    FiniteElementSpace trace_fes(&mesh, trace_fec);
    FiniteElementSpace rt_fes(&mesh, rt_fec);
+   
+   trace_fes.GetEssentialTrueDofs(ess_bdr, trace_ess_tdof_list);
+   rt_fes.GetEssentialTrueDofs(ess_bdr, rt_ess_tdof_list);
 
-
-   MixedBilinearForm mform(&trace_fes, &rt_fes);
-   mform.AddTraceFaceIntegrator(new NormalTraceIntegrator());
-   mform.Assemble();
-   mform.Finalize();
+   mform = new MixedBilinearForm(&trace_fes, &rt_fes);
+   mform->AddTraceFaceIntegrator(new NormalTraceIntegrator());
+   mform->Assemble();
+   mform->FormRectangularSystemMatrix(trace_ess_tdof_list, rt_ess_tdof_list, Mmat);
+   mform->Finalize();
 
    cout<<"mass matrix before slip diagonal"<<endl;
   // mform.SpMat().Print();
 
    Vector diag;
-   mform.SpMat().GetDiag(diag);
+   Mmat.GetDiag(diag);
    //diag.Print();
    //set the matrix being positive diagonal
-   for (int i=0; i<mform.SpMat().Size(); i++)
+   for (int i=0; i<Mmat.Size(); i++)
    {
        if (diag(i)>0)
         {continue;}
        else
        {
-         mform.SpMat()._Set_(i,i,-diag(i));
+         Mmat._Set_(i,i,-diag(i));
        }
 
    }
 
    //this matrix needs to be transformed!!
-   MixedBilinearForm pform(&trace_fes, &vel_fes);
-   pform.AddTraceFaceIntegrator(new NormalVectorTraceIntegrator());
-   pform.Assemble();
-   pform.Finalize();
+   pform = new MixedBilinearForm(&trace_fes, &vel_fes);
+   pform->AddTraceFaceIntegrator(new NormalVectorTraceIntegrator());
+   pform->Assemble();
+   pform->FormRectangularSystemMatrix(trace_ess_tdof_list, vel_ess_tdof_list, Pmat);
+   pform->Finalize();
    //
    
    //FIXME!!!
@@ -476,6 +479,22 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
    //Then we multiply B into the 2 x 2 matrix; 
    //How to do multiplication of two matrixes?
    //multiplyMatrices is defined; 
+
+   PmatT = Transpose(Pmat);
+   for (int i=0; i<Mmat.Size(); i++)
+   {
+      PmatT->ScaleRow(i,1./diag(i));
+   }
+   
+   BmatT= Transpose(*PmatT);
+   //here PmatT is B; 
+   //Fix Me!!!!
+   //How to multiply B and B^T before adding vK?
+
+
+   
+   
+   
 
 ///////////////////////////////////////////SL/////////////////////////////////////////
 
@@ -522,10 +541,17 @@ void INSOperator::ImplicitSolve(const double dt,
    {
       initT = true;
 
+      tform = new BilinearForm(&U_space);
+      tform->AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
+      //Fix Me!!!!
+      //How to multiply B and B^T before adding vK?
+
       ConstantCoefficient rdt_coeff(1./dt);
       tform->AddDomainIntegrator(new VectorMassIntegrator(rdt_coeff));
       tform->Assemble();
-      tform->FormSystemMatrix(vel_ess_tdof_list, Tmat);    
+      tform->FormSystemMatrix(vel_ess_tdof_list, Tmat);  
+
+      
 
       //we do not eliminate boundary in Mrhs
       Mrhs->AddDomainIntegrator(new VectorMassIntegrator(rdt_coeff));
