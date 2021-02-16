@@ -43,6 +43,9 @@ public:
    INSOperator(FiniteElementSpace &vel_fes, FiniteElementSpace &pres_fes, double visc, 
                Array<int> &ess_bdr_, Array<int> &block_offsets_);
 
+   SparseMatrix * EliminateVDofs(const Array<int> &vdofs, SparseMatrix *mat,
+                                  DiagonalPolicy dpolicy=DIAG_KEEP);
+
    virtual void Mult(const Vector &u, Vector &du_dt) const;
 
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
@@ -253,6 +256,11 @@ int main(int argc, char *argv[])
    FiniteElementSpace *vel_fes = new FiniteElementSpace(mesh, vel_fec, dim);
    FiniteElementSpace *pres_fes = new FiniteElementSpace(mesh, pres_fec);
 
+   FiniteElementCollection *fec = new DG_Interface_FECollection(0, dim);
+   FiniteElementCollection *rt_fec = new RT_FECollection(0, dim);
+   FiniteElementSpace trace_fes(mesh, fec);
+   FiniteElementSpace rt_fes(mesh, rt_fec);
+
    Array<int> block_offsets(3); 
    block_offsets[0] = 0;
    block_offsets[1] = vel_fes->GetVSize();
@@ -262,8 +270,20 @@ int main(int argc, char *argv[])
    std::cout << "***********************************************************\n";
    std::cout << "Dofs in CR = " << block_offsets[1] - block_offsets[0] << "\n";
    std::cout << "Dofs in L2 = " << block_offsets[2] - block_offsets[1] << "\n";
+   std::cout << "Dofs in RT = " << rt_fes.GetVSize() << "\n";
+   std::cout << "Dofs in trace = " << trace_fes.GetVSize() << "\n";
+   std::cout << "Eles in mesh = " << mesh->GetNE() << "\n";
    std::cout << "Total Dofs = " << block_offsets.Last() << "\n";
    std::cout << "***********************************************************\n";
+
+   MixedBilinearForm mform(&trace_fes, &rt_fes);
+   mform.AddTraceFaceIntegrator(new NormalTraceJumpIntegrator());
+   //mform.AddTraceFaceIntegrator(new TraceJumpIntegrator());
+   mform.Assemble();
+   mform.Finalize();
+   //mform.SpMat().Print();
+   delete fec;
+   delete rt_fec;
 
    //5. Create arrays for the essential boundary conditions.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
@@ -410,8 +430,7 @@ INSOperator::INSOperator(FiniteElementSpace &vel_fes,
    K->Assemble();
    K->FormSystemMatrix(vel_ess_tdof_list, Kmat);
 
-   tform = new BilinearForm(&U_space);
-   tform->AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
+   tform = NULL;
 
    dform = new MixedBilinearForm(&U_space, &P_space);
    dform->AddDomainIntegrator(new VectorDivergenceIntegrator);
@@ -458,6 +477,33 @@ void INSOperator::Mult(const Vector &u, Vector &du_dt) const
     MFEM_ABORT("No explicit integrator should be called");
 }
 
+/* Speical EliminateVDofs 
+ *
+ * note after elimination
+ *    old mat = mat_e + new mat
+ */
+SparseMatrix * INSOperator::EliminateVDofs(const Array<int> &vdofs, 
+                                  SparseMatrix *mat,
+                                  DiagonalPolicy dpolicy)
+{
+   SparseMatrix *mat_e = new SparseMatrix(mat->Size());
+
+   for (int i = 0; i < vdofs.Size(); i++)
+   {
+      int vdof = vdofs[i];
+      if ( vdof >= 0 )
+      {
+         mat -> EliminateRowCol (vdof, *mat_e, dpolicy);
+      }
+      else
+      {
+         mat -> EliminateRowCol (-1-vdof, *mat_e, dpolicy);
+      }
+   }
+
+   return mat_e;
+}
+
 //backward Euler update
 void INSOperator::ImplicitSolve(const double dt,
                                 const Vector &up, Vector &dup_dt)
@@ -468,9 +514,35 @@ void INSOperator::ImplicitSolve(const double dt,
       initT = true;
 
       ConstantCoefficient rdt_coeff(1./dt);
+      tform = new BilinearForm(&U_space);
+      tform->AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
       tform->AddDomainIntegrator(new VectorMassIntegrator(rdt_coeff));
       tform->Assemble();
       tform->FormSystemMatrix(vel_ess_tdof_list, Tmat);    
+
+      //Testing special EliminateVDofs
+      if (false)
+      {
+         BilinearForm test1(&U_space), test2(&U_space);
+         test1.AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
+         test1.Assemble();
+         test1.Finalize();
+         test2.AddDomainIntegrator(new VectorMassIntegrator(rdt_coeff));
+         test2.Assemble();
+         test2.Finalize();
+
+         SparseMatrix M1=test1.SpMat(), M2=test2.SpMat();
+         SparseMatrix *sum = Add(M1, M2), *tmp, *mat_e;
+
+         mat_e = EliminateVDofs(vel_ess_tdof_list, sum);
+
+         // after elimination sum should be identical to Tmat
+         tmp = Add(1., *sum, -1., Tmat);
+         tmp->Print();
+         delete tmp;
+         delete sum;
+         delete mat_e;
+      }
 
       //we do not eliminate boundary in Mrhs
       Mrhs->AddDomainIntegrator(new VectorMassIntegrator(rdt_coeff));

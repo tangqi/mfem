@@ -11,8 +11,8 @@ int main(int argc, char *argv[])
 {
    //this define a single QUADRILATERAL element on the domain of [0, 2]x[0, 3]
    //See CrouzeixRaviartQuadFiniteElement::CalcShape for bases in the reference space
-   //Mesh *mesh = new Mesh(1, 1, Element::QUADRILATERAL, 1, 2.0, 3.0);
-   Mesh *mesh = new Mesh(1, 2, Element::QUADRILATERAL, 2, 2.0, 3.0);
+   Mesh *mesh = new Mesh(1, 1, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   //Mesh *mesh = new Mesh(1, 2, Element::QUADRILATERAL, 2, 2.0, 3.0);
    //Mesh *mesh = new Mesh(1, 1, Element::TRIANGLE, 1, 2.0, 3.0);
    int dim = 2;
 
