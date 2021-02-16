@@ -49,14 +49,7 @@ void NormalTraceIntegrator::AssembleFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      
-      order = test_fe1.GetOrder() - 1;
-      order += trial_face_fe.GetOrder();
-
-      if (order>1)
-      {
-        mfem_error("this should never happen!");
-      }
+      order=1;
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
@@ -152,13 +145,7 @@ void NormalVectorTraceIntegrator::AssembleFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      order = test_fe1.GetOrder();
-      order += trial_face_fe.GetOrder();
-
-      if (order!=2)
-      {
-        mfem_error("this should never happen!");
-      }
+      order=1;
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 

@@ -37,40 +37,69 @@ int main(int argc, char *argv[])
    mform.Assemble();
    mform.Finalize();
 
-   cout<<"mass matrix before slip diagonal"<<endl;
+   cout<<"M matrix before abs diagonal"<<endl;
    mform.SpMat().Print();
 
-   Vector diag;
+   int msize=mform.SpMat().Size();
+   Vector diag, rdiag(msize);
    mform.SpMat().GetDiag(diag);
-   diag.Print();
    //set the matrix being positive diagonal
-   for (int i=0; i<mform.SpMat().Size(); i++)
+   for (int i=0; i<msize; i++)
    {
+       rdiag(i)=1./fabs(diag(i));
        if (diag(i)>0)
-        {continue;}
+       {
+           continue;
+       }
        else
        {
          mform.SpMat()._Set_(i,i,-diag(i));
        }
 
    }
+   cout<<"diag of mass matrix is"<<endl;
+   diag.Print();
+   cout<<"reciprocal diag of mass matrix is"<<endl;
+   rdiag.Print();
 
-   //this matrix needs to be transformed!!
    MixedBilinearForm pform(&trace_fes, &vel_fes);
    pform.AddTraceFaceIntegrator(new NormalVectorTraceIntegrator());
    pform.Assemble();
    pform.Finalize();
 
-   cout<<"mass matrix is"<<endl;
+   cout<<"**M matrix is"<<endl;
    mform.SpMat().Print();
 
-   cout<<"projection matrix is"<<endl;
+   cout<<"**P matrix is"<<endl;
    pform.SpMat().Print();
+
+   cout<<"**B=PM^{-1} is\n";
+   SparseMatrix Bmat=pform.SpMat();
+   Bmat.ScaleColumns(rdiag);
+   Bmat.Print();
+
+   BilinearForm massform(&rt_fes);
+   massform.AddDomainIntegrator(new VectorFEMassIntegrator());
+   massform.Assemble();
+   massform.Finalize();
+   SparseMatrix Mmat=massform.SpMat();
+   cout<<"**Mass matrix for RT is\n";
+   Mmat.Print();
+
+   SparseMatrix *BM, *Bt, *BMBt;
+   BM=Mult(Bmat, Mmat);
+   Bt=Transpose(Bmat);
+   BMBt=Mult(*BM, *Bt);
+   cout<<"**BMBt (new mass matrix for CR) is\n";
+   BMBt->Print();
 
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
    mesh->Print(mesh_ofs);
 
+   delete Bt;
+   delete BM;
+   delete BMBt;
    delete mesh;
    delete rt_fec;
    delete vel_fec;
