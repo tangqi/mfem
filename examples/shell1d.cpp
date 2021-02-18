@@ -3,8 +3,10 @@
 // Compile with: make ex1d
 //
 // Description: it solves a 1D equation  
-//                      u_tt = u_xxxx
-//              using an auxiliary variable and Newmark-Beta integrator
+//                      u_tt = -u_xxxx
+//              using an auxiliary variable V=-u_xx and Newmark-Beta integrator
+//  MMS
+//  u = cos(t)sin(x) x in [0, 2pi]
 
 #include "mfem.hpp"
 #include <fstream>
@@ -14,18 +16,6 @@ using namespace std;
 using namespace mfem;
 
 //1D MMS
-double uexact(const Vector &pt, double t)
-{
-   double x = pt(0);
-   return exp(-t)*sin(x) ;
-}
-
-double uxxexact(const Vector &pt, double t)
-{
-   double x = pt(0);
-   return -exp(-t)*sin(x) ;
-}
-
 double InitialSolution(const Vector &pt)
 {
    double x = pt(0);
@@ -34,15 +24,14 @@ double InitialSolution(const Vector &pt)
 
 double InitialRate(const Vector &pt)
 {
-   double x = pt(0);
-   return -sin(x);
+   return 0.;
 }
 
 class ShellOperator : public SecondOrderTimeDependentOperator
 {
 protected:
    FiniteElementSpace &fespace;
-   Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c.
+   Array<int> ess_tdof_list; 
 
    BilinearForm *M, *K;
    SparseMatrix Mmat, Mmat0, Kmat, *S, *Sc;
@@ -78,7 +67,7 @@ public:
 
 ShellOperator::ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr)
    : SecondOrderTimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL),
-     K(NULL), current_dt(0.0), z(height), V(height), block_trueOffsets(3)
+     K(NULL), current_dt(0.0), block_trueOffsets(3), z(height), V(height) 
 {
    const double rel_tol = 1e-8;
    ConstantCoefficient one(1);
@@ -113,11 +102,11 @@ ShellOperator::ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr)
    BlockSystem = new BlockOperator(block_trueOffsets);
    BlockSystem->SetBlock(0,0, &Mmat);
    BlockSystem->SetBlock(0,1, &Kmat);
-   BlockSystem->SetBlock(1,0, &Kmat);
+   BlockSystem->SetBlock(1,0, &Kmat, -1.);
 
    // Define a block diagonal preconditioner
    //                 P = [ diag(M)            0             ]
-   //                     [  0       M/fac0 - K diag(M)^-1 K ]
+   //                     [  0       M/fac0 + K diag(M)^-1 K ]
    prec = new BlockDiagonalPreconditioner(block_trueOffsets);
 
    Vector Md(height);
@@ -133,16 +122,19 @@ ShellOperator::ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr)
    invM->iterative_mode = false;
 
    prec->SetDiagonalBlock(0, invM);
+
+   rhs = new BlockVector(block_trueOffsets);
+   vx = new BlockVector(block_trueOffsets);
+   invS=NULL;
 }
 
 void ShellOperator::Mult(const Vector &u, const Vector &du_dt,
                         Vector &d2udt2)  const
 {
    // Compute:
-   //    V = M^{-1}*-K(v)
-   //    d2udt2 = M^{-1}*-K(V)
+   //    V = M^{-1}*K(v)
+   //    d2udt2 = M^{-1}*[-K V]
    Kmat.Mult(u, z);
-   z.Neg(); // z = -z
    M_solver.Mult(z, V);
 
    Kmat.Mult(V, z);
@@ -156,10 +148,10 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
    // Solve the equation:
    //    d2udt2 = M^{-1}*[-K V]
    // where
-   //         V = M^{-1}*[-K(u+fac0*d2udt2)]
+   //         V = M^{-1}*[K(u+fac0*d2udt2)]
    // for d2udt2
-   // | M  K      ||a| = | 0 |
-   // | K  M/fac0 ||V|   |-Ku|
+   // | M   K      ||a| = | 0      |
+   // | -K  M/fac0 ||V|   | Ku/fac0|
    if (fac0old<1e-14)
    {
       fac0old=fac0;
@@ -167,7 +159,7 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
       Mmat0*=(1./fac0);
       BlockSystem->SetBlock(1,0, &Mmat0);
 
-      S = Add(1.0, Mmat0, -1., *Sc);
+      S = Add(1.0, Mmat0, 1., *Sc);
 #ifndef MFEM_USE_SUITESPARSE
       invS = new GSSmoother(*S);
 #else
@@ -176,6 +168,7 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
       invS->iterative_mode = false;
       prec->SetDiagonalBlock(1, invS);
 
+      solver.iterative_mode = false;
       solver.SetAbsTol(1e-10);
       solver.SetRelTol(1e-6);
       solver.SetMaxIter(1000);
@@ -193,7 +186,7 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
 
       delete invS;
       delete S;
-      S = Add(1.0, Mmat0, -1., *Sc);
+      S = Add(1.0, Mmat0, 1., *Sc);
 #ifndef MFEM_USE_SUITESPARSE
       invS = new GSSmoother(*S);
 #else
@@ -207,11 +200,11 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
    }
 
    Kmat.Mult(u, z);
-   z.Neg();
    for (int i = 0; i < ess_tdof_list.Size(); i++)
    {
       z[ess_tdof_list[i]] = 0.0;
    }
+   z*=(1./fac0);
 
    *rhs=0.;
    rhs->GetBlock(1)=z;
