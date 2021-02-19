@@ -368,7 +368,7 @@ int main(int argc, char *argv[])
 
    FunctionCoefficient ucoeff (ExactSolution);
    ucoeff.SetTime(t);
-   double err_u  = u_gf.ComputeL2Error(ucoeff);
+   double err_u  = u_gf.ComputeL2Error(ucoeff, irs);
    double norm_u = ComputeLpNorm(2., ucoeff, mesh, irs);
 
    std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
