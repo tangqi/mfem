@@ -86,7 +86,7 @@ ShellOperator::ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr)
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(rel_tol);
    M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(30);
+   M_solver.SetMaxIter(100);
    M_solver.SetPrintLevel(0);
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mmat);
@@ -148,9 +148,11 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
    //    d2udt2 = M^{-1}*[-K V]
    // where
    //         V = M^{-1}*[K(u+fac0*d2udt2)]
-   // for d2udt2
+   // 
+   // Need to solve the 2x2 system:
    // | M   K      ||a| = | 0      |
    // | -K  M/fac0 ||V|   | Ku/fac0|
+   
    if (fac0old<1e-14)
    {
       fac0old=fac0;
@@ -168,9 +170,9 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
       prec->SetDiagonalBlock(1, invS);
 
       solver.iterative_mode = false;
-      solver.SetAbsTol(1e-10);
-      solver.SetRelTol(1e-6);
-      solver.SetMaxIter(1000);
+      solver.SetAbsTol(0.0);
+      solver.SetRelTol(1e-8);
+      solver.SetMaxIter(100);
       solver.SetOperator(*BlockSystem);
       solver.SetPreconditioner(*prec);
       solver.SetPrintLevel(1);
@@ -229,12 +231,11 @@ ShellOperator::~ShellOperator()
 int main(int argc, char *argv[])
 {
    int order = 2;
-   double t_final = 0.5;
-   double dt = 1.0e-2;
+   double t_final = 2*M_PI;
+   double dt = 1e-2;
    bool visualization = true;
-   bool paraview = false;
    int vis_steps = 2;
-   int ref_levels = 2;
+   int ref_levels = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -251,9 +252,6 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
-   args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
-                  "--no-paraview-datafiles",
-                  "Save data files for ParaView (paraview.org) visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -262,7 +260,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh mesh(10, 2*M_PI);
+   Mesh mesh(8, 2*M_PI);
    int dim = mesh.Dimension();
 
    for (int l = 0; l < ref_levels; l++)
@@ -325,21 +323,6 @@ int main(int argc, char *argv[])
       }
    }         
 
-   //1d paraview looks strange
-   ParaViewDataCollection *pd = NULL;
-   if (paraview)
-   {
-      pd = new ParaViewDataCollection("shell1d", &mesh);
-      pd->SetPrefixPath("ParaView");
-      pd->RegisterField("solution", &u_gf);
-      pd->SetLevelsOfDetail(order);
-      pd->SetDataFormat(VTKFormat::BINARY);
-      pd->SetHighOrderOutput(true);
-      pd->SetCycle(0);
-      pd->SetTime(0.0);
-      pd->Save();
-   }
-
    ShellOperator oper(fespace, ess_bdr);
    ode_solver->Init(oper);
    double t = 0.0;
@@ -365,17 +348,9 @@ int main(int argc, char *argv[])
          {
             sout << "solution\n" << mesh << u_gf << flush;
          }
-
-         if (paraview)
-         {
-            pd->SetCycle(ti);
-            pd->SetTime(t);
-            pd->Save();
-         }
       }
    }
 
-   delete pd;
    delete ode_solver;
    return 0;
 }
