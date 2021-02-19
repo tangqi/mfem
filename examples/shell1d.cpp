@@ -1,12 +1,11 @@
-//                                MFEM Example 1
 //
 // Compile with: make ex1d
 //
 // Description: it solves a 1D equation  
 //                      u_tt = -u_xxxx
-//              using an auxiliary variable V=-u_xx and Newmark-Beta integrator
+//              using an auxiliary variable V=-u_xx and the Newmark-Beta integrator
 //  MMS
-//  u = cos(t)sin(x) x in [0, 2pi]
+//  u = cos(t)*sin(x) with x in [0, 2pi]
 
 #include "mfem.hpp"
 #include <fstream>
@@ -42,7 +41,7 @@ protected:
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    DSmoother M_prec;  // Preconditioner for the mass matrix M
 
-   MINRESSolver solver;
+   GMRESSolver solver;  // the block system is not symmetric 
 
    BlockOperator *BlockSystem;
    BlockDiagonalPreconditioner *prec;
@@ -138,7 +137,7 @@ void ShellOperator::Mult(const Vector &u, const Vector &du_dt,
    M_solver.Mult(z, V);
 
    Kmat.Mult(V, z);
-   V.Neg(); // z = -z
+   z.Neg(); // z = -z
    M_solver.Mult(z, d2udt2);
 }
 
@@ -157,7 +156,7 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
       fac0old=fac0;
       Mmat0=Mmat;
       Mmat0*=(1./fac0);
-      BlockSystem->SetBlock(1,0, &Mmat0);
+      BlockSystem->SetBlock(1,1, &Mmat0);
 
       S = Add(1.0, Mmat0, 1., *Sc);
 #ifndef MFEM_USE_SUITESPARSE
@@ -182,7 +181,7 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
       fac0old=fac0;
       Mmat0=Mmat;
       Mmat0*=(1./fac0);
-      BlockSystem->SetBlock(1,0, &Mmat0);
+      BlockSystem->SetBlock(1,1, &Mmat0);
 
       delete invS;
       delete S;
@@ -233,7 +232,8 @@ int main(int argc, char *argv[])
    double t_final = 0.5;
    double dt = 1.0e-2;
    bool visualization = true;
-   int vis_steps = 5;
+   bool paraview = false;
+   int vis_steps = 2;
    int ref_levels = 2;
 
    OptionsParser args(argc, argv);
@@ -251,6 +251,9 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
+   args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
+                  "--no-paraview-datafiles",
+                  "Save data files for ParaView (paraview.org) visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -311,13 +314,31 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(8);
-         sout << "solution\n" << mesh << dudt_gf;
+         sout << "solution\n" << mesh << u_gf;
+         sout << "window_size 800 800\n";
+         sout << "valuerange -1 1\n";
+         sout << "keys cmma\n"; 
          sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
       }
    }         
+
+   //1d paraview looks strange
+   ParaViewDataCollection *pd = NULL;
+   if (paraview)
+   {
+      pd = new ParaViewDataCollection("shell1d", &mesh);
+      pd->SetPrefixPath("ParaView");
+      pd->RegisterField("solution", &u_gf);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->SetCycle(0);
+      pd->SetTime(0.0);
+      pd->Save();
+   }
 
    ShellOperator oper(fespace, ess_bdr);
    ode_solver->Init(oper);
@@ -344,9 +365,17 @@ int main(int argc, char *argv[])
          {
             sout << "solution\n" << mesh << u_gf << flush;
          }
+
+         if (paraview)
+         {
+            pd->SetCycle(ti);
+            pd->SetTime(t);
+            pd->Save();
+         }
       }
    }
 
+   delete pd;
    delete ode_solver;
    return 0;
 }
