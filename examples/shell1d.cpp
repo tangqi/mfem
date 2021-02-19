@@ -26,6 +26,14 @@ double InitialRate(const Vector &pt)
    return 0.;
 }
 
+double ExactSolution(const Vector &pt, const double t)
+{
+   double x = pt(0);
+   return cos(t)*sin(x);
+}
+
+
+
 class ShellOperator : public SecondOrderTimeDependentOperator
 {
 protected:
@@ -175,7 +183,7 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
       solver.SetMaxIter(100);
       solver.SetOperator(*BlockSystem);
       solver.SetPreconditioner(*prec);
-      solver.SetPrintLevel(1);
+      solver.SetPrintLevel(0);
    }
    else if(fac0!=fac0old)
    {
@@ -350,6 +358,20 @@ int main(int argc, char *argv[])
          }
       }
    }
+
+   int order_quad = max(2, 2*order+1);
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i=0; i < Geometry::NumGeom; ++i)
+   {
+      irs[i] = &(IntRules.Get(i, order_quad));
+   }
+
+   FunctionCoefficient ucoeff (ExactSolution);
+   ucoeff.SetTime(t);
+   double err_u  = u_gf.ComputeL2Error(ucoeff);
+   double norm_u = ComputeLpNorm(2., ucoeff, mesh, irs);
+
+   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
 
    delete ode_solver;
    return 0;
