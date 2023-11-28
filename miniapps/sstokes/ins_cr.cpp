@@ -8,7 +8,6 @@
 #include <iostream>
 #include <math.h>
 
-//using namespace mfem::navier;
 using namespace std;
 using namespace mfem;
 
@@ -563,10 +562,11 @@ void INSOperator::ImplicitSolve(const double dt,
       S = mfem::Mult(Dmat, *Mtmp);  //Here mfem is needed otherwise it will pick up INSOperator::Mult
       delete Mtmp;
 
-      invT = new DSmoother(Tmat);
 #ifndef MFEM_USE_SUITESPARSE
+      invT = new DSmoother(Tmat);
       invS = new GSSmoother(*S);
 #else
+      invT = new UMFPackSolver(Tmat);
       invS = new UMFPackSolver(*S);
 #endif
       invT->iterative_mode = false;
