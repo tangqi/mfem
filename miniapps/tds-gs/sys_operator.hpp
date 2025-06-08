@@ -126,7 +126,7 @@ public:
     ones_ = 1.0;
     ones = ones_;
 
-    int vsize = fespace->GetTrueVSize();
+    // DELETE LINE: int vsize = fespace->GetTrueVSize();
 
     // Vector res_(vsize);
     GridFunction res_(fespace);
