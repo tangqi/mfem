@@ -286,7 +286,7 @@ public:
     height = A->Height();
 
     int max_krylov_iter = 1000;
-    int kdim = 1000;
+    // DELETE THIS: int kdim = 1000;
 
     solver.SetAbsTol(0.0);
     solver.SetRelTol(krylov_tol);

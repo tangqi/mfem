@@ -186,7 +186,7 @@ double SysOperator::compute_obj(const GridFunction &psi) {
 GridFunction SysOperator::compute_grad_obj(const GridFunction &psi) {
   
   double psi_x = psi[ind_x];
-  double psi_ma = psi[ind_ma];
+  // DELETE THIS: double psi_ma = psi[ind_ma];
   FiniteElementSpace fespace = *(psi.FESpace());
   // int ndof = psi.Size();
   int ndof = fespace.GetNDofs();
@@ -254,8 +254,8 @@ GridFunction SysOperator::compute_grad_obj(const GridFunction &psi) {
 
 SparseMatrix* SysOperator::compute_hess_obj(const GridFunction &psi) {
 
-  double psi_x = psi[ind_x];
-  double psi_ma = psi[ind_ma];
+  // DELETE THIS: double psi_x = psi[ind_x];
+  // DELETE THIS: double psi_ma = psi[ind_ma];
   // int ndof = psi.Size();
   FiniteElementSpace fespace = *(psi.FESpace());
   int ndof = fespace.GetNDofs();
