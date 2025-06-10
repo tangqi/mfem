@@ -60,7 +60,7 @@ public:
 /** TODO: make this part of the BilinearForm class? */
 void AssembleDoubleBoundaryIntegrator(BilinearForm &a,
                                       DoubleIntegralBFIntegrator &di_bfi,
-                                      int attribute = NULL);
+                                      int attribute = -1);
 
 
 

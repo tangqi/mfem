@@ -115,7 +115,7 @@ void AssembleDoubleBoundaryIntegrator(BilinearForm &a,
       mesh.GetBdrElementTransformation(i1, &T1);
 
       // DAS
-      if ((attribute != NULL) && (T1.Attribute != attribute)) {
+      if ((attribute != -1) && (T1.Attribute != attribute)) {
         continue;
       }
       // cout << i1 << " attrib: " << T1.Attribute << endl;
@@ -128,7 +128,7 @@ void AssembleDoubleBoundaryIntegrator(BilinearForm &a,
       
          mesh.GetBdrElementTransformation(i2, &T2);
          // DAS
-         if ((attribute != NULL) && (T2.Attribute != attribute)) {
+         if ((attribute != -1) && (T2.Attribute != attribute)) {
            continue;
          }
          // cout << "  " << i2 << " attrib: " << T1.Attribute << endl;
