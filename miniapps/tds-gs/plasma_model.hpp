@@ -56,8 +56,8 @@ private:
 
   
 public:
-  PlasmaModel(double & alpha_, double & beta_, double & lambda_, double & gamma_, double & mu0_, double & r0_) :
-    alpha(alpha_), beta(beta_), lambda(lambda_), gamma(gamma_), mu0(mu0_), r0(r0_)
+  PlasmaModel(double & alpha_, double & beta_, double & lambda_, double & gamma_, double & r0_, double & mu0_) :
+    alpha(alpha_), beta(beta_), lambda(lambda_), gamma(gamma_), r0(r0_), mu0(mu0_)
   {
   }
   double S_p_prime(double & psi_N) const;
@@ -73,6 +73,7 @@ public:
 class PlasmaModelFile : public PlasmaModelBase
 {
 private:
+  double mu0;
   const char *data_file;
   vector<double> fpol_vector;
   vector<double> fpol_bar_vector;
@@ -85,7 +86,6 @@ private:
   double alpha;
   double beta;
   double gamma;
-  double mu0;
   int N;
   double dx;
   int model_choice;
@@ -203,9 +203,9 @@ public:
 class NonlinearGridCoefficient : public Coefficient
 {
 private:
-  const GridFunction *psi;
   PlasmaModelBase *model;
   int option;
+  const GridFunction *psi;
   double psi_max;
   double psi_bdp;
   set<int> plasma_inds;
