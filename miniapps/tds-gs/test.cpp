@@ -16,7 +16,6 @@ void test_plasma_point_calculator() {
   // const char *mesh_file = "meshes/gs_mesh.msh";
   // const char *mesh_file = "meshes/test.msh";
   const char *mesh_file = "meshes/test_off_center.msh";
-  const char *data_file = "data/separated_file.data";
   int order = 1;
   Mesh mesh(mesh_file);
   mesh.UniformRefinement();
@@ -94,53 +93,9 @@ void test_read_data_file() {
 
 void test_solve() {
   cout << "*** test_solve" << endl;
-  const char *mesh_file = "meshes/test_off_center.msh";
-  const char *data_file = "data/separated_file.data";
-  int order = 1;
-  int d_refine = 0;
-  // constants associated with plasma model
-  double alpha = 0.9;
-  double beta = 1.5;
-  double lambda = 1.0;
-  double gamma = 0.9;
-  double mu = 1.0;
-  double r0 = 1.0;
   // boundary of far-field
-  double rho_gamma = 2.5;
-  bool do_manufactured_solution = true;
-  bool do_initial = false;
-  int max_krylov_iter = 1000;
-  int max_newton_iter = 5;
-  double krylov_tol = 1e-12;
-  double newton_tol = 1e-12;
-  double c1 = 0.0;
-  double c2 = 3.0;
-  double c3 = 1.0;
-  double c4 = 1.0;
-  double c5 = 1.0;
-  double c6 = 1.0;
-  double c7 = 1.0;
-  double c8 = 1.0;
-  double c9 = 1.0;
-  double c10 = 1.0;
-  double c11 = 1.0;
-  double ur_coeff = 1.0;
-  int do_control = 0;
-  double weight_solenoids = 1.0;
-  double weight_coils = 1.0;
-  double Ip = 1.5e+7;
-  int N_control = 10;
-  int model = 1;
   vector<double> errors;
-  double error;
-  double weight_obj = 1.0;
-  int obj_option = 2;
-  bool optimize_alpha = true;
-  int PC_option = 6;
-  int max_levels = 8;
-  int max_dofs = 100000;
-  double light_tol = 1e-5;
-
+ 
   // todo, fix!
   // for (d_refine = 0; d_refine <= 2; ++d_refine) {
   //   error = gs(mesh_file, data_file, order, d_refine, model, alpha, beta, gamma, mu, Ip, r0, rho_gamma,
