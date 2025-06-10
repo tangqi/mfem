@@ -33,7 +33,7 @@ protected:
   int nc_limit;
 
   double GetNorm(const Vector &local_err, Mesh &mesh) const;  
-  int ApplyImpl(Mesh &mesh) {}
+  int ApplyImpl(Mesh &mesh) {return 0;}
  public:
   RegionalThresholdRefiner(ErrorEstimator &est);
   void SetTotalErrorFraction(double fraction) { total_fraction = fraction; }
