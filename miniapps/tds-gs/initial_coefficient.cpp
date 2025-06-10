@@ -253,7 +253,6 @@ void InitialCoefficient::compute_QP(int N_control_, Mesh * mesh, FiniteElementSp
     }
   } else if (constrain_option == 2) {
     
-    int stride = nbbbs / N_control;
     int count = 0;
     int m, n;
     for (int i = 0; i < Nx; ++i) {
@@ -279,7 +278,6 @@ void InitialCoefficient::compute_QP(int N_control_, Mesh * mesh, FiniteElementSp
   for (int i = 0; i < N_control; ++i) {
     // get finite element
     const FiniteElement * fe = fes->GetFE(elem_ids[i]);
-    int dof = fe->GetDof();
     
     //
     Vector shape;
@@ -316,7 +314,6 @@ void InitialCoefficient::compute_QP(int N_control_, Mesh * mesh, FiniteElementSp
 
 SparseMatrix* InitialCoefficient::compute_K() {
 
-  double weight = 1;
   int ndof = cv.Size();
   SparseMatrix * K;
   K = new SparseMatrix(ndof, ndof);

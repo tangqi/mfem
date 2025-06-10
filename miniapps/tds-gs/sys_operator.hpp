@@ -30,18 +30,12 @@ private:
   int attr_lim;
   Array<int> boundary_dofs;
   GridFunction *u_boundary;
-  bool include_plasma = true;
 
-  GridFunction hat;
-  GridFunction ones;
-
-  Vector *uv_currents;
   mutable Vector Plasma_Vec;
   mutable double Alpha_Term;
   mutable double Plasma_Current;
   mutable Vector B_alpha;
 
-  double *alpha_bar;
   int N_control;
 
   // related to x-point and magnetic axis
@@ -55,12 +49,18 @@ private:
 
   // related to optimization
   SparseMatrix *F;
+  Vector *uv_currents;
   SparseMatrix *H;
   SparseMatrix *K;
   Vector *g;
   vector<Vector> *alpha_coeffs;
   vector<Array<int>> *J_inds;
   int i_option = 0;
+
+  double *alpha_bar;
+
+  GridFunction ones;
+  GridFunction hat;
 
   //
   GridFunction res;
@@ -73,6 +73,7 @@ private:
   double Ca;
   double obj_weight = 1.0;
 
+  bool include_plasma = true;
   
 public:
   SysOperator(BilinearForm *diff_operator_, LinearForm *coil_term_,
@@ -153,7 +154,6 @@ public:
     
   }
   virtual void Mult(const Vector &psi, Vector &y) const;
-  virtual Operator &GetGradient(const Vector &psi) const;
   virtual ~SysOperator() { };
 
   void compute_psi_N_derivs(const GridFunction &psi, int k, double * psi_N,
@@ -266,10 +266,10 @@ public:
 // D - C A^{-1} B
 class SchurComplement : public Operator {
 private:
-  const Operator *D;
-  const Operator *C;
-  const Operator *B;
   const Operator *A;
+  const Operator *B;
+  const Operator *C;
+  const Operator *D;
   Solver *A_prec;
   // GMRESSolver solver;
   CGSolver solver;

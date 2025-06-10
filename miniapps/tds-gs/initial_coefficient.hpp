@@ -14,9 +14,7 @@ private:
   double **psizr;
   double *rbbbs;
   double *zbbbs;
-  double psix;
   Vector cv;
-  int nbbbs;
   int N_control;
   double r0;
   double r1;
@@ -26,6 +24,8 @@ private:
   double dz;
   int nz;
   int nr;
+  int nbbbs;
+  double psix;
   Vector psi_control;
   vector<Vector> *alpha;
   vector<Array<int>> *J;

@@ -569,10 +569,6 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
 void SysOperator::Mult(const Vector &psi, Vector &y) const {
 }
 
-Operator &SysOperator::GetGradient(const Vector &psi) const {
-}
-
-
 
 
 void ByMinusRankOnePerturbation::Mult(const Vector &k, Vector &y) const {
