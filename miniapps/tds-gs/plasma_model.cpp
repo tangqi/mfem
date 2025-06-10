@@ -419,7 +419,7 @@ void compute_plasma_points(GridFunction * z, const Mesh & mesh,
 
      map<double, double> clock;
      set<double> ordered_angs;
-     for (j = 0; j < adjacent.size(); ++j) {
+     for (j = 0; j < static_cast<int>( adjacent.size()); ++j) {
        const int jv = adjacent[j];
        const double* b = mesh.GetVertex(jv);
        double diff = nval[jv] - nval[iv];
@@ -461,7 +461,7 @@ void compute_plasma_points(GridFunction * z, const Mesh & mesh,
 
    int ind_x = ind_max;
    double x_val = max_val;
-   for (int i = 0; i < candidate_x_points.size(); ++i) {
+   for (int i = 0; i < static_cast<int>(candidate_x_points.size()); ++i) {
      int iv = candidate_x_points[i];
      if (nval[iv] < x_val) {
        x_val = nval[iv];
@@ -506,7 +506,7 @@ void compute_plasma_points(GridFunction * z, const Mesh & mesh,
      }
 
      // check if neighboring points are in the plasma
-     for (int i = 0; i < adjacent.size(); ++i) {
+     for (int i = 0; i < static_cast<int>(adjacent.size()); ++i) {
        double val = nval[adjacent[i]];
        plasma_inds_it = plasma_inds.find(adjacent[i]);
        // check that found vertex is not already accounted for
