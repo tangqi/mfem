@@ -127,7 +127,6 @@ public:
     ones_ = 1.0;
     ones = ones_;
 
-    // DELETE THIS: int vsize = fespace->GetTrueVSize();
 
     // Vector res_(vsize);
     GridFunction res_(fespace);
@@ -286,7 +285,6 @@ public:
     height = A->Height();
 
     int max_krylov_iter = 1000;
-    // DELETE THIS: int kdim = 1000;
 
     solver.SetAbsTol(0.0);
     solver.SetRelTol(krylov_tol);
