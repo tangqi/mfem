@@ -97,7 +97,7 @@ double PlasmaModelFile::S_prime_p_prime(double & psi_N) const
     return 0.0;
   }
   int index = (int) (psi_N / dx);
-  double alpha = (psi_N - index * dx) / dx;
+
   
   return (pprime_vector[index+1] - pprime_vector[index]) / dx;
 }
@@ -120,8 +120,8 @@ double PlasmaModelFile::S_prime_ff_prime(double & psi_N) const
   }
 
   int index = (int) (psi_N / dx);
-  double alpha = (psi_N - index * dx) / dx;
-  
+ 
+
   return (ffprime_vector[index+1] - ffprime_vector[index]) / dx;
 }
 double PlasmaModelFile::f_bar(double & psi_N) const
@@ -144,8 +144,8 @@ double PlasmaModelFile::f_bar_prime(double & psi_N) const
   }
 
   int index = (int) (psi_N / dx);
-  double alpha = (psi_N - index * dx) / dx;
-  
+ 
+
   return (fpol_bar_vector[index+1] - fpol_bar_vector[index]) / dx;
   // return alpha * fpol_bar_prime_vector[index+1] + (1 - alpha) * fpol_bar_prime_vector[index];
 }
@@ -156,8 +156,8 @@ double PlasmaModelFile::f_bar_double_prime(double & psi_N) const
     return 0.0;
   }
 
-  int index = (int) (psi_N / dx);
-  double alpha = (psi_N - index * dx) / dx;
+
+
 
   return 0.0;
   // return alpha * fpol_bar_double_prime_vector[index+1] + (1 - alpha) * fpol_bar_double_prime_vector[index];
@@ -216,7 +216,7 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   // alpha: multiplier in \bar{S}_{ff'} term
   // beta: multiplier for S_{p'} term
   // gamma: multiplier for S_{ff'} term
-  double f_ma = model->get_f_ma();
+
   double f_x = model->get_f_x();
 
   double alpha_bar = model->get_alpha_bar();
@@ -225,7 +225,7 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   double gamma = model->get_gamma();
 
   double psi_val;
-  Mesh *gf_mesh = psi->FESpace()->GetMesh();
+
   int Component = 0;
 
   psi_val = psi->GetValue(T, ip, Component);
@@ -415,7 +415,7 @@ void compute_plasma_points(GridFunction * z, const Mesh & mesh,
      // saddle point checker
      int j = 0;
      const double* x0 = mesh.GetVertex(iv);
-     const double* a = mesh.GetVertex(adjacent[j]);
+
 
      map<double, double> clock;
      set<double> ordered_angs;
@@ -425,8 +425,8 @@ void compute_plasma_points(GridFunction * z, const Mesh & mesh,
        double diff = nval[jv] - nval[iv];
        // cout << b[0] << ", " << b[1] << endl;
 
-       double ax = a[0]-x0[0];
-       double ay = a[1]-x0[1];
+
+
        double bx = b[0]-x0[0];
        double by = b[1]-x0[1];
 
