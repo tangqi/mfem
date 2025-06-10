@@ -1377,7 +1377,6 @@ double elliptic_inc_ek ( double phi, double k )
   double cp;
   double errtol;
   int ierr;
-  const double r8_pi = 3.141592653589793;
   double sp;
   double value;
   double value1;
@@ -1602,7 +1601,6 @@ double elliptic_inc_em ( double phi, double m )
   double cp;
   double errtol;
   int ierr;
-  const double r8_pi = 3.141592653589793;
   double sp;
   double value;
   double value1;
@@ -2040,7 +2038,6 @@ double elliptic_inc_fk ( double phi, double k )
   double cp;
   double errtol;
   int ierr;
-  const double r8_pi = 3.141592653589793;
   double sp;
   double value;
   double x;
@@ -2251,7 +2248,6 @@ double elliptic_inc_fm ( double phi, double m )
   double cp;
   double errtol;
   int ierr;
-  const double r8_pi = 3.141592653589793;
   double sp;
   double value;
   double x;
@@ -2714,7 +2710,6 @@ double elliptic_inc_pik ( double phi, double n, double k )
   double errtol;
   int ierr;
   double p;
-  const double r8_pi = 3.141592653589793;
   double sp;
   double value;
   double value1;
@@ -2963,7 +2958,6 @@ double elliptic_inc_pim ( double phi, double n, double m )
   double errtol;
   int ierr;
   double p;
-  const double r8_pi = 3.141592653589793;
   double sp;
   double value;
   double value1;
