@@ -11,8 +11,8 @@ class FieldCoefficient : public Coefficient
 {
 private:
   GridFunction * psi;
-  GridFunction * psi_z;
   GridFunction * psi_r;
+  GridFunction * psi_z;
   
   PlasmaModelBase * model;
   FiniteElementSpace fespace;

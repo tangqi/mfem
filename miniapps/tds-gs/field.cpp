@@ -11,7 +11,6 @@ double FieldCoefficient::Eval(ElementTransformation & T,
    Vector x(x_, 3);
    T.Transform(ip, x);
    double r(x(0));
-   double z(x(1));
    int Component = 0;
    
    if (comp == 0) {
