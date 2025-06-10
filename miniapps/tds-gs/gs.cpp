@@ -23,11 +23,8 @@ void test_grad(SysOperator *op, GridFunction x, FiniteElementSpace fespace) {
 
   LinearForm y1(&fespace);
   LinearForm y2(&fespace);
-  double C1, C2, f1, f2;
   // LinearForm Cy(&fespace);
   LinearForm fy(&fespace);
-  Vector * df1;
-  Vector * df2;
 
   int size = y1.Size();
 
@@ -300,7 +297,6 @@ void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
     case 1100:
       break;
     default:
-      double mu = model.get_mu();
       //
       Vector pw_vector(attribs.Max());
       pw_vector = 0.0;
@@ -711,7 +707,6 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         invH->Finalize();
         SparseMatrix *FT = Transpose(*F);
         SparseMatrix *mF = Add(-1.0, *F, 0.0, *F);
-        SparseMatrix *mFT = Transpose(*mF);
         SparseMatrix *invHFT = Mult(*invH, *FT);
         SparseMatrix *mFinvHFT = Mult(*mF, *invHFT);
         SparseMatrix *FinvH = Mult(*F, *invH);
@@ -807,7 +802,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
             non symmetric system, block AMG
           */
 
-          Solver *inv_SC, *inv_BT, *inv_B;
+          Solver *inv_BT, *inv_B;
 
           // HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
           // HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
@@ -868,7 +863,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           SparseMatrix *AMC = Mult(*AMat, *MC);
           SparseMatrix *SC = Add(1.0, *BMat, -1.0, *AMC);
 
-          Solver *inv_SC, *inv_BT, *inv_B;
+          Solver *inv_SC, *inv_BT;
 
           HypreParMatrix * SC_Hypre = convert_to_hypre(SC);
           HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
@@ -960,7 +955,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
             Non Symmetric System, stepped approach
           */
 
-          Solver *inv_SC, *inv_BT, *inv_B;
+          Solver *inv_BT, *inv_B;
 
           HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
           HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
@@ -1004,12 +999,12 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           printf("SchurComplement.SC average iterations:           %.2f\n", SC.GetAvgIterations());
           printf("SchurComplementInverse.SCinv average iterations: %.2f\n", SCinv.GetAvgIterations());
           printf("bsolver average iterations:                      %.2f\n", ((double) bsolver.GetNumIterations()));
-          fprintf(fp, "amr=%d newton=%d iters=%d amgTot=%d\n", it_amr, i, solver.GetNumIterations(), solver.GetNumIterations() * (SC.GetAvgIterations() * SCinv.GetAvgIterations() + ((double) bsolver.GetNumIterations())));
+          fprintf(fp, "amr=%d newton=%d iters=%d amgTot=%f\n", it_amr, i, solver.GetNumIterations(), solver.GetNumIterations() * (SC.GetAvgIterations() * SCinv.GetAvgIterations() + ((double) bsolver.GetNumIterations())));
           
         } else if (PC_option == 5) {
 
           // upper triangular AMG
-          Solver *inv_SC, *inv_BT, *inv_B;
+          Solver *inv_BT, *inv_B;
 
           // HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
           // HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
@@ -1041,7 +1036,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         } else if (PC_option == 6) {
           // lower triangular AMG
 
-          Solver *inv_SC, *inv_BT, *inv_B;
+          Solver *inv_BT, *inv_B;
 
           // HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
           // HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
@@ -1073,7 +1068,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         } else if (PC_option == 7) {
           // block diagonal woodbury
 
-          Solver *inv_SC, *inv_BT, *inv_B;
+          Solver *inv_BT, *inv_B;
 
           HypreParMatrix * B_Hypre = convert_to_hypre(ScaleByT);
           HypreParMatrix * BT_Hypre = convert_to_hypre(ScaleBy);
