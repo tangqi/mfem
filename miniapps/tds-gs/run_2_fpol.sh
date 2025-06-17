@@ -112,7 +112,7 @@ obj_option=1
 initial_gf="interpolated.gf"
 
 
-./main \
+srun main \
     -m $mesh_file \
     --initial_gf $initial_gf \
     -o 1 \
