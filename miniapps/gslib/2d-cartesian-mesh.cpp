@@ -1,9 +1,9 @@
 // File: 2d-catesian-mesh.cpp 
-// Purpose: Transforms the provided .mesh file into a desired one and visualizes both of them with the given .gf solution 
+// Purpose: Interpolates the provided .mesh file into a cartesian one and visualizes both of them with the given .gf solution. Also produces a GEQDSK file corresponding to the cartesian mesh and its solution. 
 // Run Instructions: make clean && make 2d-cartesian-mesh && srun ./2d-cartesian-mesh 
 
 #include "mfem.hpp"
-#include <fstream>
+#include <iostream>
 using namespace mfem;
 using namespace std;
 
@@ -24,10 +24,21 @@ double scalar_func(const Vector &x)
    return res;
 }
 
+
 int main (int argc, char *argv[])
 {
+   int nx = 40;
+   int ny = 30;
+
+   // Write nx and ny to a different file for GEQDSK
+   // Create folder for GEQDSK sub-files and final output
+   system("mkdir -p GEQDSK"); 
+   ofstream file("GEQDSK/GEQDSK_nx_ny.txt"); 
+   file << nx << "\n" << ny << "\n"; 
+   file.close();
+
    // Create and transform the target mesh 
-   Mesh my_mesh = Mesh::MakeCartesian2D(100,100,Element::QUADRILATERAL);
+   Mesh my_mesh = Mesh::MakeCartesian2D(nx,ny,Element::QUADRILATERAL);
    my_mesh.Transform(transformation);
 
    // Save transformed target mesh
