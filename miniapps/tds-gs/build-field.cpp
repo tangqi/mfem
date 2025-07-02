@@ -6,7 +6,7 @@
 //  ./findpsi -m ./meshes/RegPoloidalQuadMeshNonAligned_true.mesh -g ./interpolated.gf
 
 #include "mfem.hpp"
-
+#include <iostream>
 using namespace mfem;
 using namespace std;
 
@@ -15,6 +15,8 @@ double  alpha = 1.44525792e-01,
         z_x = -3.61688204e+00,
         psi_x = 1.28863812e+00,
         f_x = -32.86000000;
+
+
 //note minimal f = 1.44525792e-01*(-5.64560650e+00-1.28863812)-32.86
 //               = -33.8621771956
 //
@@ -281,6 +283,13 @@ public:
 
 int main (int argc, char *argv[])
 {
+   //Write alpha, psi_x, f_x to different file for GEQDSK
+   //Add to GEQDSK folder
+   ofstream file("../gslib/GEQDSK/GEQDSK_alpha_psi_x_f_x.txt");
+   file << alpha << "\n" << psi_x << "\n" << f_x << "\n";
+   file.close();
+
+   
    // Set the method's default parameters.
    const char *mesh_file = "./solution/mesh_taylor1_trimmer.mesh";
    const char *mesh_file3D = "./meshes/RegPoloidalQuadMeshNonAligned_true_extrude.mesh";
