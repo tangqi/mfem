@@ -2,6 +2,9 @@
 #include <fstream>
 #include <vector>
 #include <algorithm>
+#include <cmath>
+#include <iomanip>
+#include <limits>
 
 int main(){
     
@@ -38,8 +41,34 @@ int main(){
     //UNFORMATTED PSI VALUES
     std::ofstream file("GEQDSK/GEQDSK_psi.txt");
     
+    int val_count = 0;
     for (const auto& val : psiVal) {
-        file << val << std::endl;
+
+        //Convert to scientific notation
+        int exponent = (int)std::floor(std::log10(std::abs(val)));
+        double decimal = val / std::pow(10, exponent);
+
+        decimal = decimal/10.0;
+        exponent = exponent + 1;
+
+        if (decimal >= 0) {
+            file << std::fixed << std::setprecision(8) << " " << decimal << "E";
+        } else {
+            file << std::fixed << std::setprecision(8) << decimal << "E";
+        }
+
+        if (exponent >= 0) {
+            file << "+" << std::setfill('0') << std::setw(2) << exponent;
+        } else {
+            file << exponent;
+        }
+
+        val_count++;
+
+        if (val_count >= 5) {
+            file << std::endl;
+            val_count = 0;
+        }
     }
 
     file.close();
