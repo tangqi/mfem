@@ -517,6 +517,8 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
     auto t_init = std::chrono::high_resolution_clock::now();
 
     // *** AMR LOOP *** //
+    vector<double> psi_ma_vals, psi_x_vals, cpasma_vals;
+
     for (int it_amr = 0; ; ++it_amr) {
       int total_gmres = 0;
       int cdofs = fespace.GetTrueVSize();
@@ -588,6 +590,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       // *** NEWTON LOOP *** //
       double error_old;
       double error;
+      
       for (int i = 0; i <= max_newton_iter; ++i) {
 
         // compute matrices and vectors in problem
@@ -620,6 +623,9 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         printf("psi_ma = %10.8e; r_ma = %10.8e; z_ma = %10.8e\n", psi_ma, x_ma[0], x_ma[1]);
         fprintf(fp, "psi_x = %10.8e; r_x = %10.8e; z_x = %10.8e\n", psi_x, x_x[0], x_x[1]);
         fprintf(fp, "psi_ma = %10.8e; r_ma = %10.8e; z_ma = %10.8e\n", psi_ma, x_ma[0], x_ma[1]);
+        psi_ma_vals.push_back(psi_ma); 
+        psi_x_vals.push_back(psi_x); 
+        cpasma_vals.push_back(C / op.get_mu()); 
 
         // *** compute rhs vectors *** //
         // -b3 = eq_res = B(y^n) - F u^n
@@ -1245,9 +1251,9 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         //return;
         //}
       }
-
+      
       if (it_amr >= max_levels) {
-        printf("max number of refinement levels\n");
+        printf("mx number of refinement levels\n");
         break;
       }
       if (cdofs > max_dofs)
@@ -1288,6 +1294,15 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
     std::chrono::duration<double, std::milli> ms_double = t_end - t_init;
     printf("time elapsed: %f seconds\n", ms_double.count() / 1000.0);
+
+    // Write final value of psi_ma to a different file for GQDSK
+    system("mkdir -p ../gslib/GEQDSK"); 
+    ofstream file("../gslib/GEQDSK/GEQDSK_simagx_sibdry_cpasma.txt"); 
+    file << showpos << scientific << setprecision(9)
+      << setw(16) << psi_ma_vals.back() << "\n"
+      << setw(16) << psi_x_vals.back() << "\n"
+      << setw(16) << cpasma_vals.back() << "\n";
+      file.close();
 
      
   } else {

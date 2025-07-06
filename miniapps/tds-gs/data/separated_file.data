@@ -4,7 +4,7 @@ TEQg03/20/2012#900032230s
 3 257 513 
 
 # rdim,zdim,rcentr,rleft,zmid 5
-7 12 6.500000e+00 3 0 
+7 12 6.500000e+00 3  0
 
 # maxis,zmaxis,simag,sibry,bcentr 5
 6.346508e+00 6.429445e-01 -1.223975e+01 6.864813e-02 -5.300000e+00 

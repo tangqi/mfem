@@ -1,6 +1,6 @@
 // File: 2d-catesian-mesh.cpp 
 // Purpose: Interpolates the provided .mesh file into a cartesian one and visualizes both of them with the given .gf solution. Also produces a GEQDSK file corresponding to the cartesian mesh and its solution. 
-// Run Instructions: make clean && make 2d-cartesian-mesh && srun ./2d-cartesian-mesh 
+// Run Instructions: make clean && make 2d-cartesian-mesh && srun -n 1 ./2d-cartesian-mesh 
 
 #include "mfem.hpp"
 #include <iostream>
@@ -11,8 +11,8 @@ using namespace std;
 void transformation(const Vector &p, Vector &v)
 {
    // simple linear transformation
-   v(0) = 5.0 * p(0) + 3.5; // x: [0,1] → [3.5,8.5]
-   v(1) = 8.3 * p(1) - 3.4; // y: [0,1] → [-3.4,4.9]
+   v(0) = 5.0 * p(0) + 3.5; // r: [0,1] → [3.5,8.5]
+   v(1) = 8.3 * p(1) - 3.4; // z: [0,1] → [-3.4,4.9]
 }
 
 // Scalar function to project
@@ -27,14 +27,31 @@ double scalar_func(const Vector &x)
 
 int main (int argc, char *argv[])
 {
-   int nx = 40;
-   int ny = 30;
+   int nx = 17;
+   int ny = 17;
 
-   // Write nx and ny to a different file for GEQDSK
-   // Create folder for GEQDSK sub-files and final output
+   // Compute rdim & zdim for GEQDSK
+   Vector p00(2); p00(0) = 0; p00(1) = 0; 
+   Vector p11(2); p11(0) = 1; p11(1) = 1; 
+   Vector v00(2), v11(2); 
+
+   transformation(p00, v00); 
+   transformation(p11, v11); 
+   
+   float rdim = v11(0) - v00(0); // Width of computational domain in the R direction, float [meter]
+   float zdim = v11(1) - v00(1); // Height of computational domain in the Z direction, float [meter]
+   float rleft = v00(0); // Min R value of computational domain (NOT the plasma boundary)
+   float zmid = (v11(1) + v00(1))/2; // [meter] Mid value of Z's domain
+
+   // Write nx, ny, rdim, zdim, rleft, and zmid to a different file for GEQDSK
    system("mkdir -p GEQDSK"); 
-   ofstream file("GEQDSK/GEQDSK_nx_ny.txt"); 
-   file << nx << "\n" << ny << "\n"; 
+   ofstream file("GEQDSK/GEQDSK_nx_ny_rdim_zdim_rleft_zmid.txt"); 
+   file << nx << "\n" << ny << "\n";  
+   file << showpos << scientific << setprecision(9)
+      << setw(16) << rdim << "\n"
+      << setw(16) << zdim << "\n"
+      << setw(16) << rleft<< "\n"
+      << setw(16) << zmid << "\n";
    file.close();
 
    // Create and transform the target mesh 
@@ -280,6 +297,14 @@ int main (int argc, char *argv[])
    }
    delete tar_fes;
    delete tar_fec;
+
+
+   // Run GEQDSK-generation.cpp to generate GEQDSK.txt file for the plasma solution of the rectangular mesh
+   int ret = system("cd /storage/home/hcoda1/7/sbandla3/Desktop/OSPO_MFEM/mfem-gs/miniapps/gslib && /usr/bin/make GEQDSK-generation && ./GEQDSK-generation");
+   if (ret != 0) {
+      std::cerr << "Error: Failed to build or run GEQDSK-generation." << std::endl;
+      return ret;
+   }
 
    return 0;
 }

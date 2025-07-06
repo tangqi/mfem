@@ -102,7 +102,7 @@ ur_coeff=1.0
                         -no-vis
 
 # lldb -- main.o \
-./main \
+srun -n 1 ./main \
     -m $mesh_file \
     -o 1 \
     -d $data_file \
