@@ -300,7 +300,7 @@ int main (int argc, char *argv[])
 
 
    // Run GEQDSK-generation.cpp to generate GEQDSK.txt file for the plasma solution of the rectangular mesh
-   int ret = system("cd /storage/home/hcoda1/7/sbandla3/Desktop/OSPO_MFEM/mfem-gs/miniapps/gslib && /usr/bin/make GEQDSK-generation && ./GEQDSK-generation");
+   int ret = system("/usr/bin/make GEQDSK-generation && ./GEQDSK-generation");
    if (ret != 0) {
       std::cerr << "Error: Failed to build or run GEQDSK-generation." << std::endl;
       return ret;
