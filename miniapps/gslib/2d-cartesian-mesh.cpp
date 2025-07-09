@@ -4,6 +4,7 @@
 
 #include "mfem.hpp"
 #include <iostream>
+#include <chrono>
 using namespace mfem;
 using namespace std;
 
@@ -12,7 +13,7 @@ void transformation(const Vector &p, Vector &v)
 {
    // simple linear transformation
    v(0) = 5.0 * p(0) + 3.5; // r: [0,1] → [3.5,8.5]
-   v(1) = 8.3 * p(1) - 3.4; // z: [0,1] → [-3.4,4.9]
+   v(1) = 8.9 * p(1) - 3.4; // z: [0,1] → [-3.4,5.5]
 }
 
 // Scalar function to project
@@ -27,10 +28,13 @@ double scalar_func(const Vector &x)
 
 int main (int argc, char *argv[])
 {
+   // Keeps track of computational time
+   auto start = chrono::high_resolution_clock::now();
+
+   // Compute rdim & zdim for GEQDSK   
    int nx = 17;
    int ny = 17;
 
-   // Compute rdim & zdim for GEQDSK
    Vector p00(2); p00(0) = 0; p00(1) = 0; 
    Vector p11(2); p11(0) = 1; p11(1) = 1; 
    Vector v00(2), v11(2); 
@@ -306,5 +310,10 @@ int main (int argc, char *argv[])
       return ret;
    }
 
+   // Output computational time
+   auto end = chrono::high_resolution_clock::now();
+   chrono::duration<double> elapsed = end - start;
+   cout << "Total time to run 2d-cartesian-mesh.cpp: " << elapsed.count() << " seconds\n";
+   
    return 0;
 }
