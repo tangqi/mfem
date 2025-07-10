@@ -13,6 +13,7 @@
 #include <iomanip>
 #include <cstdlib>
 #include <vector>
+#include <regex>
 using namespace std;
 
 // Find simagx coordinates: rmagx, zmagx
@@ -158,16 +159,61 @@ void append_section1(float rdim, float zdim, float rcentr, float rleft, float zm
          << setw(16) << 0.0
          << setw(16) << 0.0 << endl;
 
-    file << " " << endl;
-
     file.close();
 }
 
-// Format and append fpol
-void append_fpol(){}
+// Generate GEQDSK_pres.txt
+void generate_pres(){
+    ifstream infile("GEQDSK/GEQDSK_fpol.txt");
+    ofstream outfile("GEQDSK/GEQDSK_pres.txt");
 
-// Format and append ffprime
-void append_ffprime(){}
+    double dummy;
+    int count = 0;
+
+    // Read value by value (assuming file only has Fortran-formatted values)
+    while (infile >> dummy) {
+        // Force format: width 16, scientific, 9 decimals, uppercase E
+        outfile << std::setw(16) << std::setprecision(9)
+                << std::uppercase << std::scientific << 0.0;
+        count++;
+
+        // Newline every 5 values
+        if (count % 5 == 0) {
+            outfile << '\n';
+        }
+    }
+
+    // Add newline if last line is incomplete
+    if (count % 5 != 0) {
+        outfile << '\n';
+    }
+
+    infile.close();
+    outfile.close();
+}
+
+// Generate GEQDSK_pprime.txt
+void generate_pprime(){
+    ifstream infile("GEQDSK/GEQDSK_pres.txt");
+    ofstream outfile("GEQDSK/GEQDSK_pprime.txt");
+
+    outfile << infile.rdbuf();
+
+    infile.close();
+    outfile.close(); 
+}
+
+// Append subfiles to GEQDSK.txt
+void append_to_GEQDSK_txt(const string& infile) {
+    ifstream source(infile, ios::binary);         // File to append
+    ofstream dest("GEQDSK/GEQDSK.txt", ios::app | ios::binary); // File to append *to*
+
+    dest << "\n"; 
+    dest << source.rdbuf(); // Append the entire content
+
+    source.close();
+    dest.close();
+}
 
 // Format and append rlim and zlim
 void append_rbdry_zbdry_rlin_zlim(const vector<float>& rlim_zlim) {
@@ -201,38 +247,35 @@ int main(){
     float rcentr = 6.200000286e+00; // [meter] Reference value of R 
     float bcentr = -5.300000000e+00; // [tesla] Vacuum toroidal magnetic field at rcentr
     int nlim = 56; // Number of points in the limiter grid, value gotten from tds-gs/data/seperated_file.data  
-    vector<float> pres = 0; // [pascal] Plasma pressure, 1D array
-    vector<float> pprime = 0; // [pascal * radian / weber] 1D array 
-    
     vector<float> rlim_zlim = {
-    6.267000e+00, -3.046000e+00, 7.283000e+00, -2.257000e+00,
-    7.899000e+00, -1.342000e+00, 8.306000e+00, -4.210000e-01,
-    8.395000e+00,  6.330000e-01, 8.270000e+00,  1.681000e+00,
-    7.904000e+00,  2.464000e+00, 7.400000e+00,  3.179000e+00,
-    6.587000e+00,  3.894000e+00, 5.753000e+00,  4.532000e+00,
-    4.904000e+00,  4.712000e+00, 4.311000e+00,  4.324000e+00,
-    4.126000e+00,  3.582000e+00, 4.076000e+00,  2.566000e+00,
-    4.046000e+00,  1.549000e+00, 4.046000e+00,  5.330000e-01,
-    4.067000e+00, -4.840000e-01, 4.097000e+00, -1.500000e+00,
-    4.178000e+00, -2.506000e+00, 3.957900e+00, -2.538400e+00,
-    4.003400e+00, -2.538400e+00, 4.174200e+00, -2.567400e+00,
-    4.325700e+00, -2.651400e+00, 4.440800e+00, -2.780800e+00,
-    4.506600e+00, -2.941000e+00, 4.515700e+00, -3.113900e+00,
-    4.467000e+00, -3.280100e+00, 4.406400e+00, -3.404300e+00,
-    4.406200e+00, -3.404800e+00, 4.377300e+00, -3.479900e+00,
-    4.311500e+00, -3.614800e+00, 4.245700e+00, -3.749700e+00,
-    4.179900e+00, -3.884700e+00, 4.491800e+00, -3.909200e+00,
-    4.568700e+00, -3.827600e+00, 4.645600e+00, -3.746000e+00,
-    4.821500e+00, -3.709000e+00, 4.998200e+00, -3.741400e+00,
-    5.149600e+00, -3.838200e+00, 5.252900e+00, -3.985200e+00,
-    5.262800e+00, -4.124400e+00, 5.272700e+00, -4.263600e+00,
-    5.565000e+00, -4.555900e+00, 5.565000e+00, -4.402600e+00,
-    5.565000e+00, -4.249400e+00, 5.565000e+00, -4.096200e+00,
-    5.572000e+00, -3.996100e+00, 5.572000e+00, -3.995600e+00,
-    5.572000e+00, -3.896000e+00, 5.572000e+00, -3.895000e+00,
-    5.600800e+00, -3.702400e+00, 5.684200e+00, -3.526500e+00,
-    5.815000e+00, -3.382300e+00, 5.982100e+00, -3.282200e+00,
-    6.171000e+00, -3.235000e+00, 6.365500e+00, -3.244600e+00}; // r and z coordinates of limiter grid, value gotten from tds-gs/data/seperated_file.data   
+        6.267000e+00, -3.046000e+00, 7.283000e+00, -2.257000e+00,
+        7.899000e+00, -1.342000e+00, 8.306000e+00, -4.210000e-01,
+        8.395000e+00,  6.330000e-01, 8.270000e+00,  1.681000e+00,
+        7.904000e+00,  2.464000e+00, 7.400000e+00,  3.179000e+00,
+        6.587000e+00,  3.894000e+00, 5.753000e+00,  4.532000e+00,
+        4.904000e+00,  4.712000e+00, 4.311000e+00,  4.324000e+00,
+        4.126000e+00,  3.582000e+00, 4.076000e+00,  2.566000e+00,
+        4.046000e+00,  1.549000e+00, 4.046000e+00,  5.330000e-01,
+        4.067000e+00, -4.840000e-01, 4.097000e+00, -1.500000e+00,
+        4.178000e+00, -2.506000e+00, 3.957900e+00, -2.538400e+00,
+        4.003400e+00, -2.538400e+00, 4.174200e+00, -2.567400e+00,
+        4.325700e+00, -2.651400e+00, 4.440800e+00, -2.780800e+00,
+        4.506600e+00, -2.941000e+00, 4.515700e+00, -3.113900e+00,
+        4.467000e+00, -3.280100e+00, 4.406400e+00, -3.404300e+00,
+        4.406200e+00, -3.404800e+00, 4.377300e+00, -3.479900e+00,
+        4.311500e+00, -3.614800e+00, 4.245700e+00, -3.749700e+00,
+        4.179900e+00, -3.884700e+00, 4.491800e+00, -3.909200e+00,
+        4.568700e+00, -3.827600e+00, 4.645600e+00, -3.746000e+00,
+        4.821500e+00, -3.709000e+00, 4.998200e+00, -3.741400e+00,
+        5.149600e+00, -3.838200e+00, 5.252900e+00, -3.985200e+00,
+        5.262800e+00, -4.124400e+00, 5.272700e+00, -4.263600e+00,
+        5.565000e+00, -4.555900e+00, 5.565000e+00, -4.402600e+00,
+        5.565000e+00, -4.249400e+00, 5.565000e+00, -4.096200e+00,
+        5.572000e+00, -3.996100e+00, 5.572000e+00, -3.995600e+00,
+        5.572000e+00, -3.896000e+00, 5.572000e+00, -3.895000e+00,
+        5.600800e+00, -3.702400e+00, 5.684200e+00, -3.526500e+00,
+        5.815000e+00, -3.382300e+00, 5.982100e+00, -3.282200e+00,
+        6.171000e+00, -3.235000e+00, 6.365500e+00, -3.244600e+00}; // r and z coordinates of limiter grid, value gotten from tds-gs/data/seperated_file.data   
 
     // Extract values from files
     int nx, ny; 
@@ -250,20 +293,25 @@ int main(){
     printf("rmagx: = %.5f\n", rmagx);
     printf("zmagx: %.5f\n", zmagx); 
     
+    // Generate needed values
+    generate_pres();
+    generate_pprime();
+
     // Build final GEQDSK.txt file
     ofstream clear_file("GEQDSK/GEQDSK.txt", ios::trunc); // clears the file
     clear_file.close();
     
     GEQDSK_header(nx, ny);
     append_section1(rdim, zdim, rcentr, rleft, zmid, rmagx, zmagx, simagx, sibdry, bcentr, cpasma);
-    append_fpol();
-    append_pres();
-    append_ffprime();
-    append_pprime(); 
-    append_psi(); 
-    append_qpsi();
-    append_nbdry_nlim(); 
-    append_rbdry_zbdry_rlin_zlim(rlim_zlim );
+    append_to_GEQDSK_txt("GEQDSK/GEQDSK_fpol.txt");
+    append_to_GEQDSK_txt("GEQDSK/GEQDSK_pres.txt");
+    append_to_GEQDSK_txt("GEQDSK/GEQDSK_ffprime.txt");
+
+    // append_pprime(); 
+    // append_psi(); 
+    // append_qpsi();
+    // append_nbdry_nlim(); 
+    // append_rbdry_zbdry_rlin_zlim(rlim_zlim );
 
     return 0; 
 }

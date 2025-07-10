@@ -100,20 +100,17 @@ void ffprimeCalc(double alpha, const std::vector<double>fpol) {
 }
 
 void fpolFormat(const std::vector<double> fpol) {
-    
-    //Generate fpol file
-
+    // Generate fpol file
     std::ofstream file("GEQDSK/GEQDSK_fpol.txt");
-    
+
     int val_count = 0;
 
     for (const auto& val : fpol) {
-
-        //Convert to scientific notation
+        // Convert to scientific notation
         int exponent = (int)std::floor(std::log10(std::abs(val)));
         double decimal = val / std::pow(10, exponent);
 
-        decimal = decimal/10.0;
+        decimal = decimal / 10.0;
         exponent = exponent + 1;
 
         if (decimal >= 0) {
@@ -125,7 +122,7 @@ void fpolFormat(const std::vector<double> fpol) {
         if (exponent >= 0) {
             file << "+" << std::setfill('0') << std::setw(2) << exponent;
         } else {
-            file << "-" << std::setfill('0') << std::setw(2) << std::abs(exponent);        
+            file << "-" << std::setfill('0') << std::setw(2) << std::abs(exponent);
         }
 
         val_count++;
@@ -134,6 +131,11 @@ void fpolFormat(const std::vector<double> fpol) {
             file << std::endl;
             val_count = 0;
         }
+    }
+
+    // Ensure the file ends with a newline (even if val_count == 0)
+    if (val_count != 0) {
+        file << std::endl;
     }
 
     file.close();
