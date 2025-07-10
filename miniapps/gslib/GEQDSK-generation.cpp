@@ -306,12 +306,14 @@ int main(){
     append_to_GEQDSK_txt("GEQDSK/GEQDSK_fpol.txt");
     append_to_GEQDSK_txt("GEQDSK/GEQDSK_pres.txt");
     append_to_GEQDSK_txt("GEQDSK/GEQDSK_ffprime.txt");
+    append_to_GEQDSK_txt("GEQDSK/GEQDSK_pprime.txt");
+    append_to_GEQDSK_txt("GEQDSK/GEQDSK_psi.txt");
 
-    // append_pprime(); 
-    // append_psi(); 
-    // append_qpsi();
-    // append_nbdry_nlim(); 
-    // append_rbdry_zbdry_rlin_zlim(rlim_zlim );
+    // append_to_GEQDSK_txt("GEQDSK/GEQDSK_qpsi.txt");
+    // generate a correct file format for nbdry and nlim
+    // append_to_GEQDSK_txt("GEQDSK/GEQDSK_nbdry_nlim.txt");
+    // append_to_GEQDSK_txt("GEQDSK/GEQDSK_qpsi.txt"); 
+    append_(rlim_zlim );
 
     return 0; 
 }

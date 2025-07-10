@@ -95,6 +95,11 @@ void ffprimeCalc(double alpha, const std::vector<double>fpol) {
         }
     }
 
+    // Ensure the file ends with a newline (even if val_count == 0)
+    if (val_count != 0) {
+        file << std::endl;
+    }
+
     file.close();
 
 }
@@ -176,6 +181,11 @@ void psiFormat(const std::vector<double> psiVal) {
         }
     }
 
+    // Ensure the file ends with a newline (even if val_count == 0)
+    if (val_count != 0) {
+        file << std::endl;
+    }
+    
     file.close();
 }
 
