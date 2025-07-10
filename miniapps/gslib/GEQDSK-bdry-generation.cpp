@@ -74,9 +74,9 @@ void readCSV() {
         exponent = exponent + 1;
 
         if (decimal >= 0) {
-            NewFile << std::fixed << std::setprecision(8) << " " << decimal << "E";
+            NewFile << std::fixed << std::setprecision(9) << " " << decimal << "E";
         } else {
-            NewFile << std::fixed << std::setprecision(8) << decimal << "E";
+            NewFile << std::fixed << std::setprecision(9) << decimal << "E";
         }
 
         if (exponent >= 0) {
@@ -95,9 +95,9 @@ void readCSV() {
             exponent = exponent + 1;
 
             if (decimal >= 0) {
-                NewFile << std::fixed << std::setprecision(8) << " " << decimal << "E";
+                NewFile << std::fixed << std::setprecision(9) << " " << decimal << "E";
             } else {
-                NewFile << std::fixed << std::setprecision(8) << decimal << "E";
+                NewFile << std::fixed << std::setprecision(9) << decimal << "E";
             }
 
             if (exponent >= 0) {

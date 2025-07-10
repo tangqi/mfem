@@ -76,9 +76,9 @@ void ffprimeCalc(double alpha, const std::vector<double>fpol) {
         exponent = exponent + 1;
 
         if (decimal >= 0) {
-            file << std::fixed << std::setprecision(8) << " " << decimal << "E";
+            file << std::fixed << std::setprecision(9) << " " << decimal << "E";
         } else {
-            file << std::fixed << std::setprecision(8) << decimal << "E";
+            file << std::fixed << std::setprecision(9) << decimal << "E";
         }
 
         if (exponent >= 0) {
@@ -114,9 +114,9 @@ void fpolFormat(const std::vector<double> fpol) {
         exponent = exponent + 1;
 
         if (decimal >= 0) {
-            file << std::fixed << std::setprecision(8) << " " << decimal << "E";
+            file << std::fixed << std::setprecision(9) << " " << decimal << "E";
         } else {
-            file << std::fixed << std::setprecision(8) << decimal << "E";
+            file << std::fixed << std::setprecision(9) << decimal << "E";
         }
 
         if (exponent >= 0) {
@@ -157,9 +157,9 @@ void psiFormat(const std::vector<double> psiVal) {
         exponent = exponent + 1;
 
         if (decimal >= 0) {
-            file << std::fixed << std::setprecision(8) << " " << decimal << "E";
+            file << std::fixed << std::setprecision(9) << " " << decimal << "E";
         } else {
-            file << std::fixed << std::setprecision(8) << decimal << "E";
+            file << std::fixed << std::setprecision(9) << decimal << "E";
         }
 
         if (exponent >= 0) {
