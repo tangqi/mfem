@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <vector>
 #include <regex>
+#include <cmath>
 using namespace std;
 
 // Find simagx coordinates: rmagx, zmagx
@@ -215,8 +216,100 @@ void append_to_GEQDSK_txt(const string& infile) {
     dest.close();
 }
 
+//Extract rbdry and zbdry points from ParaView
+std::vector<double> readCSV() {
+    std::vector<double> rbdry_zbdry;
+
+    std::ifstream file("../tds-gs/ParaView/gs/Cycle000000/contour_points.csv");
+
+    if (!file.is_open()) {
+        std::cerr <<"Failed to open file." << std::endl;
+        return rbdry_zbdry;
+    }
+
+    std::string line;
+    int line_count = 0;
+    while (std::getline(file, line)) {
+        if (line_count == 0) {
+            line_count++;
+            continue;
+        }
+
+        std::stringstream ss(line);
+        std::string cell;
+
+        double r_temp;
+        double z_temp;
+        
+        int cell_count = 0;
+        while (std::getline(ss, cell, ',')) {
+            
+            if (cell_count == 1) {
+                r_temp = std::stod(cell);
+            }
+
+            if (cell_count == 2) {
+                z_temp = std::stod(cell);
+            }
+
+            if (cell_count == 3) {
+                //contour intersection @ (4.95502, -3.56733)
+                if (r_temp >= 4.95502 && z_temp >= -3.56733) {
+                    rbdry_zbdry.push_back(r_temp);
+                    rbdry_zbdry.push_back(z_temp);
+                }
+            }
+            cell_count++;
+        }
+        line_count++;
+    }
+
+    file.close();
+    return rbdry_zbdry;
+}
+
+// Format and append rbdry & zbdry
+void append_rbdry_zbdry(const vector<double>& rbdry_zbdry) {
+    ofstream outfile("GEQDSK/GEQDSK.txt", ios::app);
+    if (!outfile.is_open()) {
+        cerr << "Could not open GEQDSK/GEQDSK.txt" << endl;
+        return;
+    }
+
+    outfile << '\n';
+
+    int val_count = 0;
+    for (double val : rbdry_zbdry) {
+        int exponent = (int)std::floor(std::log10(std::abs(val)));
+        double decimal = val / std::pow(10, exponent);
+
+        decimal = decimal/10.0;
+        exponent = exponent + 1;
+
+        if (decimal >= 0) {
+            outfile << std::fixed << std::setprecision(9) << " " << decimal << "E";
+        } else {
+            outfile << std::fixed << std::setprecision(9) << decimal << "E";
+        }
+
+        if (exponent >= 0) {
+            outfile << "+" << std::setfill('0') << std::setw(2) << exponent;
+        } else {
+            outfile << "-" << std::setfill('0') << std::setw(2) << std::abs(exponent);        
+        }
+
+        val_count++;
+
+        if (val_count >= 5) {
+            outfile << std::endl;
+            val_count = 0;
+        }
+    }
+    outfile.close();
+}
+
 // Format and append rlim and zlim
-void append_rbdry_zbdry_rlin_zlim(const vector<float>& rlim_zlim) {
+void append_rlin_zlim(const vector<float>& rlim_zlim) {
     ofstream outfile("GEQDSK/GEQDSK.txt", ios::app);
     if (!outfile.is_open()) {
         cerr << "Could not open GEQDSK/GEQDSK.txt" << endl;
@@ -246,7 +339,9 @@ int main(){
     // Known constants
     float rcentr = 6.200000286e+00; // [meter] Reference value of R 
     float bcentr = -5.300000000e+00; // [tesla] Vacuum toroidal magnetic field at rcentr
-    int nlim = 56; // Number of points in the limiter grid, value gotten from tds-gs/data/seperated_file.data  
+    int nlim = 56; // Number of points in the limiter grid, value gotten from tds-gs/data/seperated_file.data
+    vector<double> rbdry_zbdry = readCSV();
+    int nbdry = rbdry_zbdry.size() / 2;  
     vector<float> rlim_zlim = {
         6.267000e+00, -3.046000e+00, 7.283000e+00, -2.257000e+00,
         7.899000e+00, -1.342000e+00, 8.306000e+00, -4.210000e-01,
@@ -288,6 +383,10 @@ int main(){
     ifstream file2("GEQDSK/GEQDSK_simagx_sibdry_cpasma.txt");
     file2 >> simagx >> sibdry >> cpasma; 
     file2.close();
+
+    ofstream file3("GEQDSK/GEQDSK_nbdry_nlim.txt");
+    file3 << nbdry << "    " << nlim << '\n';
+    file3.close();
     
     find_rmagx_zmagx("interpolated.gf", "my_new.mesh", simagx, rmagx, zmagx);
     printf("rmagx: = %.5f\n", rmagx);
@@ -308,12 +407,14 @@ int main(){
     append_to_GEQDSK_txt("GEQDSK/GEQDSK_ffprime.txt");
     append_to_GEQDSK_txt("GEQDSK/GEQDSK_pprime.txt");
     append_to_GEQDSK_txt("GEQDSK/GEQDSK_psi.txt");
+    append_to_GEQDSK_txt("GEQDSK/GEQDSK_nbdry_nlim.txt");
 
     // append_to_GEQDSK_txt("GEQDSK/GEQDSK_qpsi.txt");
     // generate a correct file format for nbdry and nlim
     // append_to_GEQDSK_txt("GEQDSK/GEQDSK_nbdry_nlim.txt");
     // append_to_GEQDSK_txt("GEQDSK/GEQDSK_qpsi.txt"); 
-    append_(rlim_zlim );
+    append_rbdry_zbdry(rbdry_zbdry);
+    append_rlin_zlim(rlim_zlim );
 
     return 0; 
 }
