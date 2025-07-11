@@ -269,16 +269,17 @@ std::vector<double> readCSV() {
 }
 
 // Format and append rbdry & zbdry
-void append_rbdry_zbdry(const vector<double>& rbdry_zbdry) {
+int append_rbdry_zbdry(const vector<double>& rbdry_zbdry) {
+    int val_count = 0;
+
     ofstream outfile("GEQDSK/GEQDSK.txt", ios::app);
     if (!outfile.is_open()) {
         cerr << "Could not open GEQDSK/GEQDSK.txt" << endl;
-        return;
+        return val_count;
     }
 
     outfile << '\n';
 
-    int val_count = 0;
     for (double val : rbdry_zbdry) {
         int exponent = (int)std::floor(std::log10(std::abs(val)));
         double decimal = val / std::pow(10, exponent);
@@ -306,10 +307,11 @@ void append_rbdry_zbdry(const vector<double>& rbdry_zbdry) {
         }
     }
     outfile.close();
+    return val_count;
 }
 
 // Format and append rlim and zlim
-void append_rlin_zlim(const vector<float>& rlim_zlim) {
+void append_rlin_zlim(const int& num, const vector<float>& rlim_zlim) {
     ofstream outfile("GEQDSK/GEQDSK.txt", ios::app);
     if (!outfile.is_open()) {
         cerr << "Could not open GEQDSK/GEQDSK.txt" << endl;
@@ -318,16 +320,17 @@ void append_rlin_zlim(const vector<float>& rlim_zlim) {
 
     outfile << uppercase << scientific << setprecision(9);
 
-    int count = 0;
+    int count = num;
     for (float val : rlim_zlim) {
         outfile << setw(16) << val;
         count++;
-        if (count % 5 == 0) {
-            outfile << "\n";
+        if (count >= 5) {
+            outfile << std::endl;
+            count = 0;
         }
     }
 
-    if (count % 5 != 0) {
+    if (count > 0) {
         outfile << "\n"; // Final newline if not divisible by 5
     }
 
@@ -413,8 +416,9 @@ int main(){
     // generate a correct file format for nbdry and nlim
     // append_to_GEQDSK_txt("GEQDSK/GEQDSK_nbdry_nlim.txt");
     // append_to_GEQDSK_txt("GEQDSK/GEQDSK_qpsi.txt"); 
-    append_rbdry_zbdry(rbdry_zbdry);
-    append_rlin_zlim(rlim_zlim );
+    
+    int count = append_rbdry_zbdry(rbdry_zbdry);
+    append_rlin_zlim(count, rlim_zlim );
 
     return 0; 
 }
