@@ -345,6 +345,8 @@ int main(){
     int nlim = 56; // Number of points in the limiter grid, value gotten from tds-gs/data/seperated_file.data
     vector<double> rbdry_zbdry = readCSV();
     int nbdry = rbdry_zbdry.size() / 2;  
+    printf("nbdry: %i", nbdry); 
+    
     vector<float> rlim_zlim = {
         6.267000e+00, -3.046000e+00, 7.283000e+00, -2.257000e+00,
         7.899000e+00, -1.342000e+00, 8.306000e+00, -4.210000e-01,
