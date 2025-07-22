@@ -5,6 +5,7 @@
 //                       Run 2D-cartesian-mesh.cpp (make clean && make 2d-cartesian-mesh && srun -n 1 ./2d-cartesian-mesh) 
 // Note: Running 2d-cartesian-mesh.cpp automatically runs GEQDSK-generation.cpp. if want to run independently, execute: make GEQDSK-generation && ./GEQDSK-generation 
 
+#include "mfem.hpp"
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -15,6 +16,8 @@
 #include <vector>
 #include <regex>
 #include <cmath>
+
+using namespace mfem;
 using namespace std;
 
 // Find simagx coordinates: rmagx, zmagx
@@ -216,57 +219,59 @@ void append_to_GEQDSK_txt(const string& infile) {
     dest.close();
 }
 
-//Extract rbdry and zbdry points from ParaView
-std::vector<double> readCSV() {
+
+std::vector<double> ExtractContourLine(const Mesh &mesh, const GridFunction &u, double level)
+{
+    MFEM_VERIFY(mesh.Dimension() == 2, "Only 2D meshes are supported.");
+    MFEM_VERIFY(u.FESpace()->GetVDim() == 1, "Only scalar fields are supported.");
+
+    const FiniteElementSpace &fes = *u.FESpace();
+    const GridFunction *nodes = mesh.GetNodes();
+    MFEM_VERIFY(nodes, "Mesh must be in nodal form (use high-order mesh).");
+
+    const int nedges = mesh.GetNEdges();
+    const int dim = 2;
+
     std::vector<double> rbdry_zbdry;
 
-    std::ifstream file("../tds-gs/ParaView/gs/Cycle000000/contour_points.csv");
+    for (int e = 0; e < nedges; ++e)
+    {
+        // Get the vertex indices of this edge
+        Array<int> ev;
+        mesh.GetEdgeVertices(e, ev);
 
-    if (!file.is_open()) {
-        std::cerr <<"Failed to open file." << std::endl;
-        return rbdry_zbdry;
-    }
+        // Get coordinates of endpoints
+        const double *coords_i = mesh.GetVertex(ev[0]);
+        const double *coords_j = mesh.GetVertex(ev[1]);
 
-    std::string line;
-    int line_count = 0;
-    while (std::getline(file, line)) {
-        if (line_count == 0) {
-            line_count++;
-            continue;
-        }
+        Array<int> dofs_i, dofs_j;
 
-        std::stringstream ss(line);
-        std::string cell;
-
-        double r_temp;
-        double z_temp;
-        
-        int cell_count = 0;
-        while (std::getline(ss, cell, ',')) {
+        // Evaluate u at the vertices
+        fes.GetVertexDofs(ev[0], dofs_i);
+        fes.GetVertexDofs(ev[1], dofs_j);
+        double ui = u(dofs_i[0]);
+        double uj = u(dofs_j[0]);
+        // Check if contour level crosses this edge
+        if ((ui - level) * (uj - level) < 0.0)
+        {
+            //cout<<ui<<" "<<uj<<" ";
+            // Linear interpolation to find contour crossing
+            double alpha = (level - ui) / (uj - ui);
+            Vector pt(dim);
+            for (int d = 0; d < dim; d++)
+            {
+                pt[d] = coords_i[d] + alpha * (coords_j[d] - coords_i[d]);
+            }
             
-            if (cell_count == 1) {
-                r_temp = std::stod(cell);
+            if (pt[1] >= -3.56733) {
+                rbdry_zbdry.push_back(pt[0]);
+                rbdry_zbdry.push_back(pt[1]);
             }
-
-            if (cell_count == 2) {
-                z_temp = std::stod(cell);
-            }
-
-            if (cell_count == 3) {
-                //contour intersection @ (4.95502, -3.56733)
-                if (r_temp >= 4.95502 && z_temp >= -3.56733) {
-                    rbdry_zbdry.push_back(r_temp);
-                    rbdry_zbdry.push_back(z_temp);
-                }
-            }
-            cell_count++;
         }
-        line_count++;
     }
-
-    file.close();
     return rbdry_zbdry;
 }
+
 
 // Format and append rbdry & zbdry
 int append_rbdry_zbdry(const vector<double>& rbdry_zbdry) {
@@ -343,9 +348,6 @@ int main(){
     float rcentr = 6.200000286e+00; // [meter] Reference value of R 
     float bcentr = -5.300000000e+00; // [tesla] Vacuum toroidal magnetic field at rcentr
     int nlim = 56; // Number of points in the limiter grid, value gotten from tds-gs/data/seperated_file.data
-    vector<double> rbdry_zbdry = readCSV();
-    int nbdry = rbdry_zbdry.size() / 2;  
-    printf("nbdry: %i", nbdry); 
     
     vector<float> rlim_zlim = {
         6.267000e+00, -3.046000e+00, 7.283000e+00, -2.257000e+00,
@@ -389,9 +391,28 @@ int main(){
     file2 >> simagx >> sibdry >> cpasma; 
     file2.close();
 
+    //Extract Boundary Points to Find nbdry
+
+    Mesh my_mesh("../tds-gs/meshes/mesh_refine.mesh");
+    my_mesh.EnsureNodes();
+    FiniteElementCollection *fec = new H1_FECollection(1, my_mesh.Dimension()); // P1 elements
+    FiniteElementSpace fespace(&my_mesh, fec);
+
+    // Create GridFunction
+    ifstream ifs("../tds-gs/gf/final_model2_pc5_cyc1_it5.gf");
+    GridFunction lgf(&my_mesh, ifs);
+
+    // Now call your function
+    std::vector<double> rbdry_zbdry = ExtractContourLine(my_mesh, lgf, sibdry);
+
+    //Find and print nbdry
+    int nbdry = rbdry_zbdry.size() / 2;  
+    printf("nbdry: %i\n", nbdry); 
+
     ofstream file3("GEQDSK/GEQDSK_nbdry_nlim.txt");
     file3 << nbdry << "    " << nlim << '\n';
     file3.close();
+
     
     find_rmagx_zmagx("interpolated.gf", "my_new.mesh", simagx, rmagx, zmagx);
     printf("rmagx: = %.5f\n", rmagx);
