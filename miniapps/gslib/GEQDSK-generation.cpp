@@ -16,6 +16,8 @@
 #include <vector>
 #include <regex>
 #include <cmath>
+#include <algorithm>
+#include <limits>
 
 using namespace mfem;
 using namespace std;
@@ -166,6 +168,194 @@ void append_section1(float rdim, float zdim, float rcentr, float rleft, float zm
     file.close();
 }
 
+//Sort psi values from interpolated.gf
+vector<double> psiSort(){
+    vector<double> psiVal;
+     string line;
+
+    ifstream ReadFile("interpolated.gf");
+
+    int line_count = 0;
+    double value;
+
+    while (getline (ReadFile, line)) {
+
+        line_count++; 
+
+        if (line_count < 5) {
+            continue;
+        }
+
+        if (line.empty()) {
+            continue;
+        }
+        
+        value = stod(line);
+
+        psiVal.push_back(value);
+    }
+
+    ReadFile.close();
+
+    sort(psiVal.begin(), psiVal.end()); 
+    return psiVal;
+}
+
+
+//Calculate fpol values
+vector<double> fpolCalc(double alpha, double psi_x, double f_x, const vector<double> psiVal) {
+    //Calculate fpol values
+    vector<double> fpol;
+    double fpol_val;
+
+    for (const auto& val : psiVal) {
+        fpol_val = f_x + alpha * (val - psi_x);
+        fpol.push_back(fpol_val);
+    }
+
+    return fpol;
+}
+
+//Generation ffprime file
+void ffprimeCalc(double alpha, const vector<double>fpol) {
+    vector<double> ffprime;
+    double ffprime_val;
+
+    for (const auto& val : fpol) {
+        ffprime_val = alpha * val;
+        ffprime.push_back(ffprime_val);
+    }
+
+    //Generate ffprime file
+
+    ofstream file("GEQDSK/GEQDSK_ffprime.txt");
+    
+    int val_count = 0;
+
+    for (const auto& val : ffprime) {
+
+        //Convert to scientific notation
+        int exponent = (int)floor(log10(abs(val)));
+        double decimal = val / pow(10, exponent);
+
+        decimal = decimal/10.0;
+        exponent = exponent + 1;
+
+        if (decimal >= 0) {
+            file << fixed << setprecision(9) << " " << decimal << "E";
+        } else {
+            file << fixed << setprecision(9) << decimal << "E";
+        }
+
+        if (exponent >= 0) {
+            file << "+" << setfill('0') << setw(2) << exponent;
+        } else {
+            file << "-" << setfill('0') << setw(2) << abs(exponent);        
+        }
+
+        val_count++;
+
+        if (val_count >= 5) {
+            file << endl;
+            val_count = 0;
+        }
+    }
+
+    // Ensure the file ends with a newline (even if val_count == 0)
+    if (val_count != 0) {
+        file << endl;
+    }
+
+    file.close();
+
+}
+
+//Generate fpol file 
+void fpolFormat(const vector<double> fpol) {
+    // Generate fpol file
+    ofstream file("GEQDSK/GEQDSK_fpol.txt");
+
+    int val_count = 0;
+
+    for (const auto& val : fpol) {
+        // Convert to scientific notation
+        int exponent = (int)floor(log10(abs(val)));
+        double decimal = val / pow(10, exponent);
+
+        decimal = decimal / 10.0;
+        exponent = exponent + 1;
+
+        if (decimal >= 0) {
+            file << fixed << setprecision(9) << " " << decimal << "E";
+        } else {
+            file << fixed << setprecision(9) << decimal << "E";
+        }
+
+        if (exponent >= 0) {
+            file << "+" << setfill('0') << setw(2) << exponent;
+        } else {
+            file << "-" << setfill('0') << setw(2) << abs(exponent);
+        }
+
+        val_count++;
+
+        if (val_count >= 5) {
+            file << endl;
+            val_count = 0;
+        }
+    }
+
+    // Ensure the file ends with a newline (even if val_count == 0)
+    if (val_count != 0) {
+        file << endl;
+    }
+
+    file.close();
+}
+
+//Generation psi file
+void psiFormat(const vector<double> psiVal) {
+    //UNFORMATTED PSI VALUES
+    ofstream file("GEQDSK/GEQDSK_psi.txt");
+    
+    int val_count = 0;
+    for (const auto& val : psiVal) {
+
+        //Convert to scientific notation
+        int exponent = (int)floor(log10(abs(val)));
+        double decimal = val / pow(10, exponent);
+
+        decimal = decimal/10.0;
+        exponent = exponent + 1;
+
+        if (decimal >= 0) {
+            file << fixed << setprecision(9) << " " << decimal << "E";
+        } else {
+            file << fixed << setprecision(9) << decimal << "E";
+        }
+
+        if (exponent >= 0) {
+            file << "+" << setfill('0') << setw(2) << exponent;
+        } else {
+            file << "-" << setfill('0') << setw(2) << abs(exponent);        
+        }
+
+        val_count++;
+
+        if (val_count >= 5) {
+            file << endl;
+            val_count = 0;
+        }
+    }
+
+    // Ensure the file ends with a newline (even if val_count == 0)
+    if (val_count != 0) {
+        file << endl;
+    }
+    
+    file.close();
+}
+
 // Generate GEQDSK_pres.txt
 void generate_pres(){
     ifstream infile("GEQDSK/GEQDSK_fpol.txt");
@@ -177,8 +367,8 @@ void generate_pres(){
     // Read value by value (assuming file only has Fortran-formatted values)
     while (infile >> dummy) {
         // Force format: width 16, scientific, 9 decimals, uppercase E
-        outfile << std::setw(16) << std::setprecision(9)
-                << std::uppercase << std::scientific << 0.0;
+        outfile << setw(16) << setprecision(9)
+                << uppercase << scientific << 0.0;
         count++;
 
         // Newline every 5 values
@@ -220,7 +410,7 @@ void append_to_GEQDSK_txt(const string& infile) {
 }
 
 
-std::vector<double> ExtractContourLine(const Mesh &mesh, const GridFunction &u, double level)
+vector<double> ExtractContourLine(const Mesh &mesh, const GridFunction &u, double level)
 {
     MFEM_VERIFY(mesh.Dimension() == 2, "Only 2D meshes are supported.");
     MFEM_VERIFY(u.FESpace()->GetVDim() == 1, "Only scalar fields are supported.");
@@ -232,7 +422,9 @@ std::vector<double> ExtractContourLine(const Mesh &mesh, const GridFunction &u, 
     const int nedges = mesh.GetNEdges();
     const int dim = 2;
 
-    std::vector<double> rbdry_zbdry;
+    vector<double> rbdry_zbdry;
+
+    //ofstream out("contour_check.txt");
 
     for (int e = 0; e < nedges; ++e)
     {
@@ -263,12 +455,17 @@ std::vector<double> ExtractContourLine(const Mesh &mesh, const GridFunction &u, 
                 pt[d] = coords_i[d] + alpha * (coords_j[d] - coords_i[d]);
             }
             
+            //Specific to mesh, cannot be used universally
             if (pt[1] >= -3.56733) {
                 rbdry_zbdry.push_back(pt[0]);
                 rbdry_zbdry.push_back(pt[1]);
+
+                //out << pt[1] << " " << pt[0] << "\n";
             }
         }
     }
+
+    //out.close();
     return rbdry_zbdry;
 }
 
@@ -286,28 +483,28 @@ int append_rbdry_zbdry(const vector<double>& rbdry_zbdry) {
     outfile << '\n';
 
     for (double val : rbdry_zbdry) {
-        int exponent = (int)std::floor(std::log10(std::abs(val)));
-        double decimal = val / std::pow(10, exponent);
+        int exponent = (int)floor(log10(abs(val)));
+        double decimal = val / pow(10, exponent);
 
         decimal = decimal/10.0;
         exponent = exponent + 1;
 
         if (decimal >= 0) {
-            outfile << std::fixed << std::setprecision(9) << " " << decimal << "E";
+            outfile << fixed << setprecision(9) << " " << decimal << "E";
         } else {
-            outfile << std::fixed << std::setprecision(9) << decimal << "E";
+            outfile << fixed << setprecision(9) << decimal << "E";
         }
 
         if (exponent >= 0) {
-            outfile << "+" << std::setfill('0') << std::setw(2) << exponent;
+            outfile << "+" << setfill('0') << setw(2) << exponent;
         } else {
-            outfile << "-" << std::setfill('0') << std::setw(2) << std::abs(exponent);        
+            outfile << "-" << setfill('0') << setw(2) << abs(exponent);        
         }
 
         val_count++;
 
         if (val_count >= 5) {
-            outfile << std::endl;
+            outfile << endl;
             val_count = 0;
         }
     }
@@ -316,7 +513,7 @@ int append_rbdry_zbdry(const vector<double>& rbdry_zbdry) {
 }
 
 // Format and append rlim and zlim
-void append_rlin_zlim(const int& num, const vector<float>& rlim_zlim) {
+void append_rlim_zlim(const int& num, const vector<float>& rlim_zlim) {
     ofstream outfile("GEQDSK/GEQDSK.txt", ios::app);
     if (!outfile.is_open()) {
         cerr << "Could not open GEQDSK/GEQDSK.txt" << endl;
@@ -330,7 +527,7 @@ void append_rlin_zlim(const int& num, const vector<float>& rlim_zlim) {
         outfile << setw(16) << val;
         count++;
         if (count >= 5) {
-            outfile << std::endl;
+            outfile << endl;
             count = 0;
         }
     }
@@ -348,6 +545,9 @@ int main(){
     float rcentr = 6.200000286e+00; // [meter] Reference value of R 
     float bcentr = -5.300000000e+00; // [tesla] Vacuum toroidal magnetic field at rcentr
     int nlim = 56; // Number of points in the limiter grid, value gotten from tds-gs/data/seperated_file.data
+    double alpha = 0.144526;
+    double psi_x = 1.28864;
+    double f_x = -32.86;
     
     vector<float> rlim_zlim = {
         6.267000e+00, -3.046000e+00, 7.283000e+00, -2.257000e+00,
@@ -403,7 +603,7 @@ int main(){
     GridFunction lgf(&my_mesh, ifs);
 
     // Now call your function
-    std::vector<double> rbdry_zbdry = ExtractContourLine(my_mesh, lgf, sibdry);
+    vector<double> rbdry_zbdry = ExtractContourLine(my_mesh, lgf, sibdry);
 
     //Find and print nbdry
     int nbdry = rbdry_zbdry.size() / 2;  
@@ -419,6 +619,11 @@ int main(){
     printf("zmagx: %.5f\n", zmagx); 
     
     // Generate needed values
+    vector<double> psi = psiSort();
+    vector<double> fpol = fpolCalc(alpha, psi_x, f_x, psi);
+    ffprimeCalc(alpha, fpol);
+    fpolFormat(fpol);
+    psiFormat(psi);
     generate_pres();
     generate_pprime();
 
@@ -441,7 +646,7 @@ int main(){
     // append_to_GEQDSK_txt("GEQDSK/GEQDSK_qpsi.txt"); 
     
     int count = append_rbdry_zbdry(rbdry_zbdry);
-    append_rlin_zlim(count, rlim_zlim );
+    append_rlim_zlim(count, rlim_zlim );
 
     return 0; 
 }
