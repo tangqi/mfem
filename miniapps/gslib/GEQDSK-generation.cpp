@@ -2,7 +2,7 @@
 // Purpose: Generates the final GEQDSK plasma file by finding the individual variable files and appending them
 // Workflow: The respective MFEM files generate "GEQDSK_[variable_names]" files that store the values of the needed variables. GEQDDSK-generation.cpp extracts the values from those files, generates other needed variables, and compiles the final GEQDSK.txt file. 
 // File un instructions: Run a triangular mesh file (Ex: sh run_3_taylor.sh)
-//                       Run 2D-cartesian-mesh.cpp (make clean && make 2d-cartesian-mesh && srun -n 1 ./2d-cartesian-mesh) 
+//                       Run 2D-cartesian-mesh.cpp (make 2d-cartesian-mesh && srun -n 1 ./2d-cartesian-mesh) 
 // Note: Running 2d-cartesian-mesh.cpp automatically runs GEQDSK-generation.cpp. if want to run independently, execute: make GEQDSK-generation && ./GEQDSK-generation 
 
 #include "mfem.hpp"
