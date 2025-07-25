@@ -3,9 +3,9 @@
 //        3. ExtractContourLine      
 //        4. Add lim points to a file   
 //        5. Running 2d.cpp is throwing an error with running dsk-gen.cpp   
-//        6. Add plotter python files   
-//        7. Clean up code
-//        8. Code documentatation
+//        6. Clean up code
+//        7. Code documentatation
+//        8. Submit final code with 61 by 129
 
 
 // File                  : GEQDSK-generation.cpp 
@@ -767,7 +767,7 @@ int main(){
 
     // qpsi calcs
     // Finding radially aligned points for n number of contours
-    int n = 3;
+    int n = 12;
     vector<double> angles_deg = {0, 45, 90, 135, 180, 225, 270, 315};
     ProcessContours(sibdry, simagx, rmagx, zmagx, n,
                     "../tds-gs/meshes/mesh_refine.mesh",
