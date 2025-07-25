@@ -468,6 +468,9 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
   visit_dc.RegisterField("Bp", &Bp_field);
   visit_dc.RegisterField("Bz", &Bz_field);
 
+  double psi_x;
+  double f_x;
+
   if (do_control) {
     // solve the optimization problem of determining currents to fit desired plasma shape
     /*
@@ -590,7 +593,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       // *** NEWTON LOOP *** //
       double error_old;
       double error;
-      
+
       for (int i = 0; i <= max_newton_iter; ++i) {
 
         // compute matrices and vectors in problem
@@ -608,11 +611,12 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         // plasma current
         printf("plasma_current = %10.8e\n", C / op.get_mu());
         printf("alpha = %10.8e\n", alpha);
+
         fprintf(fp, "plasma_current = %10.8e\n", C / op.get_mu());
         fprintf(fp, "alpha = %10.8e\n", alpha);
 
         // get psi x and magnetic axis points and locations
-        double psi_x = op.get_psi_x();
+        psi_x = op.get_psi_x();
         double psi_ma = op.get_psi_ma();
         double* x_x = op.get_x_x();
         double* x_ma = op.get_x_ma();
@@ -626,6 +630,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         psi_ma_vals.push_back(psi_ma); 
         psi_x_vals.push_back(psi_x); 
         cpasma_vals.push_back(C / op.get_mu()); 
+
 
         // *** compute rhs vectors *** //
         // -b3 = eq_res = B(y^n) - F u^n
@@ -1295,6 +1300,8 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
     std::chrono::duration<double, std::milli> ms_double = t_end - t_init;
     printf("time elapsed: %f seconds\n", ms_double.count() / 1000.0);
 
+    f_x = model->get_f_x();
+
     // Write final value of psi_ma to a different file for GQDSK
     system("mkdir -p ../gslib/GEQDSK"); 
     ofstream file("../gslib/GEQDSK/GEQDSK_simagx_sibdry_cpasma.txt"); 
@@ -1303,6 +1310,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       << setw(16) << psi_x_vals.back() << "\n"
       << setw(16) << cpasma_vals.back() << "\n";
       file.close();
+    
+    ofstream NewFile("../gslib/GEQDSK/GEQDSK_alpha_f_x_psi_x.txt");
+    NewFile << alpha << "\n" << f_x << "\n" << psi_x << "\n"; 
+    NewFile.close();
 
      
   } else {
@@ -1430,9 +1441,6 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
     printf("final max residual: %.3e, ratio %.3e\n", error, error_old / error);
     printf("********************************\n\n");
   }
-
-  
-  
 }
 
 
