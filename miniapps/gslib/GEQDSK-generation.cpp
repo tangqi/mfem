@@ -1,5 +1,4 @@
 // To Do: 1. Update scientific notation code for Janani's fncs
-//        2. Update psiSort title, remove the sort line       
 //        3. ExtractContourLine      
 //        4. Add lim points to a file   
 //        5. Running 2d.cpp is throwing an error with running dsk-gen.cpp   
@@ -148,7 +147,7 @@ void append_section1(float rdim, float zdim, float rcentr, float rleft, float zm
     file.close();
 }
 
-//Sort psi values from interpolated.gf
+// Import psi values from interpolated.gf, apply correct formatting, and store in a vector. 
 vector<double> psiSort(){
     vector<double> psiVal;
     string line;
@@ -168,7 +167,6 @@ vector<double> psiSort(){
         psiVal.push_back(value);
     }
     ReadFile.close();
-    sort(psiVal.begin(), psiVal.end()); 
     return psiVal;
 }
 
