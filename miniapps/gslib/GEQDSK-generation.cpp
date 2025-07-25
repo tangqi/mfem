@@ -1,11 +1,10 @@
 // To Do: 1. Update scientific notation code for Janani's fncs
-//        3. ExtractContourLine      
-//        4. Add lim points to a file   
-//        5. Running 2d.cpp is throwing an error with running dsk-gen.cpp   
-//        6. Clean up code
-//        7. Code documentatation
-//        8. Submit final code with 61 by 129
-
+//        2. Running 2d.cpp is throwing an error with running dsk-gen.cpp   
+//        3. Clean up code
+//        4. Code documentatation
+//        5. Submit final code with 61 by 129
+//        6. Update psiSort to read in a given file and extract the vals into a vec
+//        7. Finish alpha, f_x, and psi_x integration
 
 // File                  : GEQDSK-generation.cpp 
 // Purpose               : Generates the final GEQDSK plasma file by finding the individual variable files and appending them
@@ -366,66 +365,6 @@ void append_to_GEQDSK_txt(const string& infile) {
     dest.close();
 }
 
-
-vector<double> ExtractContourLine(const Mesh &mesh, const GridFunction &u, double level)
-{
-    MFEM_VERIFY(mesh.Dimension() == 2, "Only 2D meshes are supported.");
-    MFEM_VERIFY(u.FESpace()->GetVDim() == 1, "Only scalar fields are supported.");
-
-    const FiniteElementSpace &fes = *u.FESpace();
-    const GridFunction *nodes = mesh.GetNodes();
-    MFEM_VERIFY(nodes, "Mesh must be in nodal form (use high-order mesh).");
-
-    const int nedges = mesh.GetNEdges();
-    const int dim = 2;
-
-    vector<double> rbdry_zbdry;
-
-    //ofstream out("contour_check.txt");
-
-    for (int e = 0; e < nedges; ++e)
-    {
-        // Get the vertex indices of this edge
-        Array<int> ev;
-        mesh.GetEdgeVertices(e, ev);
-
-        // Get coordinates of endpoints
-        const double *coords_i = mesh.GetVertex(ev[0]);
-        const double *coords_j = mesh.GetVertex(ev[1]);
-
-        Array<int> dofs_i, dofs_j;
-
-        // Evaluate u at the vertices
-        fes.GetVertexDofs(ev[0], dofs_i);
-        fes.GetVertexDofs(ev[1], dofs_j);
-        double ui = u(dofs_i[0]);
-        double uj = u(dofs_j[0]);
-        // Check if contour level crosses this edge
-        if ((ui - level) * (uj - level) < 0.0)
-        {
-            //cout<<ui<<" "<<uj<<" ";
-            // Linear interpolation to find contour crossing
-            double alpha = (level - ui) / (uj - ui);
-            Vector pt(dim);
-            for (int d = 0; d < dim; d++)
-            {
-                pt[d] = coords_i[d] + alpha * (coords_j[d] - coords_i[d]);
-            }
-            
-            //Specific to mesh, cannot be used universally
-            if (pt[1] >= -3.56733) {
-                rbdry_zbdry.push_back(pt[0]);
-                rbdry_zbdry.push_back(pt[1]);
-
-                //out << pt[1] << " " << pt[0] << "\n";
-            }
-        }
-    }
-
-    //out.close();
-    return rbdry_zbdry;
-}
-
 //Generate GEQDSK_rlim_zlim
 vector<double> generate_rlim_zlim(){
 
@@ -759,7 +698,7 @@ int main(){
     GridFunction lgf(&my_mesh, ifs);
 
     // Now call your function
-    vector<double> rbdry_zbdry = ExtractContourLine(my_mesh, lgf, sibdry);
+    // FEX ME: vector<double> rbdry_zbdry = ExtractContourLine(my_mesh, lgf, sibdry);
 
     //Find and print nbdry
     int nbdry = rbdry_zbdry.size() / 2;  
