@@ -1,0 +1,7 @@
+plot_contours_and_radial_points.py: Given a all_contour_radial_points.txt file and n number of contour_line_XXXXXXXX.txt files, plots the radial points and their corresponding contours.
+
+Steps to use this: 
+    1. Update the all_contour_radial_points.txt and contour_line_XXXXXXXX.txt files with desired ones
+        a. These can be obtained from the "Contours" folder by running GEQDSK-generation.cpp
+    2. Update the folder path and magnetic axis coordinates (lines 104 - 106) in plot_contours_and_radial_points.py
+    3. Run plot_contours_and_radial_points.py  
