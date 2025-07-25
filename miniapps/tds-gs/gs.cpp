@@ -1310,10 +1310,6 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       << setw(16) << psi_x_vals.back() << "\n"
       << setw(16) << cpasma_vals.back() << "\n";
       file.close();
-    
-    ofstream NewFile("../gslib/GEQDSK/GEQDSK_alpha_f_x_psi_x.txt");
-    NewFile << alpha << "\n" << f_x << "\n" << psi_x << "\n"; 
-    NewFile.close();
 
      
   } else {
@@ -1441,6 +1437,11 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
     printf("final max residual: %.3e, ratio %.3e\n", error, error_old / error);
     printf("********************************\n\n");
   }
+
+  system("mkdir -p ../gslib/GEQDSK"); 
+  ofstream NewFile("../gslib/GEQDSK/GEQDSK_alpha_f_x_psi_x.txt");
+  NewFile << alpha << "\n" << f_x << "\n" << psi_x << "\n"; 
+  NewFile.close();
 }
 
 

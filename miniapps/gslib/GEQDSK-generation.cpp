@@ -1,10 +1,8 @@
-// To Do: 1. Update scientific notation code for Janani's fncs
-//        2. Running 2d.cpp is throwing an error with running dsk-gen.cpp   
-//        3. Clean up code
-//        4. Code documentatation
-//        5. Submit final code with 61 by 129
-//        6. Update psiSort to read in a given file and extract the vals into a vec
-//        7. Finish alpha, f_x, and psi_x integration
+// To Do:
+//        1. Running 2d.cpp is throwing an error with running dsk-gen.cpp   
+//        2. Clean up code
+//        3. Code documentatation
+//        4. Submit final code with 61 by 129
 
 // File                  : GEQDSK-generation.cpp 
 // Purpose               : Generates the final GEQDSK plasma file by finding the individual variable files and appending them
@@ -31,6 +29,7 @@
 #include <algorithm>
 #include <limits>
 #include <sys/stat.h>
+#include <ctype.h>
 using namespace mfem;
 using namespace std;
 
@@ -146,27 +145,30 @@ void append_section1(float rdim, float zdim, float rcentr, float rleft, float zm
     file.close();
 }
 
-// Import psi values from interpolated.gf, apply correct formatting, and store in a vector. 
-vector<double> psiSort(){
-    vector<double> psiVal;
+// Import file and store values in a vector. 
+vector<double> fileToVector(const string &filename){
+    vector<double> vec;
     string line;
-    ifstream ReadFile("interpolated.gf");
+    ifstream ReadFile(filename);
     int line_count = 0;
-    double value;
 
+    double value;
     while (getline (ReadFile, line)){
         line_count++; 
-        if (line_count < 5){
+        if (line.empty()) {
             continue;
         }
-        if (line.empty()){
+        if (!isdigit(line[0]) && (line[0] != '-')){
+            continue;
+        }
+        if (line[0] == '-' && (line.length() < 2 || !isdigit(line[1]))){
             continue;
         }
         value = stod(line);
-        psiVal.push_back(value);
+        vec.push_back(value);
     }
     ReadFile.close();
-    return psiVal;
+    return vec;
 }
 
 // Calculate fpol values
@@ -192,70 +194,34 @@ void ffprime_calc(double alpha, const vector<double>fpol){
     }
 
     ofstream file("GEQDSK/GEQDSK_ffprime.txt");
-
     file << uppercase << scientific << setprecision(9);
-    
-    int val_count = 0;
 
+    int val_count = 0;
     for (const auto& val : ffprime){
         // Convert to scientific notation
-        int exponent = (int)floor(log10(abs(val)));
-        double decimal = val / pow(10, exponent);
-
-        decimal = decimal/10.0;
-        exponent = exponent + 1;
-
-        if (decimal >= 0){
-            file << fixed << setprecision(9) << " " << decimal << "E";
-        } else{
-            file << fixed << setprecision(9) << decimal << "E";
-        }
-
-        if (exponent >= 0){
-            file << "+" << setfill('0') << setw(2) << exponent;
-        } else{
-            file << "-" << setfill('0') << setw(2) << abs(exponent);        
-        }
-
+        file << setw(16) << val;
         val_count++;
         if (val_count >= 5){
             file << endl;
             val_count = 0;
         }
     }
-
     // Ensure the file ends with a newline (even if val_count == 0)
     if (val_count != 0){
         file << endl;
     }
-
     file.close();
 }
 
 // Generate GEQDSK_fpol.txt
 void fpol_format(const vector<double> fpol){
     ofstream file("GEQDSK/GEQDSK_fpol.txt");
-    int val_count = 0;
+    file << uppercase << scientific << setprecision(9);
 
+    int val_count = 0;
     for (const auto& val : fpol) {
         // Convert to scientific notation
-        int exponent = (int)floor(log10(abs(val)));
-        double decimal = val / pow(10, exponent);
-
-        decimal = decimal / 10.0;
-        exponent = exponent + 1;
-
-        if (decimal >= 0) {
-            file << fixed << setprecision(9) << " " << decimal << "E";
-        } else {
-            file << fixed << setprecision(9) << decimal << "E";
-        }
-
-        if (exponent >= 0) {
-            file << "+" << setfill('0') << setw(2) << exponent;
-        } else{
-            file << "-" << setfill('0') << setw(2) << abs(exponent);
-        }
+        file << setw(16) << val;
 
         val_count++;
         if (val_count >= 5){
@@ -263,39 +229,22 @@ void fpol_format(const vector<double> fpol){
             val_count = 0;
         }
     }
-
     // Ensure the file ends with a newline (even if val_count == 0)
     if (val_count != 0){
-        file << endl;
+        file << "\n";
     }
-
     file.close();
 }
 
 // Generate unformatted GEQDSK_psi.txt
 void psiFormat(const vector<double> psiVal){
     ofstream file("GEQDSK/GEQDSK_psi.txt");
+    file << uppercase << scientific << setprecision(9);
     
     int val_count = 0;
     for (const auto& val : psiVal){
         //Convert to scientific notation
-        int exponent = (int)floor(log10(abs(val)));
-        double decimal = val / pow(10, exponent);
-
-        decimal = decimal/10.0;
-        exponent = exponent + 1;
-
-        if (decimal >= 0) {
-            file << fixed << setprecision(9) << " " << decimal << "E";
-        } else{
-            file << fixed << setprecision(9) << decimal << "E";
-        }
-
-        if (exponent >= 0) {
-            file << "+" << setfill('0') << setw(2) << exponent;
-        } else {
-            file << "-" << setfill('0') << setw(2) << abs(exponent);        
-        }
+        file << setw(16) << val;
 
         val_count++;
         if (val_count >= 5) {
@@ -303,10 +252,9 @@ void psiFormat(const vector<double> psiVal){
             val_count = 0;
         }
     }
-
     // Ensure the file ends with a newline (even if val_count == 0)
     if (val_count != 0) {
-        file << endl;
+        file << "\n";
     }
     
     file.close();
@@ -455,29 +403,13 @@ int append_rbdry_zbdry(const vector<double>& rbdry_zbdry) {
         return val_count;
     }
 
+    outfile << uppercase << scientific << setprecision(9);
     outfile << '\n';
 
     for (double val : rbdry_zbdry) {
-        int exponent = (int)floor(log10(abs(val)));
-        double decimal = val / pow(10, exponent);
-
-        decimal = decimal/10.0;
-        exponent = exponent + 1;
-
-        if (decimal >= 0) {
-            outfile << fixed << setprecision(9) << " " << decimal << "E";
-        } else {
-            outfile << fixed << setprecision(9) << decimal << "E";
-        }
-
-        if (exponent >= 0) {
-            outfile << "+" << setfill('0') << setw(2) << exponent;
-        } else {
-            outfile << "-" << setfill('0') << setw(2) << abs(exponent);        
-        }
+        outfile << setw(16) << val;
 
         val_count++;
-
         if (val_count >= 5) {
             outfile << endl;
             val_count = 0;
@@ -671,13 +603,11 @@ int main(){
     float rcentr = 6.200000286e+00; // [meter] Reference value of R 
     float bcentr = -5.300000000e+00; // [tesla] Vacuum toroidal magnetic field at rcentr
     int nlim = 56; // Number of points in the limiter grid, value gotten from tds-gs/data/seperated_file.data
-    double alpha = 0.144526;
-    double psi_x = 1.28864;
-    double f_x = -32.86;
 
     // Extract values from files
     int nx, ny; 
-    float rdim, zdim, rleft, zmid, simagx, sibdry, cpasma, rmagx, zmagx; 
+    float rdim, zdim, rleft, zmid, simagx, sibdry, cpasma, rmagx, zmagx;
+    double alpha, psi_x, f_x;
     
     ifstream file1("GEQDSK/GEQDSK_nx_ny_rdim_zdim_rleft_zmid.txt");
     file1 >> nx >> ny >> rdim >> zdim >> rleft >> zmid; 
@@ -686,6 +616,10 @@ int main(){
     ifstream file2("GEQDSK/GEQDSK_simagx_sibdry_cpasma.txt");
     file2 >> simagx >> sibdry >> cpasma; 
     file2.close();
+
+    ifstream file3("GEQDSK/GEQDSK_alpha_f_x_psi_x.txt");
+    file3 >> alpha >> f_x >> psi_x;
+    file3.close();
 
     //Extract Boundary Points to Find nbdry
     Mesh my_mesh("../tds-gs/meshes/mesh_refine.mesh");
@@ -697,20 +631,21 @@ int main(){
     ifstream ifs("../tds-gs/gf/final_model2_pc5_cyc1_it5.gf");
     GridFunction lgf(&my_mesh, ifs);
 
-    // Now call your function
-    // FEX ME: vector<double> rbdry_zbdry = ExtractContourLine(my_mesh, lgf, sibdry);
+    // Generate boundary values
+    extract_contour_line(my_mesh, lgf, sibdry, "GEQDSK_rbdry_zbdry.txt");
+    vector<double> rbdry_zbdry = fileToVector("GEQDSK_rbdry_zbdry.txt");
 
     //Find and print nbdry
     int nbdry = rbdry_zbdry.size() / 2;  
 
-    ofstream file3("GEQDSK/GEQDSK_nbdry_nlim.txt");
-    file3 << nbdry << "    " << nlim << '\n';
-    file3.close();
+    ofstream file4("GEQDSK/GEQDSK_nbdry_nlim.txt");
+    file4 << nbdry << "    " << nlim << '\n';
+    file4.close();
     
     find_rmagx_zmagx("interpolated.gf", "my_new.mesh", simagx, rmagx, zmagx);
     
     // Generate needed values
-    vector<double> psi = psiSort();
+    vector<double> psi = fileToVector("interpolated.gf");
     vector<double> fpol = fpol_calc(alpha, psi_x, f_x, psi);
     ffprime_calc(alpha, fpol);
     fpol_format(fpol);
