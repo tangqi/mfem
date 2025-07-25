@@ -1,0 +1,48 @@
+Reference: https://freeqdsk.readthedocs.io/en/stable/geqdsk.html 
+
+================================================================================
+Header
+================================================================================
+MFEM Code Variable | Variable File in MFEM            | Line #  | Function Name                            | Mesh | GEQDSK Variable  | Definition                                              | Comments
+-------------------|----------------------------------|---------|------------------------------------------|------|------------------|---------------------------------------------------------|---------
+nx                 | gslib/2d-cartesian-mesh.cpp      | 64      | GEQDSK_nx_ny_rdim_zdim_rleft             | Rect | nx               | Number of elements (cells) along the r-axis             |
+ny                 | gslib/2d-cartesian-mesh.cpp      | 65      | GEQDSK_nx_ny_rdim_zdim_rleft             | Rect | ny               | Number of elements (cells) along the z-axis             |
+
+================================================================================
+Section 1
+================================================================================
+rdim               | gslib/2d-cartesian-mesh.cpp      | 33-42   | GEQDSK_nx_ny_rdim_zdim_rleft_zmid        | Rect | rdim             | Width of computational domain in R [m]                  |
+zdim               | gslib/2d-cartesian-mesh.cpp      | 33-42   | GEQDSK_nx_ny_rdim_zdim_rleft_zmid        | Rect | zdim             | Height of computational domain in Z [m]                 |
+rcentr = 6.2       | -                                | -       | -                                        | -    | rcentr           | Reference value of R [m]                                |
+rleft              | gslib/2d-cartesian-mesh.cpp      | 43      | GEQDSK_nx_ny_rdim_zdim_rleft_zmid        | Rect | rleft            | R at left (inner) boundary [m]                          |
+zmid               | gslib/2d-cartesian-mesh.cpp      | 44      | GEQDSK_nx_ny_rdim_zdim_rleft_zmid        | Rect | zmid             | Z at mid domain [m]                                     |
+rmagx              | -                                | -       | -                                        | Rect | rmagx            | R at magnetic axis (0-pt) [m]                           |
+zmagx              | -                                | -       | -                                        | Rect | zmagx            | Z at magnetic axis (0-pt) [m]                           |
+psi_ma             | tds-gs/gs.cpp                    | 1302    | GEQDSK_simagx_sibdry_cpasma              | Tri  | simagx           | Poloidal flux at magnetic axis [weber/radian]           |
+psi_x              | tds-gs/gs.cpp                    | 1303    | GEQDSK_simagx_sibdry_cpasma              | Tri  | sibdry           | Poloidal flux at boundary [weber/radian]                | psi at separatrix point
+bcentr             | -                                | -       | -                                        | -    | bcentr           | Vacuum toroidal magnetic field at rcentr [tesla]        |
+cpasma             | tds-gs/gs.cpp                    | 1304    | GEQDSK_simagx_sibdry_cpasma              | Tri  | cpasma           | Plasma current [ampere]                                 |
+
+================================================================================
+Independent Sections 2 - 7
+================================================================================
+alpha, psi_x, f_x  | tds-gs/build-field.cpp           | 13,16,17| GEQDSK_alpha_psi_x_f_x                   | -    | fpol             | Poloidal current function [m*T]                         | f_x + alpha*(psi - psi_x)
+pres = 0           | -                                | -       | -                                        | -    | pres             | Plasma pressure [pascal]                                |
+alpha              | tds-gs/build-field.cpp           | 13      | GEQDSK_alpha_psi_x_f_x                   | -    | ffprime          | 1D array [m^2*T^2*rad/weber]                            | ffprime = alpha * fpol
+pprime = 0         | -                                | -       | -                                        | -    | pprime           | 1D array [Pa*rad/weber]                                 |
+psi                | gslib/interpolated.gf            | -       | GEQDSK_psi                               | Rect | psi              | Poloidal flux, 2D array [weber/radian]                  |
+                   |                                  |         |                                          | Rect | qpsi             | Safety factor, 1D array [dimensionless]                 |
+
+================================================================================
+Section 8
+================================================================================
+nbdry              | -                                | -       | -                                        | Rect | nbdry            | Number of points in boundary grid [int]                 | pts on separatrix
+nlim = 56          | tds-gs/data/seperated_file.data  | 37      | -                                        | Tri  | nlim             | Number of points in limiter grid [int]                  |
+
+================================================================================
+Section 9
+================================================================================
+rbdry_zbdry        | -                                | -       | -                                        | Rect | rbdry            | R of boundary points, 1D array [m]                       |
+rbdry_zbdry        | -                                | -       | -                                        | Rect | zbdry            | Z of boundary points, 1D array [m]                       |
+rlim_zlim          | tds-gs/data/seperated_file.data  | 37      | -                                        | Tri  | rlim             | R of limiter points, 1D array [m]                        |
+rlim_zlim          | tds-gs/data/seperated_file.data  | 43      | -                                        | Tri  | zlim             | Z of limiter points, 1D array [m]                        |

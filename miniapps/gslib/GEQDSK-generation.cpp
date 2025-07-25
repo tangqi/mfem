@@ -1,9 +1,11 @@
-// To Do: 1. Attach the spreadsheet
-//        2. Attach link to internet geqdsk format
-//        3. Update scientific notation code for Janani's fncs
-//        4. Update psiSort title, remove the sort line       
-//        5. ExtractContourLine      
-//        6. Add lim points to a file   
+// To Do: 1. Update scientific notation code for Janani's fncs
+//        2. Update psiSort title, remove the sort line       
+//        3. ExtractContourLine      
+//        4. Add lim points to a file   
+//        5. Running 2d.cpp is throwing an error with running dsk-gen.cpp   
+//        6. Add plotter python files   
+//        7. Clean up code
+//        8. Code documentatation
 
 
 // File                  : GEQDSK-generation.cpp 
@@ -12,7 +14,10 @@
 // File run instructions : Run a triangular mesh file (Ex: sh run_3_taylor.sh)
 //                         Run 2D-cartesian-mesh.cpp (make 2d-cartesian-mesh && srun -n 1 ./2d-cartesian-mesh) 
 // Note                  : Running 2d-cartesian-mesh.cpp automatically runs GEQDSK-generation.cpp. 
-//                         If want to run independently, execute: make GEQDSK-generation && ./GEQDSK-generation 
+//                         Run GEQDSK-generation.cpp: make GEQDSK-generation && ./GEQDSK-generation 
+//                         Reference: mfem-gs/miniapps/gslib/GEQDSK-variable-info.txt 
+//                           
+
 
 #include "mfem.hpp"
 #include <fstream>
@@ -27,6 +32,7 @@
 #include <cmath>
 #include <algorithm>
 #include <limits>
+#include <sys/stat.h>
 using namespace mfem;
 using namespace std;
 
@@ -55,10 +61,6 @@ void find_rmagx_zmagx(const string& rect_gf_file, const string& rect_mesh_file, 
         }  
         ++counter;
     }
-
-    printf("simagx = %.5f\n", simagx);
-    printf("Closest psi val = %.5f\n", closest_psi);
-    printf("index: %d\n", closest_psi_idx); 
 
     file_solution.close(); 
 
@@ -424,6 +426,42 @@ vector<double> ExtractContourLine(const Mesh &mesh, const GridFunction &u, doubl
 }
 
 
+// Returns a file with the points corresponding to the contour of a given psi value, provided its mesh and solution files
+void extract_contour_line(const Mesh &mesh, const GridFunction &u, double level,
+                        const string &filename){
+    MFEM_VERIFY(mesh.Dimension() == 2, "Only 2D meshes are supported.");
+    MFEM_VERIFY(u.FESpace()->GetVDim() == 1, "Only scalar fields are supported.");
+    const FiniteElementSpace &fes = *u.FESpace();
+    const GridFunction *nodes = mesh.GetNodes();
+    MFEM_VERIFY(nodes, "Mesh must be in nodal form (use high-order mesh).");
+ 
+    ofstream NewFile(filename);
+    const int nedges = mesh.GetNEdges();
+    const int dim = 2;
+    for (int e = 0; e < nedges; ++e){
+        Array<int> ev;
+        mesh.GetEdgeVertices(e, ev);
+        const double *coords_i = mesh.GetVertex(ev[0]);
+        const double *coords_j = mesh.GetVertex(ev[1]);
+        Array<int> dofs_i, dofs_j;
+        fes.GetVertexDofs(ev[0], dofs_i);
+        fes.GetVertexDofs(ev[1], dofs_j);
+        double ui = u(dofs_i[0]);
+        double uj = u(dofs_j[0]);
+        if ((ui - level) * (uj - level) < 0.0){
+            double alpha = (level - ui) / (uj - ui);
+            Vector pt(dim);
+            for (int d = 0; d < dim; d++){
+                pt[d] = coords_i[d] + alpha * (coords_j[d] - coords_i[d]);
+            }
+            if (pt[1] >= -3.56733) {
+                NewFile << pt[0] << " " << pt[1] << "\n";
+            }
+        }
+    }
+    NewFile.close();
+}
+
 // Format and append rbdry & zbdry
 int append_rbdry_zbdry(const vector<double>& rbdry_zbdry) {
     int val_count = 0;
@@ -493,8 +531,159 @@ void append_rlim_zlim(const int& num, const vector<float>& rlim_zlim) {
     outfile.close();
 }
 
+// Returns a linearly spaced vector given min and max values
+vector<double> linspace(double min, double max, int n) {
+    vector<double> result;
+    if (n <= 1){
+        result.push_back(min);
+        return result;
+    }
+    double step = (max - min) / (n - 1);
+    for (int i = 0; i < n; ++i){
+        result.push_back(min + i * step);
+    }
+    return result;
+}
+
+// Reads a "contour_line_" file and stores its coordinates in a vector of (x, y) pairs.
+vector<pair<double,double>> read_data(const string &filename) {
+    vector<pair<double,double>> data;
+    ifstream infile(filename);
+    if (!infile.is_open()) {
+        cerr << "Failed to open file: " << filename << endl;
+        return data;
+    }
+    string line;
+    while (getline(infile, line)) {
+        istringstream iss(line);
+        double x, y;
+        if (!(iss >> x >> y)) {
+            cerr << "Skipping malformed line: " << line << endl;
+            continue;
+        }
+        data.emplace_back(x, y);
+    }
+    return data;
+}
+
+// Returns the radial points given a contour, magnetic axis coordinates, and the desired angles at which the radial points should be found.
+vector<pair<double,double>> extract_radial_points(double rmagx, double zmagx,
+                                     const vector<pair<double,double>> &points,
+                                     const vector<double> &angles_deg) {
+    vector<pair<double,double>> selected_points;
+    for (double angle_deg : angles_deg) {
+        double angle_rad = angle_deg * M_PI / 180.0;
+        double dx = cos(angle_rad);
+        double dy = sin(angle_rad);
+
+        double best_perp_dist = numeric_limits<double>::infinity();
+        pair<double,double> best_point = {numeric_limits<double>::quiet_NaN(), 
+                                          numeric_limits<double>::quiet_NaN()};
+
+        for (const auto &pt : points) {
+            double vec_x = pt.first - rmagx;
+            double vec_y = pt.second - zmagx;
+
+            // Projection of vector onto direction vector
+            double proj_len = vec_x * dx + vec_y * dy;
+            if (proj_len <= 0.0) continue; 
+
+            // Compute perpendicular distance to the ray
+            double proj_x = proj_len * dx;
+            double proj_y = proj_len * dy;
+            double perp_x = vec_x - proj_x;
+            double perp_y = vec_y - proj_y;
+            double perp_dist = sqrt(perp_x * perp_x + perp_y * perp_y);
+
+            if (perp_dist < best_perp_dist) {
+                best_perp_dist = perp_dist;
+                best_point = pt;
+            }
+        }
+
+        selected_points.push_back(best_point);
+    }
+    return selected_points;
+}
+
+void ProcessContours(double sibdry, double simagx,
+                     double rmagx, double zmagx,
+                     int n,
+                     const string& mesh_path,
+                     const string& gf_path,
+                     const vector<double>& angles_deg,
+                     const string& output_dir = "Contours")
+{
+    // Generate psi values
+    vector<double> values = linspace(sibdry, simagx, n);
+
+    // Load mesh and grid function
+    Mesh my_mesh(mesh_path.c_str());
+    my_mesh.EnsureNodes();
+
+    FiniteElementCollection* fec = new H1_FECollection(1, my_mesh.Dimension());
+    FiniteElementSpace fespace(&my_mesh, fec);
+
+    ifstream ifs(gf_path);
+    GridFunction lgf(&my_mesh, ifs);
+
+    // Ensure output folder exists
+    string mkdir_cmd = "mkdir -p " + output_dir;
+    std::system(mkdir_cmd.c_str());
+
+    // Extract contour lines and write to files
+    vector<string> filenames;
+    for (double val : values) {
+        ostringstream filename;
+        filename << output_dir << "/contour_line_" << fixed << setprecision(5) << val << ".txt";
+        filenames.push_back(filename.str());
+        extract_contour_line(my_mesh, lgf, val, filename.str());
+    }
+
+    // Extract radial points from contours
+    vector<vector<pair<double, double>>> all_radial_pts;
+    for (const auto& file : filenames) {
+        vector<pair<double, double>> contour = read_data(file);
+        vector<pair<double, double>> radial_pts = extract_radial_points(rmagx, zmagx, contour, angles_deg);
+        all_radial_pts.push_back(radial_pts);
+    }
+
+    // Write all radial points to a single output file
+    ofstream out(output_dir + "/all_contour_radial_points.txt");
+    for (size_t j = 0; j < filenames.size(); ++j) {
+        string base = filenames[j];
+        size_t start = base.find("line_");
+        size_t end = base.find(".txt");
+        string id = (start != string::npos && end != string::npos && end > start + 5)
+                        ? base.substr(start + 5, end - (start + 5))
+                        : to_string(j);
+
+        out << "r_" << id << "\t" << "z_" << id;
+        if (j != filenames.size() - 1) out << "\t";
+    }
+    out << "\n";
+
+    out << fixed << setprecision(6);
+    for (size_t i = 0; i < angles_deg.size(); ++i) {
+        for (size_t j = 0; j < all_radial_pts.size(); ++j) {
+            out << all_radial_pts[j][i].first << "\t" << all_radial_pts[j][i].second;
+            if (j != all_radial_pts.size() - 1) out << "\t";
+        }
+        out << "\n";
+    }
+
+    out.close();
+    delete fec;
+}
+
 
 int main(){
+    // Delete previous files in "Contours" folder
+    struct stat info;
+    if (stat("Contours", &info) == 0 && (info.st_mode & S_IFDIR)) {
+        std::system("rm -f Contours/*");
+    }
+    
     // Known constants
     float rcentr = 6.200000286e+00; // [meter] Reference value of R 
     float bcentr = -5.300000000e+00; // [tesla] Vacuum toroidal magnetic field at rcentr
@@ -546,7 +735,6 @@ int main(){
     file2.close();
 
     //Extract Boundary Points to Find nbdry
-
     Mesh my_mesh("../tds-gs/meshes/mesh_refine.mesh");
     my_mesh.EnsureNodes();
     FiniteElementCollection *fec = new H1_FECollection(1, my_mesh.Dimension()); // P1 elements
@@ -561,16 +749,12 @@ int main(){
 
     //Find and print nbdry
     int nbdry = rbdry_zbdry.size() / 2;  
-    printf("nbdry: %i\n", nbdry); 
 
     ofstream file3("GEQDSK/GEQDSK_nbdry_nlim.txt");
     file3 << nbdry << "    " << nlim << '\n';
     file3.close();
-
     
     find_rmagx_zmagx("interpolated.gf", "my_new.mesh", simagx, rmagx, zmagx);
-    printf("rmagx: = %.5f\n", rmagx);
-    printf("zmagx: %.5f\n", zmagx); 
     
     // Generate needed values
     vector<double> psi = psiSort();
@@ -580,6 +764,15 @@ int main(){
     psiFormat(psi);
     generate_pres();
     generate_pprime();
+
+    // qpsi calcs
+    // Finding radially aligned points for n number of contours
+    int n = 6;
+    vector<double> angles_deg = {0, 45, 90, 135, 180, 225, 270, 315};
+    ProcessContours(sibdry, simagx, rmagx, zmagx, n,
+                    "../tds-gs/meshes/mesh_refine.mesh",
+                    "../tds-gs/gf/final_model2_pc5_cyc1_it5.gf", angles_deg);
+
 
     // Build final GEQDSK.txt file
     ofstream clear_file("GEQDSK/GEQDSK.txt", ios::trunc); // clears the file
