@@ -462,8 +462,10 @@ vector<double> generate_rlim_zlim(){
     }
 
     ofstream outFile("GEQDSK/GEQDSK_rlim_zlim.txt");
+    outFile << uppercase << scientific << setprecision(9);
+
     for (const auto &e : rlim_zlim) {
-        outFile << e << "\n";
+        outFile << setw(16) << e << "\n";
     }
 
     outFile.close();
