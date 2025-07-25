@@ -1,9 +1,18 @@
-// File: GEQDSK-generation.cpp 
-// Purpose: Generates the final GEQDSK plasma file by finding the individual variable files and appending them
-// Workflow: The respective MFEM files generate "GEQDSK_[variable_names]" files that store the values of the needed variables. GEQDDSK-generation.cpp extracts the values from those files, generates other needed variables, and compiles the final GEQDSK.txt file. 
-// File un instructions: Run a triangular mesh file (Ex: sh run_3_taylor.sh)
-//                       Run 2D-cartesian-mesh.cpp (make clean && make 2d-cartesian-mesh && srun -n 1 ./2d-cartesian-mesh) 
-// Note: Running 2d-cartesian-mesh.cpp automatically runs GEQDSK-generation.cpp. if want to run independently, execute: make GEQDSK-generation && ./GEQDSK-generation 
+// To Do: 1. Attach the spreadsheet
+//        2. Attach link to internet geqdsk format
+//        3. Update scientific notation code for Janani's fncs
+//        4. Update psiSort title, remove the sort line       
+//        5. ExtractContourLine      
+//        6. Add lim points to a file   
+
+
+// File                  : GEQDSK-generation.cpp 
+// Purpose               : Generates the final GEQDSK plasma file by finding the individual variable files and appending them
+// Workflow              : The respective MFEM files generate "GEQDSK_[variable_names]" files that store the values of the needed variables. GEQDDSK-generation.cpp extracts the values from those files, generates other needed variables, and compiles the final GEQDSK.txt file. 
+// File run instructions : Run a triangular mesh file (Ex: sh run_3_taylor.sh)
+//                         Run 2D-cartesian-mesh.cpp (make 2d-cartesian-mesh && srun -n 1 ./2d-cartesian-mesh) 
+// Note                  : Running 2d-cartesian-mesh.cpp automatically runs GEQDSK-generation.cpp. 
+//                         If want to run independently, execute: make GEQDSK-generation && ./GEQDSK-generation 
 
 #include "mfem.hpp"
 #include <fstream>
@@ -18,13 +27,11 @@
 #include <cmath>
 #include <algorithm>
 #include <limits>
-
 using namespace mfem;
 using namespace std;
 
 // Find simagx coordinates: rmagx, zmagx
-void find_rmagx_zmagx(const string& rect_gf_file, const string& rect_mesh_file, float simagx, float &rmagx, float &zmagx)
-{
+void find_rmagx_zmagx(const string& rect_gf_file, const string& rect_mesh_file, float simagx, float &rmagx, float &zmagx){
     // Open .gf file for rectangular mesh and find the index of the closest psi to simagx
     ifstream file_solution(rect_gf_file); 
     if (!file_solution.is_open()){
@@ -40,14 +47,12 @@ void find_rmagx_zmagx(const string& rect_gf_file, const string& rect_mesh_file, 
         if(line.empty()) continue;
 
         float new_psi = stof(line);
-        current_diff = abs(simagx - new_psi); 
-       
+        current_diff = abs(simagx - new_psi);  
         if(current_diff < prev_diff){
             prev_diff = current_diff; 
             closest_psi = new_psi;
             closest_psi_idx = counter;  
-        }
-        
+        }  
         ++counter;
     }
 
@@ -67,11 +72,8 @@ void find_rmagx_zmagx(const string& rect_gf_file, const string& rect_mesh_file, 
     int counter1 = 0;
     bool found_title = false;
 
-    while (getline(file_mesh, line1))
-    {
-        if (line1 == "vertices")
-        {
-            printf("vertices line found\n");
+    while (getline(file_mesh, line1)){
+        if (line1 == "vertices"){
             getline(file_mesh, line1); // Skip # of vertices line
             getline(file_mesh, line1); // Skip dimension line
             found_title = true; 
@@ -80,10 +82,7 @@ void find_rmagx_zmagx(const string& rect_gf_file, const string& rect_mesh_file, 
 
         if (found_title == true && counter1 == closest_psi_idx){
             istringstream iss(line1);
-            iss >> rmagx >> zmagx;   
-            
-            // printf("rmagx: = %.5f\n", rmagx);
-            // printf("zmagx: %.5f\n", zmagx); 
+            iss >> rmagx >> zmagx;            
             break;   
         }
         counter1 = counter1 + 1;
@@ -91,10 +90,9 @@ void find_rmagx_zmagx(const string& rect_gf_file, const string& rect_mesh_file, 
     file_mesh.close(); 
 }
     
-// Create initial/unorganized G-EQDSK file
-void GEQDSK_header(int nx, int ny)
-{     
-    // Create folder for GEQDSK sub-files and final output (if it doesn't exist already)
+// GEQDSK folder and file setup
+void GEQDSK_header(int nx, int ny){     
+    // Create folder for GEQDSK files and final output (if it doesn't exist already)
     system("mkdir -p GEQDSK"); 
  
     // Create the GEQDSK file for rectangular mesh plasma region
@@ -114,7 +112,6 @@ void GEQDSK_header(int nx, int ny)
     if (line.size() < 48) line.resize(48, ' ');
 
     int i1 = 3;
-
     file << left << setw(48) << line
          << right << setw(4) << i1
          << setw(4) << nx
@@ -137,33 +134,14 @@ void append_section1(float rdim, float zdim, float rcentr, float rleft, float zm
     file << uppercase << scientific << setprecision(9);
     file << " " << endl;
 
-    // 1st line
-    file << setw(16) << rdim
-         << setw(16) << zdim
-         << setw(16) << rcentr
-         << setw(16) << rleft
-         << setw(16) << zmid << endl;
-
-    // 2nd line
-    file << setw(16) << rmagx
-         << setw(16) << zmagx
-         << setw(16) << simagx
-         << setw(16) << sibdry
-         << setw(16) << bcentr << endl;
-
-    // 3rd line
-    file << setw(16) << cpasma
-         << setw(16) << simagx
-         << setw(16) << 0.0
-         << setw(16) << rmagx
-         << setw(16) << 0.0 << endl;
-
-    // 4th line
-    file << setw(16) << zmagx
-         << setw(16) << 0.0
-         << setw(16) << sibdry
-         << setw(16) << 0.0
-         << setw(16) << 0.0 << endl;
+    file << setw(16) << rdim << setw(16) << zdim << setw(16) << rcentr
+        << setw(16) << rleft << setw(16) << zmid << endl;
+    file << setw(16) << rmagx << setw(16) << zmagx << setw(16) << simagx
+        << setw(16) << sibdry << setw(16) << bcentr << endl;
+    file << setw(16) << cpasma << setw(16) << simagx << setw(16) << 0.0
+        << setw(16) << rmagx << setw(16) << 0.0 << endl;
+    file << setw(16) << zmagx << setw(16) << 0.0 << setw(16) << sibdry
+        << setw(16) << 0.0 << setw(16) << 0.0 << endl;
 
     file.close();
 }
@@ -171,40 +149,29 @@ void append_section1(float rdim, float zdim, float rcentr, float rleft, float zm
 //Sort psi values from interpolated.gf
 vector<double> psiSort(){
     vector<double> psiVal;
-     string line;
-
+    string line;
     ifstream ReadFile("interpolated.gf");
-
     int line_count = 0;
     double value;
 
-    while (getline (ReadFile, line)) {
-
+    while (getline (ReadFile, line)){
         line_count++; 
-
-        if (line_count < 5) {
+        if (line_count < 5){
             continue;
         }
-
-        if (line.empty()) {
+        if (line.empty()){
             continue;
         }
-        
         value = stod(line);
-
         psiVal.push_back(value);
     }
-
     ReadFile.close();
-
     sort(psiVal.begin(), psiVal.end()); 
     return psiVal;
 }
 
-
-//Calculate fpol values
-vector<double> fpolCalc(double alpha, double psi_x, double f_x, const vector<double> psiVal) {
-    //Calculate fpol values
+// Calculate fpol values
+vector<double> fpol_calc(double alpha, double psi_x, double f_x, const vector<double> psiVal){
     vector<double> fpol;
     double fpol_val;
 
@@ -212,69 +179,60 @@ vector<double> fpolCalc(double alpha, double psi_x, double f_x, const vector<dou
         fpol_val = f_x + alpha * (val - psi_x);
         fpol.push_back(fpol_val);
     }
-
     return fpol;
 }
 
-//Generation ffprime file
-void ffprimeCalc(double alpha, const vector<double>fpol) {
+// Compute ffprime and generate GEQDSK_ffprime.txt
+void ffprime_calc(double alpha, const vector<double>fpol){
     vector<double> ffprime;
     double ffprime_val;
 
-    for (const auto& val : fpol) {
+    for (const auto& val : fpol){
         ffprime_val = alpha * val;
         ffprime.push_back(ffprime_val);
     }
 
-    //Generate ffprime file
-
     ofstream file("GEQDSK/GEQDSK_ffprime.txt");
-    
     int val_count = 0;
 
-    for (const auto& val : ffprime) {
-
-        //Convert to scientific notation
+    for (const auto& val : ffprime){
+        // Convert to scientific notation
         int exponent = (int)floor(log10(abs(val)));
         double decimal = val / pow(10, exponent);
 
         decimal = decimal/10.0;
         exponent = exponent + 1;
 
-        if (decimal >= 0) {
+        if (decimal >= 0){
             file << fixed << setprecision(9) << " " << decimal << "E";
-        } else {
+        } else{
             file << fixed << setprecision(9) << decimal << "E";
         }
 
-        if (exponent >= 0) {
+        if (exponent >= 0){
             file << "+" << setfill('0') << setw(2) << exponent;
-        } else {
+        } else{
             file << "-" << setfill('0') << setw(2) << abs(exponent);        
         }
 
         val_count++;
-
-        if (val_count >= 5) {
+        if (val_count >= 5){
             file << endl;
             val_count = 0;
         }
     }
 
     // Ensure the file ends with a newline (even if val_count == 0)
-    if (val_count != 0) {
+    if (val_count != 0){
         file << endl;
     }
 
     file.close();
-
 }
 
-//Generate fpol file 
-void fpolFormat(const vector<double> fpol) {
-    // Generate fpol file
+// Generate GEQDSK_fpol.txt
+void fpol_format(const vector<double> fpol){
     ofstream file("GEQDSK/GEQDSK_fpol.txt");
-
     int val_count = 0;
 
     for (const auto& val : fpol) {
@@ -293,34 +251,31 @@ void fpolFormat(const vector<double> fpol) {
 
         if (exponent >= 0) {
             file << "+" << setfill('0') << setw(2) << exponent;
-        } else {
+        } else{
             file << "-" << setfill('0') << setw(2) << abs(exponent);
         }
 
         val_count++;
-
-        if (val_count >= 5) {
+        if (val_count >= 5){
             file << endl;
             val_count = 0;
         }
     }
 
     // Ensure the file ends with a newline (even if val_count == 0)
-    if (val_count != 0) {
+    if (val_count != 0){
         file << endl;
     }
 
     file.close();
 }
 
-//Generation psi file
-void psiFormat(const vector<double> psiVal) {
-    //UNFORMATTED PSI VALUES
+// Generate unformatted GEQDSK_psi.txt
+void psiFormat(const vector<double> psiVal){
     ofstream file("GEQDSK/GEQDSK_psi.txt");
     
     int val_count = 0;
-    for (const auto& val : psiVal) {
-
+    for (const auto& val : psiVal){
         //Convert to scientific notation
         int exponent = (int)floor(log10(abs(val)));
         double decimal = val / pow(10, exponent);
@@ -330,7 +285,7 @@ void psiFormat(const vector<double> psiVal) {
 
         if (decimal >= 0) {
             file << fixed << setprecision(9) << " " << decimal << "E";
-        } else {
+        } else{
             file << fixed << setprecision(9) << decimal << "E";
         }
 
@@ -341,7 +296,6 @@ void psiFormat(const vector<double> psiVal) {
         }
 
         val_count++;
-
         if (val_count >= 5) {
             file << endl;
             val_count = 0;
@@ -620,9 +574,9 @@ int main(){
     
     // Generate needed values
     vector<double> psi = psiSort();
-    vector<double> fpol = fpolCalc(alpha, psi_x, f_x, psi);
-    ffprimeCalc(alpha, fpol);
-    fpolFormat(fpol);
+    vector<double> fpol = fpol_calc(alpha, psi_x, f_x, psi);
+    ffprime_calc(alpha, fpol);
+    fpol_format(fpol);
     psiFormat(psi);
     generate_pres();
     generate_pprime();
@@ -641,9 +595,7 @@ int main(){
     append_to_GEQDSK_txt("GEQDSK/GEQDSK_nbdry_nlim.txt");
 
     // append_to_GEQDSK_txt("GEQDSK/GEQDSK_qpsi.txt");
-    // generate a correct file format for nbdry and nlim
-    // append_to_GEQDSK_txt("GEQDSK/GEQDSK_nbdry_nlim.txt");
-    // append_to_GEQDSK_txt("GEQDSK/GEQDSK_qpsi.txt"); 
+  
     
     int count = append_rbdry_zbdry(rbdry_zbdry);
     append_rlim_zlim(count, rlim_zlim );
