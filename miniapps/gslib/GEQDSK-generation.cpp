@@ -195,6 +195,9 @@ void ffprime_calc(double alpha, const vector<double>fpol){
     }
 
     ofstream file("GEQDSK/GEQDSK_ffprime.txt");
+
+    file << uppercase << scientific << setprecision(9);
+    
     int val_count = 0;
 
     for (const auto& val : ffprime){
@@ -425,6 +428,47 @@ vector<double> ExtractContourLine(const Mesh &mesh, const GridFunction &u, doubl
     return rbdry_zbdry;
 }
 
+//Generate GEQDSK_rlim_zlim
+vector<double> generate_rlim_zlim(){
+
+    vector<double> rlim_zlim; 
+
+    ifstream infile("../tds-gs/data/separated_file.data");
+
+    if (!infile.is_open()) {
+        cerr << "Error: Could not open separated_file.dat." << endl;
+        return rlim_zlim;
+    }
+
+    bool in_rlim_zlim = false;
+    string line;
+
+    while (getline(infile, line)) {
+        if (in_rlim_zlim == false) {
+            if (line == "# rlim(i),zlim(i)") {
+                in_rlim_zlim = true;
+            }
+        } else {
+            istringstream iss(line);
+            double val;
+            while (iss >> val) {
+                if (val == 0) {
+                    continue;
+                }
+                rlim_zlim.push_back(val);
+            }
+        }
+            
+    }
+
+    ofstream outFile("GEQDSK/GEQDSK_rlim_zlim.txt");
+    for (const auto &e : rlim_zlim) {
+        outFile << e << "\n";
+    }
+
+    outFile.close();
+    return rlim_zlim;
+}
 
 // Returns a file with the points corresponding to the contour of a given psi value, provided its mesh and solution files
 void extract_contour_line(const Mesh &mesh, const GridFunction &u, double level,
@@ -505,7 +549,7 @@ int append_rbdry_zbdry(const vector<double>& rbdry_zbdry) {
 }
 
 // Format and append rlim and zlim
-void append_rlim_zlim(const int& num, const vector<float>& rlim_zlim) {
+void append_rlim_zlim(const int& num, const vector<double>& rlim_zlim) {
     ofstream outfile("GEQDSK/GEQDSK.txt", ios::app);
     if (!outfile.is_open()) {
         cerr << "Could not open GEQDSK/GEQDSK.txt" << endl;
@@ -691,36 +735,6 @@ int main(){
     double alpha = 0.144526;
     double psi_x = 1.28864;
     double f_x = -32.86;
-    
-    vector<float> rlim_zlim = {
-        6.267000e+00, -3.046000e+00, 7.283000e+00, -2.257000e+00,
-        7.899000e+00, -1.342000e+00, 8.306000e+00, -4.210000e-01,
-        8.395000e+00,  6.330000e-01, 8.270000e+00,  1.681000e+00,
-        7.904000e+00,  2.464000e+00, 7.400000e+00,  3.179000e+00,
-        6.587000e+00,  3.894000e+00, 5.753000e+00,  4.532000e+00,
-        4.904000e+00,  4.712000e+00, 4.311000e+00,  4.324000e+00,
-        4.126000e+00,  3.582000e+00, 4.076000e+00,  2.566000e+00,
-        4.046000e+00,  1.549000e+00, 4.046000e+00,  5.330000e-01,
-        4.067000e+00, -4.840000e-01, 4.097000e+00, -1.500000e+00,
-        4.178000e+00, -2.506000e+00, 3.957900e+00, -2.538400e+00,
-        4.003400e+00, -2.538400e+00, 4.174200e+00, -2.567400e+00,
-        4.325700e+00, -2.651400e+00, 4.440800e+00, -2.780800e+00,
-        4.506600e+00, -2.941000e+00, 4.515700e+00, -3.113900e+00,
-        4.467000e+00, -3.280100e+00, 4.406400e+00, -3.404300e+00,
-        4.406200e+00, -3.404800e+00, 4.377300e+00, -3.479900e+00,
-        4.311500e+00, -3.614800e+00, 4.245700e+00, -3.749700e+00,
-        4.179900e+00, -3.884700e+00, 4.491800e+00, -3.909200e+00,
-        4.568700e+00, -3.827600e+00, 4.645600e+00, -3.746000e+00,
-        4.821500e+00, -3.709000e+00, 4.998200e+00, -3.741400e+00,
-        5.149600e+00, -3.838200e+00, 5.252900e+00, -3.985200e+00,
-        5.262800e+00, -4.124400e+00, 5.272700e+00, -4.263600e+00,
-        5.565000e+00, -4.555900e+00, 5.565000e+00, -4.402600e+00,
-        5.565000e+00, -4.249400e+00, 5.565000e+00, -4.096200e+00,
-        5.572000e+00, -3.996100e+00, 5.572000e+00, -3.995600e+00,
-        5.572000e+00, -3.896000e+00, 5.572000e+00, -3.895000e+00,
-        5.600800e+00, -3.702400e+00, 5.684200e+00, -3.526500e+00,
-        5.815000e+00, -3.382300e+00, 5.982100e+00, -3.282200e+00,
-        6.171000e+00, -3.235000e+00, 6.365500e+00, -3.244600e+00}; // r and z coordinates of limiter grid, value gotten from tds-gs/data/seperated_file.data   
 
     // Extract values from files
     int nx, ny; 
@@ -788,10 +802,11 @@ int main(){
     append_to_GEQDSK_txt("GEQDSK/GEQDSK_nbdry_nlim.txt");
 
     // append_to_GEQDSK_txt("GEQDSK/GEQDSK_qpsi.txt");
-  
     
+    //Generate limiter and boundary points
+    vector<double> rlim_zlim = generate_rlim_zlim();
     int count = append_rbdry_zbdry(rbdry_zbdry);
-    append_rlim_zlim(count, rlim_zlim );
+    append_rlim_zlim(count, rlim_zlim);
 
     return 0; 
 }
