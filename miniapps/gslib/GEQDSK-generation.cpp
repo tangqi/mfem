@@ -655,7 +655,7 @@ int main(){
 
     // qpsi calcs
     // Finding radially aligned points for n number of contours
-    int n = 12;
+    int n = nx;
     vector<double> angles_deg = {0, 45, 90, 135, 180, 225, 270, 315};
     ProcessContours(sibdry, simagx, rmagx, zmagx, n,
                     "../tds-gs/meshes/mesh_refine.mesh",

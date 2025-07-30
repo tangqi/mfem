@@ -29,8 +29,8 @@ int main (int argc, char *argv[]){
    auto start = chrono::high_resolution_clock::now();
 
    // Compute rdim & zdim for GEQDSK   
-   int nx = 5;
-   int ny = 5;
+   int nx = 61;
+   int ny = 129;
 
    Vector p00(2); p00(0) = 0; p00(1) = 0; 
    Vector p11(2); p11(0) = 1; p11(1) = 1; 
