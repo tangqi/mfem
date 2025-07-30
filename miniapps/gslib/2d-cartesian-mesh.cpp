@@ -279,17 +279,10 @@ int main (int argc, char *argv[]){
    delete tar_fes;
    delete tar_fec;
 
-   // Run GEQDSK-generation.cpp to generate GEQDSK.txt file for the rectangular mesh plasma solution
-   int ret = system("/usr/bin/make GEQDSK-generation && ./GEQDSK-generation");
-   if (ret != 0){
-      std::cerr << "Error: Failed to build or run GEQDSK-generation." << std::endl;
-      return ret;
-   }
-
    // Output computational time
    auto end = chrono::high_resolution_clock::now();
    chrono::duration<double> elapsed = end - start;
-   cout << "Total time to run 2d-cartesian-mesh.cpp and GEQDSK-generation.cpp: " << elapsed.count() << " seconds\n";
+   cout << "Total time to run 2d-cartesian-mesh.cpp: " << elapsed.count() << " seconds\n";
    
    return 0;
 }
