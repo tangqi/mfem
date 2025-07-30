@@ -261,7 +261,7 @@ void psiFormat(const vector<double> psiVal){
 }
 
 // Generate GEQDSK_pres.txt
-void generate_pres(){
+int generate_pres(){
     ifstream infile("GEQDSK/GEQDSK_fpol.txt");
     ofstream outfile("GEQDSK/GEQDSK_pres.txt");
 
@@ -288,6 +288,8 @@ void generate_pres(){
 
     infile.close();
     outfile.close();
+    cout << "count: " << count << endl; 
+    return count; 
 }
 
 // Generate GEQDSK_pprime.txt
@@ -605,7 +607,7 @@ int main(){
     int nlim = 56; // Number of points in the limiter grid, value gotten from tds-gs/data/seperated_file.data
 
     // Extract values from files
-    int nx, ny; 
+    int nx, ny, numElems; 
     float rdim, zdim, rleft, zmid, simagx, sibdry, cpasma, rmagx, zmagx;
     double alpha, psi_x, f_x;
     
@@ -650,14 +652,13 @@ int main(){
     ffprime_calc(alpha, fpol);
     fpol_format(fpol);
     psiFormat(psi);
-    generate_pres();
+    numElems = generate_pres();
     generate_pprime();
 
     // qpsi calcs
     // Finding radially aligned points for n number of contours
-    int n = nx;
     vector<double> angles_deg = {0, 45, 90, 135, 180, 225, 270, 315};
-    ProcessContours(sibdry, simagx, rmagx, zmagx, n,
+    ProcessContours(sibdry, simagx, rmagx, zmagx, numElems,
                     "../tds-gs/meshes/mesh_refine.mesh",
                     "../tds-gs/gf/final_model2_pc5_cyc1_it5.gf", angles_deg);
 
