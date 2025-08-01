@@ -261,15 +261,14 @@ void psiFormat(const vector<double> psiVal){
 }
 
 // Generate GEQDSK_pres.txt
-void generate_pres(){
+void generate_pres(int nx){
     ifstream infile("GEQDSK/GEQDSK_fpol.txt");
     ofstream outfile("GEQDSK/GEQDSK_pres.txt");
 
-    double dummy;
     int count = 0;
 
     // Read value by value (assuming file only has Fortran-formatted values)
-    while (infile >> dummy) {
+    while (count < nx) {
         // Force format: width 16, scientific, 9 decimals, uppercase E
         outfile << setw(16) << setprecision(9)
                 << uppercase << scientific << 0.0;
@@ -650,7 +649,7 @@ int main(){
     ffprime_calc(alpha, fpol);
     fpol_format(fpol);
     psiFormat(psi);
-    generate_pres();
+    generate_pres(nx);
     generate_pprime();
 
     // qpsi calcs
