@@ -9,6 +9,7 @@
 // 5) Approximate the integral as a sum.
 
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -36,10 +37,10 @@ int main() {
     // Step 0): Load in pre-developed R and Z coordinates from text file and preprocess into 2D arrays.
 
     // Read in radial_points.txt file
-    std::ifstream file("radial_points.txt");
+    std::ifstream file("./Contours/all_contour_radial_points.txt");
 
     if (!file.is_open()) {
-        std::cerr << "Failed to open file." << std::endl;
+        std::cerr << "Failed to open contours file." << std::endl;
         return 1;
     }
 
@@ -148,6 +149,14 @@ int main() {
         double f_x = -32.86;
         double f = f_x + alpha * (psi[j] - psi_x);
 
+        // // Gradient of psi
+        // size_t numLevels = psi.size();
+        // size_t M = r_col.size();
+        // gradPsi.reserve(M);
+        // for (size_t i = 0; i < M; ++i) {
+        //     double dpsi, dR, dZ
+        // }
+
         // Integrand f(psi) / R^2
         std::vector<double> integrand;
         for(size_t i = 0; i < r_col.size(); ++i) {
@@ -201,6 +210,24 @@ int main() {
         std::cout << qpsi[j] << ' ';
     }
     std::cout << '\n';
+
+    // Save output as qpsi.txt, in Fortran format (5e16.9)
+    std::ofstream outfile("./GEQDSK/GEQDSK_qpsi.txt");
+    if (!outfile.is_open()) {
+        std::cerr << "Failed to open GEQDSK/GEQDSK_qpsi.txt \n";
+        return 1;
+    }
+
+    outfile << std::uppercase << std::scientific << std::setprecision(9) << std::showpos;
+
+    const int fieldWidth = 14;
+
+    for (size_t i = 0; i < qpsi.size(); ++i) {
+        outfile << std::setw(fieldWidth) << qpsi[i];
+        if ((i + 1) % 5 == 0) outfile << '\n';  // Newline after every 5 entries
+    }
+
+    outfile.close();
 
     return 0;
 }
