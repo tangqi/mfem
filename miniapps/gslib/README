@@ -8,19 +8,29 @@ Open Source Program Office's Virtual Student Internship Program (OSPO VSIP).
 Contents
 ------------------------------
 - Contacts
+- Documentation
 - create-cartesian-mesh-and-GEQDSK.sh
-- README Folder
 - 2d-cartesian-mesh.cpp
 - GEQDSK-generation.cpp
 - GEQDSK Folder
 - Contours Folder
-- Contours_Plot Folder
 
 ------------------------------
 Contacts
 ------------------------------
 - Saisruthi Bandla (sbandla3@gatech.edu)
 - Janani Murugan (janani@gatech.edu)
+
+------------------------------
+Documentation
+------------------------------
+Click https://github.com/Sruthifeb14/OSPO_VSIP_2025_MFEM_Internship to find: 
+- PowerPoint presentations detailing the internship work
+- Required_Variables_for_EFTI_Writer.xlsx: a spreadsheet documenting the 
+  variables used for the GEQDSK writer
+- Contours_Plot folder: Given all_contours_radial_points.txt and several 
+   contour_line_XXXXXXXX.txt files, plot_contours_and_radial_points.py plots the contour lines
+   and their corresponding radial points.
 
 ------------------------------
 create-cartesian-mesh-and-GEQDSK.sh
@@ -33,17 +43,6 @@ Once those are generated, it automatically executes:
 - `GEQDSK-generation.cpp`
 
 Final output: a ready-to-export `GEQDSK.txt` file.
-
-------------------------------
-README Folder
-------------------------------
-Contains:
-- PowerPoint presentations detailing the internship work
-- `Required_Variables_for_EFTI_Writer.xlsx` — a spreadsheet documenting the 
-  variables used for the GEQDSK writer
-
-Reference:  
-https://freeqdsk.readthedocs.io/en/stable/geqdsk.html
 
 ------------------------------
 2d-cartesian-mesh.cpp
@@ -66,7 +65,7 @@ Creates the final `GEQDSK/GEQDSK.txt` plasma file by:
 - Generating additional required variables
 - Appending everything into the final GEQDSK file
 
-See `README/Required_Variables_for_EFTI_Writer.xlsx` for parameter descriptions.
+Reference: https://freeqdsk.readthedocs.io/en/stable/geqdsk.html
 
 ------------------------------
 GEQDSK Folder
@@ -83,12 +82,3 @@ Contours Folder
   specific ψ values.
 - `all_contours_radial_points.txt`: Contains (r, z) coordinates of all contours, 
   aligned radially from the plasma boundary to the magnetic axis.
-
-------------------------------
-Contours_Plot Folder
-------------------------------
-- `plot_contours_and_radial_points.py`: 
-   Given `all_contours_radial_points.txt` and several 
-   `contour_line_XXXXXXXX.txt` files, it plots:
-   - Radial points
-   - Corresponding contour lines
