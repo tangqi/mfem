@@ -3,7 +3,7 @@
 # Run Instructions : ./create-cartesian-mesh-and-GEQDSK.sh
 # Improvements     : Can add user input for nx, ny, and r and z dimensions for cartesian grid
 #                    Can add functionality to enable other run cases instead of run_3_taylor.sh
-
+# Note             : *Takes a couple minutes to run completely
 
 set -e
 start_time=$(date +%s)

@@ -1,6 +1,6 @@
 // File             : 2d-catesian-mesh.cpp 
-// Purpose          : Interpolates the provided .mesh file into a cartesian one and visualizes both of the meshes with the corresponding .gf solution. Also produces a GEQDSK file corresponding to the cartesian mesh and its solution. 
-// Run Instructions : make 2d-cartesian-mesh && srun -n 1 ./2d-cartesian-mesh (if this doesn't work, try running the run_3_taylor.sh in tds-gs and the GEQDSK-generation.cpp file first and try again) 
+// Purpose          : Interpolates the provided .gf and .mesh file into a cartesian one and visualizes both of the meshes with their corresponding .gf solutions.
+// Run Instructions : make 2d-cartesian-mesh && srun -n 1 ./2d-cartesian-mesh (if this doesn't work, try running the tds-gs/run_3_taylor.sh file first and try again) 
 
 #include "mfem.hpp"
 #include <iostream>
@@ -25,9 +25,6 @@ double scalar_func(const Vector &x){
 
 
 int main (int argc, char *argv[]){
-   // Keeps track of computational time
-   auto start = chrono::high_resolution_clock::now();
-
    // Compute rdim & zdim for GEQDSK   
    int nx = 61;
    int ny = 129;
@@ -278,11 +275,5 @@ int main (int argc, char *argv[]){
    }
    delete tar_fes;
    delete tar_fec;
-
-   // Output computational time
-   auto end = chrono::high_resolution_clock::now();
-   chrono::duration<double> elapsed = end - start;
-   cout << "Total time to run 2d-cartesian-mesh.cpp: " << elapsed.count() << " seconds\n";
-   
    return 0;
 }
