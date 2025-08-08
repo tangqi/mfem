@@ -628,7 +628,8 @@ int main(){
     // Generate needed values
     find_rmagx_zmagx("interpolated.gf", "my_new.mesh", simagx, rmagx, zmagx);
     vector<double> psi = fileToVector("interpolated.gf");
-    vector<double> fpol = fpol_calc(alpha, psi_x, f_x, psi);
+    vector<double> equalSpacePsi = linspace(simagx, sibdry, nx);
+    vector<double> fpol = fpol_calc(alpha, psi_x, f_x, equalSpacePsi);
     ffprime_calc(alpha, fpol);
     fpol_format(fpol);
     psiFormat(psi);
