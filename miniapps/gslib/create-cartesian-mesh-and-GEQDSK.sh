@@ -35,5 +35,4 @@ echo "Running GEQDSK-generation..."
 end_time=$(date +%s)
 elapsed=$(( end_time - start_time ))
 
-echo "All steps completed successfully"
 echo "Total time to run script: $elapsed seconds"

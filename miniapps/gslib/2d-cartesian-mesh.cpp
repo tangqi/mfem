@@ -12,7 +12,7 @@ using namespace std;
 void transformation(const Vector &p, Vector &v){
    // simple linear transformation
    v(0) = 5.0 * p(0) + 3.5; // r: [0,1] → [3.5,8.5]
-   v(1) = 8.9 * p(1) - 3.4; // z: [0,1] → [-3.4,5.5]
+   v(1) = 10.5 * p(1) - 5;  // z: [0,1] → [-5, 5.5]
 }
 
 // Scalar function to project
@@ -26,8 +26,8 @@ double scalar_func(const Vector &x){
 
 int main (int argc, char *argv[]){
    // Compute rdim & zdim for GEQDSK   
-   int nx = 61;
-   int ny = 129;
+   int nx = 16; // # of cells in r direction
+   int ny = 16; // # of cells in z direction
 
    Vector p00(2); p00(0) = 0; p00(1) = 0; 
    Vector p11(2); p11(0) = 1; p11(1) = 1; 
@@ -44,8 +44,8 @@ int main (int argc, char *argv[]){
    // Write nx, ny, rdim, zdim, rleft, and zmid to a different file for GEQDSK
    system("mkdir -p GEQDSK"); 
    ofstream file("GEQDSK/GEQDSK_nx_ny_rdim_zdim_rleft_zmid.txt"); 
-   file << nx << "\n" << ny << "\n";  
-   file << showpos << scientific << setprecision(9)
+   file << nx+1 << "\n" << ny+1 << "\n";  
+   file << scientific << uppercase << setprecision(9)
       << setw(16) << rdim << "\n"
       << setw(16) << zdim << "\n"
       << setw(16) << rleft<< "\n"

@@ -1,5 +1,6 @@
 // To Do:
-//        1. Generate & append qpsi
+//        1. Append GEQDSK-q-generation.cpp
+//           NOTE: If not appended yet, need to run this file independently to generate the proper qpsi value for GEQDSK.txt   
 
 // File                  : GEQDSK-generation.cpp 
 // Purpose               : Generates the final GEQDSK plasma file for ITER tokamak by finding/generating the individual parameter files and appending them
@@ -27,33 +28,96 @@
 #include <ctype.h>
 using namespace mfem;
 using namespace std;
-  
-// Import file and store values in a vector 
-vector<double> fileToVector(const string &filename){
+
+// Reads files to store values in a vector (used for psi and nbdry_zbdry) 
+vector<double> fileToVector(const string &filename) {
     vector<double> vec;
     string line;
     ifstream ReadFile(filename);
     int line_count = 0;
 
-    double value;
-    while (getline (ReadFile, line)){
-        line_count++; 
-        if (line.empty()) {
-            continue;
-        }
-        if (!isdigit(line[0]) && (line[0] != '-')){
-            continue;
-        }
-        if (line[0] == '-' && (line.length() < 2 || !isdigit(line[1]))){
-            continue;
-        }
-        value = stod(line);
-        vec.push_back(value);
+    if (!ReadFile.is_open()) {
+        cerr << "Error: Could not open file " << filename << endl;
+        return vec;
     }
+
+    while (getline(ReadFile, line)) {
+        line_count++;
+        if (line.empty()) continue;
+
+        // Skip lines where first non-space char is not a digit or '-'
+        string trimmed = line;
+        trimmed.erase(0, trimmed.find_first_not_of(" \t")); // remove leading spaces
+        if (!isdigit(trimmed[0]) && (trimmed[0] != '-')) continue;
+        if (trimmed[0] == '-' && (trimmed.length() < 2 || !isdigit(trimmed[1]))) continue;
+
+        stringstream ss(trimmed);
+        double value;
+        while (ss >> value) {  // handles 1, 2, or more numbers per line
+            vec.push_back(value);
+        }
+    }
+
     ReadFile.close();
     return vec;
 }
 
+// Find simagx coordinates: rmagx, zmagx
+void find_rmagx_zmagx(const string& rect_gf_file, const string& rect_mesh_file, float simagx, float &rmagx, float &zmagx){
+    // Open .gf file for rectangular mesh and find the index of the closest psi to simagx
+    ifstream file_solution(rect_gf_file); 
+    if (!file_solution.is_open()){
+        cerr << "File can't be opened: " << rect_gf_file << "\n" << endl;   
+    }
+
+    string line; 
+    int counter = 1, closest_psi_idx;
+    float prev_diff = 1000, current_diff, closest_psi;
+
+    for(int i = 0; i < 4 && getline(file_solution, line); ++i); //Skips first 4 lines
+    while(getline(file_solution, line)){
+        if(line.empty()) continue;
+
+        float new_psi = stof(line);
+        current_diff = abs(simagx - new_psi);  
+        if(current_diff < prev_diff){
+            prev_diff = current_diff; 
+            closest_psi = new_psi;
+            closest_psi_idx = counter;  
+        }  
+        ++counter;
+    }
+
+    file_solution.close(); 
+
+    // Use closest_psi_idx to get rmagx and zmagx
+    ifstream file_mesh(rect_mesh_file);
+    if (!file_mesh.is_open()){
+        cerr << "File can't be opened: " << rect_mesh_file << "\n" << endl;   
+    } 
+
+    string line1; 
+    int counter1 = 0;
+    bool found_title = false;
+
+    while (getline(file_mesh, line1)){
+        if (line1 == "vertices"){
+            getline(file_mesh, line1); // Skip # of vertices line
+            getline(file_mesh, line1); // Skip dimension line
+            found_title = true; 
+            counter1 = 0;
+        }
+
+        if (found_title == true && counter1 == closest_psi_idx){
+            istringstream iss(line1);
+            iss >> rmagx >> zmagx;            
+            break;   
+        }
+        counter1 = counter1 + 1;
+    }
+    file_mesh.close(); 
+}
+  
 // Returns a linearly spaced vector given min and max values
 vector<double> linspace(double min, double max, int n) {
     vector<double> result;
@@ -105,7 +169,7 @@ void extract_contour_line(const Mesh &mesh, const GridFunction &u, double level,
 }
 
 // Reads a "contour_line_" file and stores its coordinates in a vector of (x, y) pairs
-vector<pair<double,double>> read_data(const string &filename) {
+vector<pair<double,double>> readContourLineFile(const string &filename) {
     vector<pair<double,double>> data;
     ifstream infile(filename);
     if (!infile.is_open()) {
@@ -165,7 +229,7 @@ vector<pair<double,double>> extract_radial_points(double rmagx, double zmagx,
 }
 
 // Generates a range of psi values and for each psi, generates "contour_line_" files for each psi, extracts radial points from each "contour_line_", and writes those points to "all_contour_radial_points.txt" 
-void ProcessContours(double sibdry, double simagx,
+void generateAllContourRadialPoints(double sibdry, double simagx,
                      double rmagx, double zmagx, int n, const string& mesh_path, const string& gf_path, 
                      const vector<double>& angles_deg, const string& output_dir = "Contours") {
     // Generate psi values
@@ -197,7 +261,7 @@ void ProcessContours(double sibdry, double simagx,
     // Extract radial points from contours
     vector<vector<pair<double, double>>> all_radial_pts;
     for (const auto& file : filenames) {
-        vector<pair<double, double>> contour = read_data(file);
+        vector<pair<double, double>> contour = readContourLineFile(file);
         vector<pair<double, double>> radial_pts = extract_radial_points(rmagx, zmagx, contour, angles_deg);
         all_radial_pts.push_back(radial_pts);
     }
@@ -229,6 +293,243 @@ void ProcessContours(double sibdry, double simagx,
     delete fec;
 }
 
+// Generate GEQDSK_Section_1
+void generate_section_1(float rdim, float zdim, float rcentr, float rleft, float zmid, float rmagx, float zmagx, float simagx, float sibdry, float bcentr, float cpasma){
+    ofstream file("GEQDSK/GEQDSK_section_1.txt");
+
+    // Set scientific format, width = 16, precision = 9
+    file << uppercase << scientific << setprecision(9);
+
+    file << setw(16) << rdim << setw(16) << zdim << setw(16) << rcentr
+        << setw(16) << rleft << setw(16) << zmid << endl;
+    file << setw(16) << rmagx << setw(16) << zmagx << setw(16) << simagx
+        << setw(16) << sibdry << setw(16) << bcentr << endl;
+    file << setw(16) << cpasma << setw(16) << simagx << setw(16) << 0.0
+        << setw(16) << rmagx << setw(16) << 0.0 << endl;
+    file << setw(16) << zmagx << setw(16) << 0.0 << setw(16) << sibdry
+        << setw(16) << 0.0 << setw(16) << 0.0;
+
+    file.close();
+}
+
+// Compute & generate GEQDSK_fpol.txt
+vector<double> generate_fpol(double alpha, double psi_x, double f_x, const vector<double>& psiVal) {
+    vector<double> fpol;
+    fpol.reserve(psiVal.size());
+
+    for (const auto& val : psiVal) {
+        fpol.push_back(f_x + alpha * (val - psi_x));
+    }
+
+    ofstream file("GEQDSK/GEQDSK_fpol.txt");
+    if (!file.is_open()) {
+        cerr << "Error opening file for writing: GEQDSK/GEQDSK_fpol.txt\n";
+        // Still return the vector even if writing failed
+        return fpol;
+    }
+
+    file << uppercase << scientific << setprecision(9);
+
+    int val_count = 0;
+    size_t total = fpol.size();
+    for (size_t i = 0; i < total; ++i) {
+        file << setw(16) << fpol[i];
+        val_count++;
+        if (val_count == 5 && i != total - 1) {
+            file << '\n';
+            val_count = 0;
+        }
+    }
+    file.close();
+    return fpol;
+}
+
+// Generate GEQDSK_pres.txt
+void generate_pres(int nx){
+    ifstream infile("GEQDSK/GEQDSK_fpol.txt");
+    ofstream outfile("GEQDSK/GEQDSK_pres.txt");
+
+    int count = 0;
+
+    while (count < nx) {
+        outfile << setw(16) << setprecision(9)
+                << uppercase << scientific << 0.0;
+        count++;
+
+        // Newline every 5 values, except after last
+        if (count % 5 == 0 && count != nx) {
+            outfile << '\n';
+        }
+    }
+    infile.close();
+    outfile.close();
+}
+
+// Compute & generate GEQDSK_ffprime.txt
+void generate_ffprime(double alpha, const vector<double>& fpol){
+    vector<double> ffprime;
+    double ffprime_val;
+
+    for (const auto& val : fpol){
+        ffprime_val = alpha * val;
+        ffprime.push_back(ffprime_val);
+    }
+
+    ofstream file("GEQDSK/GEQDSK_ffprime.txt");
+    file << uppercase << scientific << setprecision(9);
+
+    int val_count = 0;
+    size_t total = ffprime.size();
+    for (size_t i = 0; i < total; ++i){
+        file << setw(16) << ffprime[i];
+        val_count++;
+
+        // Add newline every 5 values except after last one
+        if (val_count == 5 && i != total - 1){
+            file << endl;
+            val_count = 0;
+        }
+    }
+    file.close();
+}
+
+// Generate GEQDSK_pprime.txt
+void generate_pprime(){
+    ifstream infile("GEQDSK/GEQDSK_pres.txt");
+    ofstream outfile("GEQDSK/GEQDSK_pprime.txt");
+
+    outfile << infile.rdbuf();
+
+    infile.close();
+    outfile.close(); 
+}
+
+// Generate GEQDSK_psi.txt
+void generate_psi(const vector<double>& psiVal){
+    ofstream file("GEQDSK/GEQDSK_psi.txt");
+    file << uppercase << scientific << setprecision(9);
+
+    int val_count = 0;
+    size_t total = psiVal.size();
+    for (size_t i = 0; i < total; ++i){
+        file << setw(16) << psiVal[i];
+        val_count++;
+
+        // Add newline every 5 values, except after the last value
+        if (val_count == 5 && i != total - 1) {
+            file << endl;
+            val_count = 0;
+        }
+    }
+    file.close();
+}
+
+// Generate GEQDSK_nbdry_nlim.txt
+void generate_nbdry_nlim(int nbdry, int nlim) {
+    ofstream file4("GEQDSK/GEQDSK_nbdry_nlim.txt");
+    file4 << setw(5) << nbdry << setw(5) << nlim;
+    file4.close();
+}
+
+// Generates GEQDSK_rbdry_zbdry.txt
+int generate_rbdry_zbdry(const std::string& mesh_path, const std::string& gf_path, double sibdry) {
+    // Load mesh and setup FE space
+    Mesh my_mesh(mesh_path.c_str());
+    my_mesh.EnsureNodes();
+
+    FiniteElementCollection* fec = new H1_FECollection(1, my_mesh.Dimension()); // P1 elements
+    FiniteElementSpace fespace(&my_mesh, fec);
+
+    ifstream ifs(gf_path);
+    if (!ifs.is_open()) {
+        cerr << "Error opening GF file: " << gf_path << endl;
+        delete fec;
+        return 0;
+    }
+    GridFunction lgf(&my_mesh, ifs);
+
+    // Extract contour line to unformatted file
+    const std::string unformatted_file = "GEQDSK/GEQDSK_rbdry_zbdry_unformatted.txt";
+    extract_contour_line(my_mesh, lgf, sibdry, unformatted_file);
+
+    // Read unformatted data
+    std::vector<double> rbdry_zbdry = fileToVector(unformatted_file);
+
+    // Write formatted data directly here:
+    const std::string formatted_file = "GEQDSK/GEQDSK_rbdry_zbdry.txt";
+    std::ofstream outFile(formatted_file);
+    if (!outFile.is_open()) {
+        std::cerr << "Error: Could not open " << formatted_file << " for writing.\n";
+        delete fec;
+        return 0;
+    }
+
+    outFile << std::uppercase << std::scientific << std::setprecision(9);
+
+    int count = 0;
+    for (double val : rbdry_zbdry) {
+        outFile << std::setw(16) << val;
+        if (++count % 5 == 0) outFile << '\n';
+    }
+    outFile.close();
+
+    // Delete unformatted file
+    remove(unformatted_file.c_str());
+
+    delete fec;
+    return static_cast<int>(rbdry_zbdry.size() / 2);
+}
+
+// Generate GEQDSK_rlim_zlim.txt
+int generate_rlim_zlim(){
+    vector<double> rlim_zlim; 
+    ifstream infile("../tds-gs/data/separated_file.data");
+
+    if (!infile.is_open()) {
+        cerr << "Error: Could not open separated_file.dat." << endl;
+    }
+
+    bool in_rlim_zlim = false;
+    string line;
+    while (getline(infile, line)) {
+        if (!in_rlim_zlim) {
+            if (line == "# rlim(i),zlim(i)") {
+                in_rlim_zlim = true;
+            }
+        } else {
+            // Stop reading if line is empty or looks like end of section
+            if (line.empty() || line[0] == '#') break;  
+
+            istringstream iss(line);
+            double val;
+            while (iss >> val) {
+                if (val == 0) continue;  // your logic to skip zeros
+                rlim_zlim.push_back(val);
+            }
+        }        
+    }
+
+    infile.close();
+
+    ofstream outFile("GEQDSK/GEQDSK_rlim_zlim.txt");
+    if (!outFile.is_open()) {
+        cerr << "Error opening output file\n";
+    }
+
+    outFile << uppercase << scientific << setprecision(9);
+
+    int count = 0;
+    for (const auto &e : rlim_zlim) {
+        outFile << setw(16) << e;
+        count++;
+        if (count % 5 == 0) {
+            outFile << '\n';
+        }
+    }
+    outFile.close();
+    return (rlim_zlim.size())/2;
+}
+
 // GEQDSK folder and file setup
 void GEQDSK_header(int nx, int ny){     
     // Create folder for GEQDSK files and final output (if it doesn't exist already)
@@ -245,228 +546,14 @@ void GEQDSK_header(int nx, int ny){
 
     string prefix = "MFEM       ";
     string rest = "        # 0  0ms              ";
-
     string line = prefix + string(date_str) + rest;
-
     if (line.size() < 48) line.resize(48, ' ');
 
     int i1 = 3;
     file << left << setw(48) << line
          << right << setw(4) << i1
          << setw(4) << nx
-         << setw(4) << ny
-         << endl;
-
-    file.close();
-}
-
-// Calculate fpol values
-vector<double> fpol_calc(double alpha, double psi_x, double f_x, const vector<double> psiVal){
-    vector<double> fpol;
-    double fpol_val;
-
-    for (const auto& val : psiVal) {
-        fpol_val = f_x + alpha * (val - psi_x);
-        fpol.push_back(fpol_val);
-    }
-    return fpol;
-}
-
-// Generate GEQDSK_fpol.txt
-void fpol_format(const vector<double> fpol){
-    ofstream file("GEQDSK/GEQDSK_fpol.txt");
-    file << uppercase << scientific << setprecision(9);
-
-    int val_count = 0;
-    for (const auto& val : fpol) {
-        // Convert to scientific notation
-        file << setw(16) << val;
-
-        val_count++;
-        if (val_count >= 5){
-            file << endl;
-            val_count = 0;
-        }
-    }
-    // Ensure the file ends with a newline (even if val_count == 0)
-    if (val_count != 0){
-        file << "\n";
-    }
-    file.close();
-}
-
-// Compute ffprime and generate GEQDSK_ffprime.txt
-void ffprime_calc(double alpha, const vector<double>fpol){
-    vector<double> ffprime;
-    double ffprime_val;
-
-    for (const auto& val : fpol){
-        ffprime_val = alpha * val;
-        ffprime.push_back(ffprime_val);
-    }
-
-    ofstream file("GEQDSK/GEQDSK_ffprime.txt");
-    file << uppercase << scientific << setprecision(9);
-
-    int val_count = 0;
-    for (const auto& val : ffprime){
-        // Convert to scientific notation
-        file << setw(16) << val;
-        val_count++;
-        if (val_count >= 5){
-            file << endl;
-            val_count = 0;
-        }
-    }
-    // Ensure the file ends with a newline (even if val_count == 0)
-    if (val_count != 0){
-        file << endl;
-    }
-    file.close();
-}
-
-// Generate GEQDSK_psi.txt
-void psiFormat(const vector<double> psiVal){
-    ofstream file("GEQDSK/GEQDSK_psi.txt");
-    file << uppercase << scientific << setprecision(9);
-    
-    int val_count = 0;
-    for (const auto& val : psiVal){
-        //Convert to scientific notation
-        file << setw(16) << val;
-
-        val_count++;
-        if (val_count >= 5) {
-            file << endl;
-            val_count = 0;
-        }
-    }
-    // Ensure the file ends with a newline (even if val_count == 0)
-    if (val_count != 0) {
-        file << "\n";
-    }
-    
-    file.close();
-}
-
-// Generate GEQDSK_pres.txt
-void generate_pres(int nx){
-    ifstream infile("GEQDSK/GEQDSK_fpol.txt");
-    ofstream outfile("GEQDSK/GEQDSK_pres.txt");
-
-    int count = 0;
-
-    // Read value by value (assuming file only has Fortran-formatted values)
-    while (count < nx) {
-        // Force format: width 16, scientific, 9 decimals, uppercase E
-        outfile << setw(16) << setprecision(9)
-                << uppercase << scientific << 0.0;
-        count++;
-
-        // Newline every 5 values
-        if (count % 5 == 0) {
-            outfile << '\n';
-        }
-    }
-
-    // Add newline if last line is incomplete
-    if (count % 5 != 0) {
-        outfile << '\n';
-    }
-
-    infile.close();
-    outfile.close();
-}
-
-// Generate GEQDSK_pprime.txt
-void generate_pprime(){
-    ifstream infile("GEQDSK/GEQDSK_pres.txt");
-    ofstream outfile("GEQDSK/GEQDSK_pprime.txt");
-
-    outfile << infile.rdbuf();
-
-    infile.close();
-    outfile.close(); 
-}
-
-// Find simagx coordinates: rmagx, zmagx
-void find_rmagx_zmagx(const string& rect_gf_file, const string& rect_mesh_file, float simagx, float &rmagx, float &zmagx){
-    // Open .gf file for rectangular mesh and find the index of the closest psi to simagx
-    ifstream file_solution(rect_gf_file); 
-    if (!file_solution.is_open()){
-        cerr << "File can't be opened: " << rect_gf_file << "\n" << endl;   
-    }
-
-    string line; 
-    int counter = 1, closest_psi_idx;
-    float prev_diff = 1000, current_diff, closest_psi;
-
-    for(int i = 0; i < 4 && getline(file_solution, line); ++i); //Skips first 4 lines
-    while(getline(file_solution, line)){
-        if(line.empty()) continue;
-
-        float new_psi = stof(line);
-        current_diff = abs(simagx - new_psi);  
-        if(current_diff < prev_diff){
-            prev_diff = current_diff; 
-            closest_psi = new_psi;
-            closest_psi_idx = counter;  
-        }  
-        ++counter;
-    }
-
-    file_solution.close(); 
-
-    // Use closest_psi_idx to get rmagx and zmagx
-    ifstream file_mesh(rect_mesh_file);
-    if (!file_mesh.is_open()){
-        cerr << "File can't be opened: " << rect_mesh_file << "\n" << endl;   
-    } 
-
-    string line1; 
-    int counter1 = 0;
-    bool found_title = false;
-
-    while (getline(file_mesh, line1)){
-        if (line1 == "vertices"){
-            getline(file_mesh, line1); // Skip # of vertices line
-            getline(file_mesh, line1); // Skip dimension line
-            found_title = true; 
-            counter1 = 0;
-        }
-
-        if (found_title == true && counter1 == closest_psi_idx){
-            istringstream iss(line1);
-            iss >> rmagx >> zmagx;            
-            break;   
-        }
-        counter1 = counter1 + 1;
-    }
-    file_mesh.close(); 
-}
-  
-// Format and append Section 1
-void append_section1(float rdim, float zdim, float rcentr, float rleft, float zmid, float rmagx, float zmagx, float simagx, float sibdry, float bcentr, float cpasma)
-{
-    ofstream file("GEQDSK/GEQDSK.txt", ios::app);
-    if (!file.is_open()) {
-        cerr << "Could not open GEQDSK.txt" << endl;
-        return;
-    }
-
-    // Set scientific format, width = 16, precision = 9
-    file << uppercase << scientific << setprecision(9);
-    file << " " << endl;
-
-    file << setw(16) << rdim << setw(16) << zdim << setw(16) << rcentr
-        << setw(16) << rleft << setw(16) << zmid << endl;
-    file << setw(16) << rmagx << setw(16) << zmagx << setw(16) << simagx
-        << setw(16) << sibdry << setw(16) << bcentr << endl;
-    file << setw(16) << cpasma << setw(16) << simagx << setw(16) << 0.0
-        << setw(16) << rmagx << setw(16) << 0.0 << endl;
-    file << setw(16) << zmagx << setw(16) << 0.0 << setw(16) << sibdry
-        << setw(16) << 0.0 << setw(16) << 0.0 << endl;
-
+         << setw(4) << ny;
     file.close();
 }
 
@@ -482,111 +569,19 @@ void append_to_GEQDSK_txt(const string& infile) {
     dest.close();
 }
 
-// Format and append rbdry & zbdry to GEQDSK.txt
-int append_rbdry_zbdry(const vector<double>& rbdry_zbdry) {
-    int val_count = 0;
-
-    ofstream outfile("GEQDSK/GEQDSK.txt", ios::app);
-    if (!outfile.is_open()) {
-        cerr << "Could not open GEQDSK/GEQDSK.txt" << endl;
-        return val_count;
-    }
-
-    outfile << uppercase << scientific << setprecision(9);
-    outfile << '\n';
-
-    for (double val : rbdry_zbdry) {
-        outfile << setw(16) << val;
-
-        val_count++;
-        if (val_count >= 5) {
-            outfile << endl;
-            val_count = 0;
-        }
-    }
-    outfile.close();
-    return val_count;
-}
-
-// Format and append rlim and zlim to GEQDSK.txt
-void append_rlim_zlim(const int& num, const vector<double>& rlim_zlim) {
-    ofstream outfile("GEQDSK/GEQDSK.txt", ios::app);
-    if (!outfile.is_open()) {
-        cerr << "Could not open GEQDSK/GEQDSK.txt" << endl;
-        return;
-    }
-
-    outfile << uppercase << scientific << setprecision(9);
-
-    int count = num;
-    for (float val : rlim_zlim) {
-        outfile << setw(16) << val;
-        count++;
-        if (count >= 5) {
-            outfile << endl;
-            count = 0;
-        }
-    }
-
-    if (count > 0) {
-        outfile << "\n"; // Final newline if not divisible by 5
-    }
-
-    outfile.close();
-}
-
-// Generate GEQDSK_rlim_zlim.txt
-vector<double> generate_rlim_zlim(){
-    vector<double> rlim_zlim; 
-    ifstream infile("../tds-gs/data/separated_file.data");
-
-    if (!infile.is_open()) {
-        cerr << "Error: Could not open separated_file.dat." << endl;
-        return rlim_zlim;
-    }
-
-    bool in_rlim_zlim = false;
-    string line;
-    while (getline(infile, line)) {
-        if (in_rlim_zlim == false) {
-            if (line == "# rlim(i),zlim(i)") {
-                in_rlim_zlim = true;
-            }
-        } else {
-            istringstream iss(line);
-            double val;
-            while (iss >> val) {
-                if (val == 0) {
-                    continue;
-                }
-                rlim_zlim.push_back(val);
-            }
-        }        
-    }
-
-    ofstream outFile("GEQDSK/GEQDSK_rlim_zlim.txt");
-    outFile << uppercase << scientific << setprecision(9);
-
-    for (const auto &e : rlim_zlim) {
-        outFile << setw(16) << e << "\n";
-    }
-
-    outFile.close();
-    return rlim_zlim;
-}
-
 
 int main(){
+    // Delete Previous Files ----------------------------------------------------------------    
     // Delete previous files in "Contours" folder
     struct stat info;
     if (stat("Contours", &info) == 0 && (info.st_mode & S_IFDIR)) {
         std::system("rm -f Contours/*");
     }
-    
+
+    // Gather & Generate Needed Parameters ----------------------------------------------------------------
     // Known constants
     float rcentr = 6.200000286e+00; // [meter] Reference value of R 
     float bcentr = -5.300000000e+00; // [tesla] Vacuum toroidal magnetic field at rcentr
-    int nlim = 56; // Number of points in the limiter grid, value gotten from tds-gs/data/seperated_file.data
 
     // Extract values from files
     int nx, ny; 
@@ -596,75 +591,55 @@ int main(){
     ifstream file1("GEQDSK/GEQDSK_nx_ny_rdim_zdim_rleft_zmid.txt");
     file1 >> nx >> ny >> rdim >> zdim >> rleft >> zmid; 
     file1.close();
+    // remove("GEQDSK/GEQDSK_nx_ny_rdim_zdim_rleft_zmid.txt");
 
     ifstream file2("GEQDSK/GEQDSK_simagx_sibdry_cpasma.txt");
     file2 >> simagx >> sibdry >> cpasma; 
     file2.close();
+    // remove("GEQDSK/GEQDSK_simagx_sibdry_cpasma.txt");
 
     ifstream file3("GEQDSK/GEQDSK_alpha_f_x_psi_x.txt");
     file3 >> alpha >> f_x >> psi_x;
     file3.close();
-
-    // Define element space and grid function to find nbdry
-    Mesh my_mesh("../tds-gs/meshes/mesh_refine.mesh");
-    my_mesh.EnsureNodes();
-    FiniteElementCollection *fec = new H1_FECollection(1, my_mesh.Dimension()); // P1 elements
-    FiniteElementSpace fespace(&my_mesh, fec);
-
-    ifstream ifs("../tds-gs/gf/final_model2_pc5_cyc1_it5.gf");
-    GridFunction lgf(&my_mesh, ifs);
-
-    // Generate boundary values: rbdry and zbdry
-    extract_contour_line(my_mesh, lgf, sibdry, "GEQDSK_rbdry_zbdry.txt");
-    vector<double> rbdry_zbdry = fileToVector("GEQDSK_rbdry_zbdry.txt");
-
-    // Generate GEQDSK_nbdry_nlim.txt 
-    int nbdry = rbdry_zbdry.size() / 2;  
-
-    ofstream file4("GEQDSK/GEQDSK_nbdry_nlim.txt");
-    file4 << nbdry << "    " << nlim << '\n';
-    file4.close();
-    
-    // Generate needed values
+    // remove("GEQDSK/GEQDSK_alpha_f_x_psi_x.txt");
+   
+    // Generate needed files    
     find_rmagx_zmagx("interpolated.gf", "my_new.mesh", simagx, rmagx, zmagx);
+    generate_section_1(rdim, zdim, rcentr, rleft, zmid, rmagx, zmagx, simagx, sibdry, bcentr, cpasma);
+
     vector<double> psi = fileToVector("interpolated.gf");
     vector<double> equalSpacePsi = linspace(simagx, sibdry, nx);
-    vector<double> fpol = fpol_calc(alpha, psi_x, f_x, equalSpacePsi);
-    ffprime_calc(alpha, fpol);
-    fpol_format(fpol);
-    psiFormat(psi);
+    vector<double> fpol = generate_fpol(alpha, psi_x, f_x, equalSpacePsi);
+   
     generate_pres(nx);
     generate_pprime();
-
-    vector<double> rlim_zlim = generate_rlim_zlim();
-    int count = append_rbdry_zbdry(rbdry_zbdry);
+    generate_ffprime(alpha, fpol);
+    generate_pprime();
+    generate_psi(psi);
+    
+    int nbdry = generate_rbdry_zbdry("../tds-gs/meshes/mesh_refine.mesh", "../tds-gs/gf/final_model2_pc5_cyc1_it5.gf", sibdry);
+    int nlim = generate_rlim_zlim();
+    generate_nbdry_nlim(nbdry, nlim); 
     
     // qpsi calcs ----------------------------------------------------------------------------
-    
     // Find radially aligned points for nx number of contours
     vector<double> angles_deg = {0, 45, 90, 135, 180, 225, 270, 315};
-    ProcessContours(sibdry, simagx, rmagx, zmagx, nx+1,
+    generateAllContourRadialPoints(sibdry, simagx, rmagx, zmagx, nx+1,
                     "../tds-gs/meshes/mesh_refine.mesh",
                     "../tds-gs/gf/final_model2_pc5_cyc1_it5.gf", angles_deg);
 
-
     // Build final GEQDSK.txt file ----------------------------------------------------------------
-    
-    // Clear the existing files
-    ofstream clear_file("GEQDSK/GEQDSK.txt", ios::trunc);
-    clear_file.close();
-    
-    // Build GEQDSK.txt
     GEQDSK_header(nx, ny);
-    append_section1(rdim, zdim, rcentr, rleft, zmid, rmagx, zmagx, simagx, sibdry, bcentr, cpasma);
+    append_to_GEQDSK_txt("GEQDSK/GEQDSK_section_1.txt");
     append_to_GEQDSK_txt("GEQDSK/GEQDSK_fpol.txt");
     append_to_GEQDSK_txt("GEQDSK/GEQDSK_pres.txt");
     append_to_GEQDSK_txt("GEQDSK/GEQDSK_ffprime.txt");
     append_to_GEQDSK_txt("GEQDSK/GEQDSK_pprime.txt");
     append_to_GEQDSK_txt("GEQDSK/GEQDSK_psi.txt");
-    // append_to_GEQDSK_txt("GEQDSK/GEQDSK_qpsi.txt");
+    append_to_GEQDSK_txt("GEQDSK/GEQDSK_qpsi.txt");
     append_to_GEQDSK_txt("GEQDSK/GEQDSK_nbdry_nlim.txt");
-    append_rlim_zlim(count, rlim_zlim);
+    append_to_GEQDSK_txt("GEQDSK/GEQDSK_rbdry_zbdry.txt");
+    append_to_GEQDSK_txt("GEQDSK/GEQDSK_rlim_zlim.txt");
 
     return 0; 
 }

@@ -224,7 +224,10 @@ int main() {
 
     for (size_t i = 0; i < qpsi.size(); ++i) {
         outfile << std::setw(fieldWidth) << qpsi[i];
-        if ((i + 1) % 5 == 0) outfile << '\n';  // Newline after every 5 entries
+        // Add newline every 5 numbers, except after the last one
+        if ((i + 1) % 5 == 0 && (i + 1) != qpsi.size()) {
+            outfile << '\n';
+        }
     }
 
     outfile.close();

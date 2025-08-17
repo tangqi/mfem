@@ -1305,7 +1305,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
     // Write final value of psi_ma to a different file for GQDSK
     system("mkdir -p ../gslib/GEQDSK"); 
     ofstream file("../gslib/GEQDSK/GEQDSK_simagx_sibdry_cpasma.txt"); 
-    file << showpos << scientific << setprecision(9)
+    file << scientific << setprecision(9)
       << setw(16) << psi_ma_vals.back() << "\n"
       << setw(16) << psi_x_vals.back() << "\n"
       << setw(16) << cpasma_vals.back() << "\n";
