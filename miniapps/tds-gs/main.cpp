@@ -218,8 +218,17 @@ int main(int argc, char *argv[])
 
    if (do_test == 1) {
      // unit tests
+
+     cout << "" <<endl;
+     cout << "Configured for testing only--performing unit tests." << endl;
+     cout << "" <<endl;
+
      test();
-   } else {
+
+     cout << "Testing complete--no issues detected." << endl;
+   }
+   
+   else {
      gs(mesh_file, initial_gf, data_file, order, d_refine,
         model,
         alpha, beta, gamma, mu,
@@ -237,4 +246,3 @@ int main(int argc, char *argv[])
 
    return 0;
 }
-
