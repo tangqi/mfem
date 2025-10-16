@@ -11,18 +11,29 @@ using namespace std;
 using namespace mfem;
 
 
-void PrintMatlab(SparseMatrix *Mat, SparseMatrix *M1, SparseMatrix *M2);
+// TODO: Go through the first ~250 lines of code. Understand what the helper functions PrintMatlab and test_grad are doing.
+//       The test_grad function should be renamed to TestGrad, in line with C++ convention for function naming (PascalCase).
+//       Consider moving these functions to another file. Call it helper.cpp/.hpp or something similar. In addition, consider
+//       breaking test_grad into multiple smaller functions, perhaps testing each Jacobian/Hessian separately.
+
+void PrintMatlab(SparseMatrix *Mat, SparseMatrix *M1, SparseMatrix *M2);  // TODO: is this really necessary to have?
+
 void Print_(const Vector &y) {
+  // Print the entries of an MFEM Vector y to 14 digits of precision.
+  // Intended for debugging purposes.
   for (int i = 0; i < y.Size(); ++i) {
     printf("%d %.14e\n", i+1, y[i]);
   }
 }
 
 void test_grad(SysOperator *op, GridFunction x, FiniteElementSpace fespace) {
+  // Perform finite-difference check against the analytic derivatives
+  // implemented in the solver. Verify that (d C) / (d \alpha), (d B) / (d \alpha),
+  // (d C) / (d y), and (d B) / (d y) all match their finite-difference approximations.
+  // Intended for debugging purposes.
 
   LinearForm y1(&fespace);
   LinearForm y2(&fespace);
-  // LinearForm Cy(&fespace);
   LinearForm fy(&fespace);
 
   int size = y1.Size();
@@ -189,11 +200,7 @@ void test_grad(SysOperator *op, GridFunction x, FiniteElementSpace fespace) {
       }
     }
   }
-  
-  
-  
 }
-
 
 
 void PrintMatlab(SparseMatrix *Mat, SparseMatrix *M1, SparseMatrix *M2) {
@@ -251,8 +258,6 @@ void PrintMatlab(FILE *fp, SparseMatrix *Mat) {
     }
   }
 }
-
-
 
 
 void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
