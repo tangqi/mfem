@@ -6,11 +6,11 @@
    ./main.o -m meshes/gs_mesh.msh
    ./main.o -m meshes/gs_mesh.msh -o 2
 
-   After, run:
+   In order to visualize, run:
    glvis -m mesh.mesh -g sol.gf
 
    Description: 
-   Solve the Grad-Shafranov equation using a newton iteration:
+   Solve the Grad-Shafranov equation using a Newton iteration:
    d_psi a(psi^k, v, phi^k) = l(I, v) - a(psi^k, v), for all v in V
    
    a = + int 1/(mu r) grad psi dot grad v dr dz  (term1)
@@ -45,8 +45,6 @@
    need boundary of plasma term?
    derivative of plasma functions?
    exact mask?
-   
-
 */
 
 #include "mfem.hpp"
@@ -54,7 +52,6 @@
 #include <limits>
 #include <iostream>
 #include <math.h>
-
 #include "test.hpp"
 #include "exact.hpp"
 #include "initial_coefficient.hpp"
@@ -67,24 +64,10 @@
 using namespace std;
 using namespace mfem;
 
-
-
-
 int main(int argc, char *argv[])
-{
-  /* 
-     -------------------------------------------------------------------------------------------
-     -------------------------------------------------------------------------------------------
-     -------------------------------------------------------------------------------------------
-     Inputs
-     -------------------------------------------------------------------------------------------
-     -------------------------------------------------------------------------------------------
-     -------------------------------------------------------------------------------------------
-  */
-  
+{  
    // Parse command line options.
-   // const char *mesh_file = "meshes/test_off_center.msh";
-   // const char *mesh_file = "meshes/square.msh";
+
    const char *mesh_file = "meshes/iter_gen.msh";
    const char *data_file = "separated_file.data";
    const char *initial_gf = "initial/interpolated.gf";
@@ -100,13 +83,13 @@ int main(int argc, char *argv[])
    double Ip = 1.5e+7;
    double mu = 1.0;
    double r0 = 1.0;
+
    // boundary of far-field
    double rho_gamma = 2.5;
    int do_manufactured_solution = 0;
+   
    // model
-   // 1: ff' defined from data
-   // 2: Taylor equilibrium
-   int model = 1;
+   int model = 1; // Model options: 1: ff' defined from fpol data, 2: Taylor state equilibrium, 3: ff' defined from ff' data
 
    int N_control = 10;
    int max_krylov_iter = 1000;
@@ -150,9 +133,10 @@ int main(int argc, char *argv[])
 
    double amr_frac_in = 0.01;
    double amr_frac_out = 0.3;
-   
+
 
    OptionsParser args(argc, argv);
+
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&initial_gf, "-igf", "--initial_gf", "initial grid function.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
@@ -211,6 +195,12 @@ int main(int argc, char *argv[])
    
    args.ParseCheck();
 
+   // TODO: is this code block necessary to incorporate in this file, or is it better moved to gs.cpp?
+   // When do_initial == 1, then the following occurs:
+   //     - The arguments do_initial == 1 and mesh_file = "meshes/iter_gen_initial.msh" are passed onto the gs executable.
+   //     - The mesh_file argument is used to create a new Mesh object named mesh around line 1495 in gs.cpp.
+   //     - When do_initial == 1 is passed to gs.cpp, the control problem (determining coil currents needed for a given equilibrium) is not solved.
+   //     - Also, when do_initial == 1 is passed to gs.cpp, an initial GridFunction and Mesh are saved.
    if (do_initial == 1) {
      cout << "solving for initial guess" << endl;
      mesh_file = "meshes/iter_gen_initial.msh";
@@ -229,6 +219,7 @@ int main(int argc, char *argv[])
    }
    
    else {
+     // Run Grad-Shafranov solver
      gs(mesh_file, initial_gf, data_file, order, d_refine,
         model,
         alpha, beta, gamma, mu,

@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <chrono>
 
-
 using namespace std;
 using namespace mfem;
 
@@ -1492,7 +1491,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
       -------------------------------------------------------------------------------------------
    */   
 
-   Mesh mesh(mesh_file);
+   Mesh mesh(mesh_file);  // Create a new Mesh object named mesh by reading in the mesh data from the filepath "mesh_file".
    
    // save options in model
    // alpha: multiplier in \bar{S}_{ff'} term
@@ -1527,21 +1526,26 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
    
    // Define the solution x as a finite element grid function in fespace. Set
    // the initial guess to zero, which also sets the boundary conditions.
-   GridFunction u(&fespace);
+   GridFunction u(&fespace);  // Create a finite element function u in finite element space fespace, with storage allocated for all its degrees of freedom
    
-   InitialCoefficient init_coeff = read_data_file(data_file);
-   if (do_manufactured_solution) {
+   InitialCoefficient init_coeff = read_data_file(data_file);  // data_file is the plasma data file--not sure what that is, but I assume it defines certain plasma parameters?
+
+   if (do_manufactured_solution) {  // I think that do_manufactured_solution == 1 is used for comparing the GS solver against a known analytical solution
+
+    // Project exact solution onto your finite element function u and save
      u.ProjectCoefficient(exact_coefficient);
      u.Save("gf/exact.gf");
-   } else {
-     if (!do_initial) {
-       // ifstream ifs("initial/interpolated.gf");
+   }
+   
+   else {
+     if (!do_initial) {  // Load initial GridFunction from file
+
        ifstream ifs(initial_gf);
        GridFunction lgf(&mesh, ifs);
        lgf.SetSpace(&fespace);
        u = lgf;
      }
-     u.Save("gf/initial.gf");
+     u.Save("gf/initial.gf");  // Save whatever the current intial GridFunction is (either loaded or otherwise)
    }
 
 
@@ -1554,7 +1558,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
    }
    mesh.Save("meshes/mesh.mesh");
    if (do_initial) {
-     mesh.Save("meshes/initial.mesh");
+     mesh.Save("meshes/initial.mesh");  // Also save the mesh to initial.mesh if do_initial == 1
    }
 
    GridFunction x(&fespace);
@@ -1587,7 +1591,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
    if (do_initial) {
      char name_gf_out[60];
      char name_mesh_out[60];
-     sprintf(name_gf_out, "initial/initial_guess_g%d.gf", d_refine);
+     sprintf(name_gf_out, "initial/initial_guess_g%d.gf", d_refine);  // sprintf is like .format() in Python for strings--you can also use std::format with C++20 or newer
      sprintf(name_mesh_out, "initial/initial_mesh_g%d.mesh", d_refine);
 
      x.Save(name_gf_out);
