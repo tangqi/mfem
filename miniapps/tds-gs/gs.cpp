@@ -1,5 +1,8 @@
+////////////////////////////////////////////////////////////////////////////////
+
 #include "mfem.hpp"
 #include "gs.hpp"
+#include "gs_test_utils.hpp"
 #include "boundary.hpp"
 #include "amr.hpp"
 #include "field.hpp"
@@ -11,241 +14,13 @@ using namespace std;
 using namespace mfem;
 
 
-// TODO: Go through the first ~250 lines of code. Understand what the helper functions PrintMatlab and test_grad are doing.
-//       The test_grad function should be renamed to TestGrad, in line with C++ convention for function naming (PascalCase).
-//       Consider moving these functions to another file. Call it helper.cpp/.hpp or something similar. In addition, consider
-//       breaking test_grad into multiple smaller functions, perhaps testing each Jacobian/Hessian separately.
-
-void PrintMatlab(SparseMatrix *Mat, SparseMatrix *M1, SparseMatrix *M2);  // TODO: is this really necessary to have?
-
-void Print_(const Vector &y) {
-  // Print the entries of an MFEM Vector y to 14 digits of precision.
-  // Intended for debugging purposes.
-  for (int i = 0; i < y.Size(); ++i) {
-    printf("%d %.14e\n", i+1, y[i]);
-  }
-}
-
-void test_grad(SysOperator *op, GridFunction x, FiniteElementSpace fespace) {
-  // Perform finite-difference check against the analytic derivatives
-  // implemented in the solver. Verify that (d C) / (d \alpha), (d B) / (d \alpha),
-  // (d C) / (d y), and (d B) / (d y) all match their finite-difference approximations.
-  // Intended for debugging purposes.
-
-  LinearForm y1(&fespace);
-  LinearForm y2(&fespace);
-  LinearForm fy(&fespace);
-
-  int size = y1.Size();
-
-  Vector *currents = op->get_uv();
-  GridFunction res_1(&fespace);
-  GridFunction res_2(&fespace);
-  GridFunction res_3(&fespace);
-  GridFunction res_4(&fespace);
-  GridFunction Cy(&fespace);
-  GridFunction Ba(&fespace);
-  SparseMatrix By;
-  double plasma_current_1, plasma_current_2;
-  double Ca;
-
-  // *********************************
-  // Test Ca and Ba
-  double alpha = 1.0;
-  double eps = 1e-4;
-
-  alpha += eps;
-  op->NonlinearEquationRes(x, currents, alpha);
-  plasma_current_1 = op->get_plasma_current();
-  res_1 = op->get_res();
-
-  alpha -= eps;
-  op->NonlinearEquationRes(x, currents, alpha);
-  plasma_current_2 = op->get_plasma_current();
-  Ca = op->get_Ca();
-
-  printf("Ca: %e\n", Ca);
-  
-  Ba = op->get_Ba();
-  res_2 = op->get_res();
-
-  double Ca_FD = (plasma_current_1 - plasma_current_2) / eps;
-
-  printf("\ndC/dalpha\n");
-  printf("Ca: code=%e, FD=%e, Diff=%e\n", Ca, Ca_FD, Ca-Ca_FD);
-
-  GridFunction Ba_FD(&fespace);
-  add(1.0 / eps, res_1, -1.0 / eps, res_2, Ba_FD);
-  printf("\ndB/dalpha\n");
-  for (int i = 0; i < size; ++i) {
-    if ((Ba_FD[i] != 0) || (Ba[i] != 0)) {
-      printf("%d: code=%e, FD=%e, Diff=%e\n", i, Ba[i], Ba_FD[i], Ba[i]-Ba_FD[i]);
-    }
-  }
-
-  // *********************************
-  // Test Cy and By, ind_x
-  int ind_x = op->get_ind_x();
-  int ind_ma = op->get_ind_ma();
-
-  int ind = ind_x;
-  while (true) {
-    x[ind] += eps;
-    op->NonlinearEquationRes(x, currents, alpha);
-    plasma_current_1 = op->get_plasma_current();
-    res_3 = op->get_res();
-
-    x[ind] -= eps;
-    op->NonlinearEquationRes(x, currents, alpha);
-    plasma_current_2 = op->get_plasma_current();
-    Cy = op->get_Cy();
-    By = op->get_By();
-    res_4 = op->get_res();
-
-    double Cy_FD = (plasma_current_1 - plasma_current_2) / eps;
-  
-    printf("\ndC/dy\n");
-    printf("Cy: code=%e, FD=%e, Diff=%e\n", Cy[ind], Cy_FD, Cy[ind]-Cy_FD);
-
-    printf("\ndB/dy\n");
-    GridFunction By_FD(&fespace);
-    add(1.0 / eps, res_3, -1.0 / eps, res_4, By_FD);
-
-    int *I = By.GetI();
-    int *J = By.GetJ();
-    double *A = By.GetData();
-    int height = By.Height();
-    for (int i = 0; i < height; ++i) {
-      for (int j = I[i]; j < I[i+1]; ++j) {
-        if ((J[j] == ind)) {
-          printf("%d %d: code=%e, FD=%e, Diff=%e\n", i, J[j], A[j], By_FD[i], A[j]-By_FD[i]);
-        }
-      }
-    }
-
-    if (ind == ind_x) {
-      ind = ind_ma;
-    } else {
-      break;
-    }
-
-  }
-
-  if (true) {
-    return;
-  }
-  
-  // *********************************
-  // Test grad_obj and hess_obj
-  double obj1, obj2, grad_obj_FD;
-
-  op->set_i_option(2);
-  
-  GridFunction grad_obj(&fespace);
-  GridFunction grad_obj_1(&fespace);
-  GridFunction grad_obj_2(&fespace);
-  GridFunction grad_obj_3(&fespace);
-  GridFunction grad_obj_4(&fespace);
-  grad_obj = op->compute_grad_obj(x);
-  printf("\ndf/dy\n");
-  for (int i = 0; i < size; ++i) {
-    x[i] += eps;
-    obj1 = op->compute_obj(x);
-    x[i] -= eps;
-    obj2 = op->compute_obj(x);
-
-    grad_obj_FD = (obj1 - obj2) / eps;
-    if ((grad_obj[i] != 0) || (grad_obj_FD != 0)) {
-      printf("%d: code=%e, FD=%e, Diff=%e\n", i, grad_obj[i], grad_obj_FD, grad_obj[i]-grad_obj_FD);
-    }
-  }
-
-  x[ind_x] += eps;
-  grad_obj_1 = op->compute_grad_obj(x);
-
-  x[ind_x] -= eps;
-  grad_obj_2 = op->compute_grad_obj(x);
-
-  x[ind_ma] += eps;
-  grad_obj_3 = op->compute_grad_obj(x);
-
-  x[ind_ma] -= eps;
-  grad_obj_4 = op->compute_grad_obj(x);
-
-  GridFunction K_FD_x(&fespace);
-  GridFunction K_FD_ma(&fespace);
-  add(1.0 / eps, grad_obj_1, -1.0 / eps, grad_obj_2, K_FD_x);
-  add(1.0 / eps, grad_obj_3, -1.0 / eps, grad_obj_4, K_FD_ma);
-  
-  SparseMatrix * K = op->compute_hess_obj(x);
-
-  // printf("-----\n");
-  // K_FD_x.Print();
-  printf("ind_x =%d\n", ind_x);
-  printf("ind_ma=%d\n", ind_ma);
-  
-  printf("\nd2f/dy2\n");
-  int *I_K = K->GetI();
-  int *J_K = K->GetJ();
-  double *A_K = K->GetData();
-  int height_K = K->Height();
-  double TOL = 1e-15;
-  for (int i = 0; i < height_K; ++i) {
-    for (int j = I_K[i]; j < I_K[i+1]; ++j) {
-      if ((J_K[j] == ind_x) && ((abs(A_K[j]) > TOL) || (abs(K_FD_x[i]) > TOL))) {
-        printf("%d %d: code=%e, FD=%e, Diff=%e\n", i, J_K[j], A_K[j], K_FD_x[i], A_K[j]-K_FD_x[i]);
-      }
-      if ((J_K[j] == ind_ma) && ((abs(A_K[j]) > TOL) || (abs(K_FD_ma[i]) > TOL))) {
-        printf("%d %d: code=%e, FD=%e, Diff=%e\n", i, J_K[j], A_K[j], K_FD_ma[i], A_K[j]-K_FD_ma[i]);
-      }
-    }
-  }
-}
-
-
-void PrintMatlab(SparseMatrix *Mat, SparseMatrix *M1, SparseMatrix *M2) {
-  // Mat: diff
-  // M1: true
-  // M2: FD
-  int *I = Mat->GetI();
-  int *J = Mat->GetJ();
-  double *A = Mat->GetData();
-  int height = Mat->Height();
-
-  double tol = 1e-5;
-  
-  int i, j;
-  for (i = 0; i < height; ++i) {
-    for (j = I[i]; j < I[i+1]; ++j) {
-      if (abs(A[j]) > tol) {
-        double m1 = 0.0;
-        double m2 = 0.0;
-        for (int k = M1->GetI()[i]; k < M1->GetI()[i+1]; ++k) {
-          // printf("%d, %d, %d \n", k, M1->GetJ()[k], J[j]);
-          if (M1->GetJ()[k] == J[j]) {
-            m1 = M1->GetData()[k];
-            break;
-          }
-        }
-        for (int k = M2->GetI()[i]; k < M2->GetI()[i+1]; ++k) {
-          if (M2->GetJ()[k] == J[j]) {
-            m2 = M2->GetData()[k];
-            break;
-          }
-        }
-        
-        printf("i=%d, j=%d, J=%10.3e, FD=%10.3e, diff=%10.3e ", i, J[j], m1, m2, A[j] / max(m1, m2));
-        if (abs(A[j] / max(m1, m2)) > 1e-4) {
-          printf("***");
-        }
-        printf("\n");
-      }
-    }
-  }
-}
-
-
-void PrintMatlab(FILE *fp, SparseMatrix *Mat) {
+void WriteSparseMatrixToFile(FILE *fp, SparseMatrix *Mat) {
+  /**
+    * Write matrix to a text file in a MATLAB-readable CSR format.
+    *
+    * @param[in] fp   The output filepath.
+    * @param[in] Mat  The matrix to be written.
+  */
   int *I = Mat->GetI();
   int *J = Mat->GetJ();
   double *A = Mat->GetData();
@@ -776,16 +551,17 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         BlockSystem.SetBlock(1, ind_x, BTMat);
         BlockSystem.SetBlock(1, ind_p, CMat);
 
+        // Write contents of matrices to text files in CSR format using the WriteSparseMatrixToFile function
         FILE *fp_spy;
         char filename_spy[60];
         sprintf(filename_spy, "spys/spy_model%d_amr%d.txt", model->get_model_choice(), it_amr);
         fp_spy = fopen(filename_spy, "w");
         fprintf(fp_spy, "AMat\n");
-        PrintMatlab(fp_spy, AMat);
+        WriteSparseMatrixToFile(fp_spy, AMat);
         fprintf(fp_spy, "\nBMat\n");
-        PrintMatlab(fp_spy, BMat);
+        WriteSparseMatrixToFile(fp_spy, BMat);
         fprintf(fp_spy, "\nCMat\n");
-        PrintMatlab(fp_spy, CMat);
+        WriteSparseMatrixToFile(fp_spy, CMat);
 
         // Define rhs
         // rhs = [b1 - Cy b4 / Ca; b3 + mu F H^{-1} b_2 - Ba b5 / Ca]
@@ -1404,7 +1180,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       // SparseMatrix *Mat = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
 
       // cout << "By" << "i" << i << endl;
-      // Mat->PrintMatlab();
+      // Mat->WriteSparseMatrixToFile();
 
       Solver *inv_B;
       HypreParMatrix * B_Hypre = convert_to_hypre(&By);
