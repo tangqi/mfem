@@ -14,7 +14,7 @@
 #include "sys_operator.hpp"
 #include "boundary.hpp"
 #include "diffusion_term.hpp"
-#include<stdio.h>
+#include <stdio.h>
 
 using namespace std;
 using namespace mfem;

@@ -35,23 +35,55 @@ void WriteSparseMatrixToFile(FILE *fp, SparseMatrix *Mat) {
 }
 
 
-void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
-               Mesh & mesh, 
-               ExactCoefficient & exact_coefficient,
-               ExactForcingCoefficient & exact_forcing_coeff, LinearForm & coil_term,
-               SparseMatrix * F) {
+// TODO: for each of the inputs to DefineRHS, consider adding namespaces to make
+// clear where each input type comes from. Example:
+//
+// void DefineRHS(
+//     double & rho_gamma,
+//     physics::PlasmaModelBase & model,
+//     mfem::Mesh & mesh, 
+//     physics::ExactCoefficient & exact_coefficient,
+//     physics::ExactForcingCoefficient & exact_forcing_coeff,
+//     mfem::LinearForm & coil_term,
+//     mfem::SparseMatrix * F
+//   ) {
+//
+// This way it is clear where each object comes from (MFEM, user-defined, built-in C++ type, etc.)
+//
+// The PlasmaModelBase class is defined in plasma_model.cpp.
+// The ExactCoefficient and ExactForcingCoefficient classes are defined in exact.cpp.
+
+void DefineRHS(
+    PlasmaModelBase &model,
+    double &rho_gamma,
+    Mesh &mesh, 
+    ExactCoefficient &exact_coefficient,
+    ExactForcingCoefficient &exact_forcing_coeff,
+    LinearForm &coil_term,
+    SparseMatrix *F
+  ) {
+  /**
+  * Build the right-hand side of the Grad-Shafronov finite element system, representing
+  * the contributions from the external coil currents.
+  *
+  * @param[in] model                PlasmaModel object containing constants used in plasma.
+  * @param[in] rho_gamma            
+  * @param[in] mesh                 
+  * @param[in] exact_coefficient    
+  * @param[in] exact_forcing_coeff  
+  * @param[in] coil_term            
+  * @param[in] F                    
+  */
   /*
     8/24: This function creates the F matrix
 
     Inputs:
     model: PlasmaModel containing constants used in plasma
     attribs: unique element attributes used by the mesh
-    coil_current_values: current values for each mesh attribute
-    
+    coil_current_values: current values for each mesh attribute  
 
     Outputs:
     coil_term: Linear Form of RHS
-
    */
   FiniteElementSpace * fespace = coil_term.FESpace();
   int ndof = fespace->GetNDofs();
@@ -76,7 +108,6 @@ void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
     case 1100:
       break;
     default:
-      //
       Vector pw_vector(attribs.Max());
       pw_vector = 0.0;
       pw_vector(attrib-1) = 1.0;
@@ -130,15 +161,11 @@ void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
     // coil_term += b @ u_ex
     // if not a manufactured solution, we set u_ex = 0, and this term has no effect
     b.AddMult(u_ex, coil_term);
-
   }
-
-  
 }
 
 void DefineLHS(PlasmaModelBase & model, double rho_gamma, BilinearForm & diff_operator) {
    // Set up the bilinear form diff_operator corresponding to the diffusion integrator
-
 
   DiffusionIntegratorCoefficient diff_op_coeff(&model);
   diff_operator.AddDomainIntegrator(new DiffusionIntegrator(diff_op_coeff));
@@ -163,7 +190,6 @@ void DefineLHS(PlasmaModelBase & model, double rho_gamma, BilinearForm & diff_op
 
      FunctionCoefficient first_boundary_coeff(N_lambda);
      diff_operator.AddBoundaryIntegrator(new MassIntegrator(first_boundary_coeff));
-
      
      // BoundaryCoefficient first_boundary_coeff(rho_gamma, &model, 1);
      // diff_operator.AddBoundaryIntegrator(new MassIntegrator(first_boundary_coeff));
@@ -182,7 +208,6 @@ void DefineLHS(PlasmaModelBase & model, double rho_gamma, BilinearForm & diff_op
      AssembleDoubleBoundaryIntegrator(diff_operator, i, attr_ff_bdr);
      diff_operator.Finalize(); // is this needed?
    }
-   
 }
 
 
@@ -254,8 +279,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
     // solve the optimization problem of determining currents to fit desired plasma shape
     /*
       pv: Lagrange multiplier
-      lv: Lagrange multiplier
-      
+      lv: Lagrange multiplier      
      */
 
     FILE *fp;
@@ -410,7 +434,6 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         psi_x_vals.push_back(psi_x); 
         cpasma_vals.push_back(C / op.get_mu()); 
 
-
         // *** compute rhs vectors *** //
         // -b3 = eq_res = B(y^n) - F u^n
         eq_res = op.get_res();
@@ -486,7 +509,6 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         if (i == max_newton_iter) {
           break;
         }
-
 
         // *** compute CMat *** ///
         SparseMatrix *invH;
@@ -983,7 +1005,6 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         dlv = (b4 - (Ba * dx.GetBlock(ind_p))) / Ca;
         alpha += dalpha;
         lv += dlv;
-        
 
         // *** calculate residuals after solve *** //
         // first block row
@@ -1031,10 +1052,6 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         Bz_field.ProjectCoefficient(BzCoeff);
 
         visit_dc.Save();
-
-        //if (true) {
-        //return;
-        //}
       }
       
       if (it_amr >= max_levels) {
@@ -1071,8 +1088,6 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       b3.Update();
       
       printf("******* fespace.GetTrueVSize(): %d\n", fespace.GetTrueVSize());
-
-
     }
 
     auto t_end = std::chrono::high_resolution_clock::now();
@@ -1208,8 +1223,6 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       err.Save("gf/res.gf");
 
       visit_dc.Save();
-
-
     }
     op.Mult(x, out_vec);
     error = GetMaxError(out_vec);
@@ -1264,11 +1277,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
 
    /* 
       -------------------------------------------------------------------------------------------
-      -------------------------------------------------------------------------------------------
-      -------------------------------------------------------------------------------------------
       Process Inputs
-      -------------------------------------------------------------------------------------------
-      -------------------------------------------------------------------------------------------
       -------------------------------------------------------------------------------------------
    */   
 
@@ -1293,11 +1302,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
 
    /* 
       -------------------------------------------------------------------------------------------
-      -------------------------------------------------------------------------------------------
-      -------------------------------------------------------------------------------------------
       Solve
-      -------------------------------------------------------------------------------------------
-      -------------------------------------------------------------------------------------------
       -------------------------------------------------------------------------------------------
     */
 
@@ -1328,7 +1333,6 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
      }
      u.Save("gf/initial.gf");  // Save whatever the current intial GridFunction is (either loaded or otherwise)
    }
-
 
    // Read the mesh from the given mesh file, and refine "d_refine" times uniformly.
    for (int i = 0; i < d_refine; ++i) {
@@ -1383,10 +1387,8 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
    } else {
      char name_gf_out[60];
      sprintf(name_gf_out, "gf/final_model%d_pc%d_cyc%d_it%d.gf", model.get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
-     // x.Save("gf/final.gf");
      x.Save(name_gf_out);
-     // printf("Saved solution to final.gf\n");
-     // printf("Saved mesh to mesh.mesh\n");
+
      printf("glvis -m meshes/mesh_refine.mesh -g %s\n", name_gf_out);
 
      if(true){
@@ -1400,15 +1402,10 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
         paraview_dc.RegisterField("psi",&x);
         paraview_dc.Save();
      }
-
    }
    /* 
       -------------------------------------------------------------------------------------------
-      -------------------------------------------------------------------------------------------
-      -------------------------------------------------------------------------------------------
       Error
-      -------------------------------------------------------------------------------------------
-      -------------------------------------------------------------------------------------------
       -------------------------------------------------------------------------------------------
     */
 
@@ -1427,5 +1424,4 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
    } else {
      return 0.0;
    }
-  
 }

@@ -6,7 +6,7 @@
   *
   * This file provides some developer-side tools for verifying analytic derivatives
   * implemented in the Grad-Shafranov solver, as well as printing vectors and
-  * matrices. These functions are meant for internal debugging only.
+  * matrices. These functions are meant for internal debugging only. Currently not used.
 */
 
 #include "mfem.hpp"
