@@ -64,65 +64,64 @@ void DefineRHS(
   ) {
   /**
   * Build the right-hand side of the Grad-Shafronov finite element system, representing
-  * the contributions from the external coil currents.
+  * the contributions from the external coil currents. Modifies F vector in-place.
   *
   * @param[in] model                PlasmaModel object containing constants used in plasma.
-  * @param[in] rho_gamma            
-  * @param[in] mesh                 
-  * @param[in] exact_coefficient    
-  * @param[in] exact_forcing_coeff  
-  * @param[in] coil_term            
-  * @param[in] F                    
+  * @param[in] rho_gamma            Scalar parameter used in boundary coefficients.
+  * @param[in] mesh                 MFEM finite element mesh object.
+  * @param[in] exact_coefficient    Analytic solution for "manufactured solution" tests.
+  * @param[in] exact_forcing_coeff  Analytic right-hand side for "manufactured solution" tests.
+  * @param[in] coil_term            Right-hand side of GS finite element system.
+  * @param[in] F                    Coil geometry matrix.
   */
-  /*
-    8/24: This function creates the F matrix
 
-    Inputs:
-    model: PlasmaModel containing constants used in plasma
-    attribs: unique element attributes used by the mesh
-    coil_current_values: current values for each mesh attribute  
-
-    Outputs:
-    coil_term: Linear Form of RHS
-   */
-  FiniteElementSpace * fespace = coil_term.FESpace();
+  // Retrieve the finite element space and number of DOFs for the RHS term
+  FiniteElementSpace *fespace = coil_term.FESpace();
   int ndof = fespace->GetNDofs();
-  
-  int current_counter = 0;
-  GridFunction ones(fespace);
+
+  // Create a constant function of ones over the domain
+  GridFunction ones(fespace);  // TODO: should I pass fespace by reference (i.e. *fespace)?
   ones = 1.0;
 
-  // these are the unique element attributes used by the mesh
+  // Get the unique element attributes used by the mesh -- each attribute corresponds to a region
+  // in the domain that the element belongs to.
   Array<int> attribs(mesh.attributes);
-  // 832 is the long coil
+
+  int counter = 0;
   for (int i = 0; i < attribs.Size(); ++i) {
     int attrib = attribs[i];
+
+    // TODO: consider rewriting this switch block as if/else if/else statements
     switch(attrib) {
-    case attr_ext:
-    case attr_vv:
-      // exterior domain
-      break;
-    case attr_lim:
-      // limiter domain
-      break;
-    case 1100:
-      break;
-    default:
-      Vector pw_vector(attribs.Max());
-      pw_vector = 0.0;
-      pw_vector(attrib-1) = 1.0;
-      PWConstCoefficient pw_coeff(pw_vector);
-      LinearForm lf(fespace);
-      lf.AddDomainIntegrator(new DomainLFIntegrator(pw_coeff));
-      lf.Assemble();
-      double area = lf(ones);
-      for (int j = 0; j < ndof; ++j) {
-        if (lf[j] != 0) {
-          F->Set(j, current_counter, lf[j] / area);
-        }
-      }
-      
-      ++current_counter;
+      case attr_ext:
+        break;
+      case attr_vv:  // exterior domain
+        break;
+      case attr_lim:  // limiter domain
+        break;
+      case 1100:  // What does this correspond to?
+        break;
+      default:
+        
+        // Create a piecewise constant coefficient that is 1 on the current region (attrib) and 0 everywhere else
+        Vector pw_vector(attribs.Max());
+        pw_vector = 0.0;
+        pw_vector(attrib - 1) = 1.0;  // index starts from 1, so attrib - 1 gets us the correct attribute
+        PWConstCoefficient pw_coeff(pw_vector);
+
+        // Assemble the linear form
+        LinearForm lf(fespace);
+        lf.AddDomainIntegrator(new DomainLFIntegrator(pw_coeff));
+        lf.Assemble();
+
+        // Normalize and insert into F
+        double area = lf(ones);
+        for (int j = 0; j < ndof; ++j) {
+          if (lf[j] != 0) {
+            F->Set(j, counter, lf[j] / area);
+          }
+        } 
+        ++counter;
     }
   }
   F->Finalize();
@@ -172,7 +171,7 @@ void DefineLHS(PlasmaModelBase & model, double rho_gamma, BilinearForm & diff_op
 
    Vector pw_vector_(2000);
    pw_vector_ = 0.0;
-   pw_vector_(1100-1) = 1.0;
+   pw_vector_(1100 - 1) = 1.0;
    PWConstCoefficient pw_coeff(pw_vector_);
    // for debugging: solve I u = g
    if (true) {
