@@ -168,50 +168,50 @@ void DefineRHS(
   b.AddMult(u_ex, coil_term);
 }
 
-void DefineLHS(PlasmaModelBase & model, double rho_gamma, BilinearForm & diff_operator) {
-   // Set up the bilinear form diff_operator corresponding to the diffusion integrator
 
+void DefineLHS(PlasmaModelBase &model, double rho_gamma, BilinearForm &diff_operator) {
+  /**
+  * Build the bilinear form of the Grad-Shafranov finite element system, containing
+  * contributions from the diffusion operator, plasma terms, and far-field boundary
+  * terms. Modifies diff_operator in-place.
+  *
+  * @param[in] model          PlasmaModel object containing constants used in plasma.
+  * @param[in] rho_gamma      Scalar parameter used in boundary coefficients.
+  * @param[in] diff_operator  Left-hand side of GS finite element system.
+  */
+
+  // Diffusion operator contribution
   DiffusionIntegratorCoefficient diff_op_coeff(&model);
   diff_operator.AddDomainIntegrator(new DiffusionIntegrator(diff_op_coeff));
 
-   Vector pw_vector_(2000);
-   pw_vector_ = 0.0;
-   pw_vector_(1100 - 1) = 1.0;
-   PWConstCoefficient pw_coeff(pw_vector_);
-   // for debugging: solve I u = g
-   if (true) {
-     ConstantCoefficient one(1.0);
-     diff_operator.AddDomainIntegrator(new MassIntegrator(pw_coeff));
-   }
-   
-   // boundary integral
-   double mu = model.get_mu();
-   if (true) {
-     auto N_lambda = [&rho_gamma, &mu](const Vector &x) -> double
-     {
-       return N_coefficient(x, rho_gamma, mu);  // N_coefficient comes from boundary.cpp
-     };
+  // Plasma terms contribution
+  Vector pw_vector_(2000);
+  pw_vector_ = 0.0;
+  pw_vector_(1100 - 1) = 1.0;  // What does 1100 correspond to? A particular coil?
+  PWConstCoefficient pw_coeff(pw_vector_);  // TODO: what is the namespace for PWConstCoefficient?
+  ConstantCoefficient one(1.0);
+  diff_operator.AddDomainIntegrator(new MassIntegrator(pw_coeff));
 
-     FunctionCoefficient first_boundary_coeff(N_lambda);
-     diff_operator.AddBoundaryIntegrator(new MassIntegrator(first_boundary_coeff));
-     
-     // BoundaryCoefficient first_boundary_coeff(rho_gamma, &model, 1);
-     // diff_operator.AddBoundaryIntegrator(new MassIntegrator(first_boundary_coeff));
-     // https://en.cppreference.com/w/cpp/experimental/special_functions
-   }
+  // magnetic permittivity
+  double mu = model.get_mu();
 
-   // assemble diff_operator
-   diff_operator.Assemble();
+  // N(x): Green's function for far-field boundary
+  auto N_lambda = [&rho_gamma, &mu](const Vector &x) -> double {
+    return N_coefficient(x, rho_gamma, mu);  // N_coefficient comes from boundary.cpp
+  };
 
-   if (true) {
-     auto M_lambda = [&mu](const Vector &x, const Vector &y) -> double
-     {
-       return M_coefficient(x, y, mu);  // M_coefficient comes from boundary.cpp
-     };
-     DoubleBoundaryBFIntegrator i(M_lambda);
-     AssembleDoubleBoundaryIntegrator(diff_operator, i, attr_ff_bdr);
-     diff_operator.Finalize(); // is this needed?
-   }
+  // M(x, y): Green's function for far-field boundary
+  auto M_lambda = [&mu](const Vector &x, const Vector &y) -> double {
+    return M_coefficient(x, y, mu);  // M_coefficient comes from boundary.cpp
+  };
+
+  // Far-field boundary contribution
+  FunctionCoefficient first_boundary_coeff(N_lambda);
+  diff_operator.AddBoundaryIntegrator(new MassIntegrator(first_boundary_coeff));
+  diff_operator.Assemble();  // TODO: compared to DefineRHS, this line and the following line are switched. How should this be fixed?
+  DoubleBoundaryBFIntegrator i(M_lambda);
+  AssembleDoubleBoundaryIntegrator(diff_operator, i, attr_ff_bdr);
+  diff_operator.Finalize(); // is this needed?
 }
 
 
