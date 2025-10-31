@@ -52,6 +52,12 @@ void WriteSparseMatrixToFile(FILE *fp, SparseMatrix *Mat) {
 //
 // The PlasmaModelBase class is defined in plasma_model.cpp.
 // The ExactCoefficient and ExactForcingCoefficient classes are defined in exact.cpp.
+//
+// Replace the switch block with if/else if/else statements, to make the logic more clear.
+//
+// Consider moving the lambda functions to boundary.cpp.
+//
+// Consider removing manufactured solution components.
 
 void DefineRHS(
     PlasmaModelBase &model,
@@ -64,7 +70,8 @@ void DefineRHS(
   ) {
   /**
   * Build the right-hand side of the Grad-Shafronov finite element system, representing
-  * the contributions from the external coil currents. Modifies F vector in-place.
+  * the contributions from the external coil currents. Modifies F matrix and coil_term
+  * vector in-place.
   *
   * @param[in] model                PlasmaModel object containing constants used in plasma.
   * @param[in] rho_gamma            Scalar parameter used in boundary coefficients.
@@ -80,7 +87,7 @@ void DefineRHS(
   int ndof = fespace->GetNDofs();
 
   // Create a constant function of ones over the domain
-  GridFunction ones(fespace);  // TODO: should I pass fespace by reference (i.e. *fespace)?
+  GridFunction ones(fespace);
   ones = 1.0;
 
   // Get the unique element attributes used by the mesh -- each attribute corresponds to a region
@@ -92,6 +99,7 @@ void DefineRHS(
     int attrib = attribs[i];
 
     // TODO: consider rewriting this switch block as if/else if/else statements
+    // If cases are true, skip. Otherwise, run default code block
     switch(attrib) {
       case attr_ext:
         break;
@@ -107,7 +115,7 @@ void DefineRHS(
         Vector pw_vector(attribs.Max());
         pw_vector = 0.0;
         pw_vector(attrib - 1) = 1.0;  // index starts from 1, so attrib - 1 gets us the correct attribute
-        PWConstCoefficient pw_coeff(pw_vector);
+        PWConstCoefficient pw_coeff(pw_vector);  // TODO: what is the namespace for PWConstCoefficient?
 
         // Assemble the linear form
         LinearForm lf(fespace);
@@ -126,41 +134,38 @@ void DefineRHS(
   }
   F->Finalize();
 
-  // manufactured solution forcing
-  // has no effect when manufactured solution is turned off
-  if (true) {
-    coil_term.AddDomainIntegrator(new DomainLFIntegrator(exact_forcing_coeff));
-  }
-
+  // Manufactured (analytical) solution forcing -- has no effect when manufactured solution is turned off
+  // Assemble the RHS term
+  coil_term.AddDomainIntegrator(new DomainLFIntegrator(exact_forcing_coeff));
   coil_term.Assemble();
 
-  // boundary terms
-  if (true) {
-    BilinearForm b(fespace);
-    double mu = model.get_mu();
-    
-    auto N_lambda = [&rho_gamma, &mu](const Vector &x) -> double
-    {
-      return N_coefficient(x, rho_gamma, mu);
-    };
-    FunctionCoefficient first_boundary_coeff(N_lambda);
-    b.AddBoundaryIntegrator(new MassIntegrator(first_boundary_coeff));
-    auto M_lambda = [&mu](const Vector &x, const Vector &y) -> double
-    {
-      return M_coefficient(x, y, mu);
-    };
-    DoubleBoundaryBFIntegrator i(M_lambda);
-    b.Assemble();
-    AssembleDoubleBoundaryIntegrator(b, i, attr_ff_bdr);
-    b.Finalize(); // is this needed?
+  // magnetic permittivity
+  double mu = model.get_mu();
 
-    GridFunction u_ex(fespace);
-    u_ex.ProjectCoefficient(exact_coefficient);
+  // N(x): Green's function for far-field boundary
+  auto N_lambda = [&rho_gamma, &mu](const Vector &x) -> double {
+    return N_coefficient(x, rho_gamma, mu);  // N_coefficient comes from boundary.cpp
+  };
 
-    // coil_term += b @ u_ex
-    // if not a manufactured solution, we set u_ex = 0, and this term has no effect
-    b.AddMult(u_ex, coil_term);
-  }
+  // M(x, y): Green's function for far-field boundary
+  auto M_lambda = [&mu](const Vector &x, const Vector &y) -> double {
+    return M_coefficient(x, y, mu);  // M_coefficient comes from boundary.cpp
+  };
+
+  // Incorporate far-field boundary
+  BilinearForm b(fespace);
+  FunctionCoefficient first_boundary_coeff(N_lambda);
+  b.AddBoundaryIntegrator(new MassIntegrator(first_boundary_coeff));
+  DoubleBoundaryBFIntegrator i(M_lambda);
+  b.Assemble();
+  AssembleDoubleBoundaryIntegrator(b, i, attr_ff_bdr);
+  b.Finalize(); // is this needed?
+
+  // Project manufactured (analytical/exact) solution and add: coil_term += b * u_ex
+  // If manufactured solution is turned off, then u_ex is set to 0, and this term has no effect
+  GridFunction u_ex(fespace);
+  u_ex.ProjectCoefficient(exact_coefficient);
+  b.AddMult(u_ex, coil_term);
 }
 
 void DefineLHS(PlasmaModelBase & model, double rho_gamma, BilinearForm & diff_operator) {
@@ -184,7 +189,7 @@ void DefineLHS(PlasmaModelBase & model, double rho_gamma, BilinearForm & diff_op
    if (true) {
      auto N_lambda = [&rho_gamma, &mu](const Vector &x) -> double
      {
-       return N_coefficient(x, rho_gamma, mu);
+       return N_coefficient(x, rho_gamma, mu);  // N_coefficient comes from boundary.cpp
      };
 
      FunctionCoefficient first_boundary_coeff(N_lambda);
@@ -201,7 +206,7 @@ void DefineLHS(PlasmaModelBase & model, double rho_gamma, BilinearForm & diff_op
    if (true) {
      auto M_lambda = [&mu](const Vector &x, const Vector &y) -> double
      {
-       return M_coefficient(x, y, mu);
+       return M_coefficient(x, y, mu);  // M_coefficient comes from boundary.cpp
      };
      DoubleBoundaryBFIntegrator i(M_lambda);
      AssembleDoubleBoundaryIntegrator(diff_operator, i, attr_ff_bdr);
