@@ -1,5 +1,14 @@
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: General List:
+// 1) Review code and make any necessary style changes (function naming, formatting)
+// 2) Add function descriptions and comment liberally
+// 3) Namespaces: identify where classes come from (are they MFEM or user-defined? If
+//    user-defined, where are they defined?)
+// 4) Consider removing the code sections related to do_control == 0 and manufactured
+//    solutions.
+// 5) Modularize code: move sections into other files to enhance readability.
+
 #include "mfem.hpp"
 #include "gs.hpp"
 #include "gs_test_utils.hpp"
@@ -54,8 +63,6 @@ void WriteSparseMatrixToFile(FILE *fp, SparseMatrix *Mat) {
 // The ExactCoefficient and ExactForcingCoefficient classes are defined in exact.cpp.
 //
 // Replace the switch block with if/else if/else statements, to make the logic more clear.
-//
-// Consider moving the lambda functions to boundary.cpp.
 //
 // Consider removing manufactured solution components.
 
@@ -282,14 +289,14 @@ void Solve(
   double amr_frac_out
 ) {
 
-  // initialize MPI and Hypre so we can use AMG
+  // Initialize MPI and Hypre so we can use AMG
   Mpi::Init();
   Hypre::Init();
 
-  // initialize containers for magnetic field
+  // Initialize containers for magnetic flux psi, magnetic field B, and toroidal magnetic field function f
   GridFunction psi_r(&fespace);
   GridFunction psi_z(&fespace);
-  FieldCoefficient BrCoeff(&x, &psi_r, &psi_z, model, fespace, 0);
+  FieldCoefficient BrCoeff(&x, &psi_r, &psi_z, model, fespace, 0);  // FieldCoefficient is defined in field.cpp
   FieldCoefficient BpCoeff(&x, &psi_r, &psi_z, model, fespace, 1);
   FieldCoefficient BzCoeff(&x, &psi_r, &psi_z, model, fespace, 2);
   GridFunction Br_field(&fespace);
@@ -299,15 +306,18 @@ void Solve(
 
   // Save data in the VisIt format
   char outname[60];
-  sprintf(outname, "out/gs_model%d_pc%d_cyc%d_it%d", model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);  
+  sprintf(outname, "out/gs_model%d_pc%d_cyc%d_it%d", model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
   VisItDataCollection visit_dc(outname, fespace.GetMesh());
   visit_dc.RegisterField("psi", &x);
   visit_dc.RegisterField("Br", &Br_field);
   visit_dc.RegisterField("Bp", &Bp_field);
   visit_dc.RegisterField("Bz", &Bz_field);
 
-  double psi_x;
-  double f_x;
+  // NOTE: typically you finalize saving the data to the VisIt format by visit_dc.save();.
+  // This line is later in the code, between lines 1000-1200.
+
+  double psi_x;  // Psi at X-point
+  double f_x;  // Constant set by the vacuum toroidal field
 
   if (do_control) {
     // solve the optimization problem of determining currents to fit desired plasma shape
@@ -1138,10 +1148,11 @@ void Solve(
       << setw(16) << psi_ma_vals.back() << "\n"
       << setw(16) << psi_x_vals.back() << "\n"
       << setw(16) << cpasma_vals.back() << "\n";
-      file.close();
-
-     
-  } else {
+      file.close();    
+  } 
+  
+  // do_control == 0
+  else {
     // for given currents, solve the GS equations
 
     GridFunction dx(&fespace);
