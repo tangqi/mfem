@@ -78,8 +78,8 @@ void DefineRHS(
   * @param[in] mesh                 MFEM finite element mesh object.
   * @param[in] exact_coefficient    Analytic solution for "manufactured solution" tests.
   * @param[in] exact_forcing_coeff  Analytic right-hand side for "manufactured solution" tests.
-  * @param[in] coil_term            Right-hand side of GS finite element system.
-  * @param[in] F                    Coil geometry matrix.
+  * @param[in,out] coil_term        Right-hand side of GS finite element system.
+  * @param[in,out] F                Coil geometry matrix.
   */
 
   // Retrieve the finite element space and number of DOFs for the RHS term
@@ -175,9 +175,9 @@ void DefineLHS(PlasmaModelBase &model, double rho_gamma, BilinearForm &diff_oper
   * contributions from the diffusion operator, plasma terms, and far-field boundary
   * terms. Modifies diff_operator in-place.
   *
-  * @param[in] model          PlasmaModel object containing constants used in plasma.
-  * @param[in] rho_gamma      Scalar parameter used in boundary coefficients.
-  * @param[in] diff_operator  Left-hand side of GS finite element system.
+  * @param[in] model              PlasmaModel object containing constants used in plasma.
+  * @param[in] rho_gamma          Scalar parameter used in boundary coefficients.
+  * @param[in,out] diff_operator  Left-hand side of GS finite element system.
   */
 
   // Diffusion operator contribution
@@ -215,42 +215,72 @@ void DefineLHS(PlasmaModelBase &model, double rho_gamma, BilinearForm &diff_oper
 }
 
 
-HypreParMatrix * convert_to_hypre(SparseMatrix *P) {
-
-  // Define the partition
+HypreParMatrix *ConvertToHypre(SparseMatrix *P) {
+  /**
+  * Convert an MFEM sparse matrix into a Hypre-compatible parallel matrix.
+  *
+  * @param[in] P  Pointer to the MFEM SpareMatrix object to be converted.
+  *
+  * @return  Pointer to a HypreParMatrix object that references the data of P.
+  */
   HYPRE_BigInt col_starts[2], row_starts[2];
   row_starts[0] = 0;
   row_starts[1] = P->Height();
   col_starts[0] = 0;
   col_starts[1] = P->Height();
 
-  return new HypreParMatrix(MPI_COMM_WORLD, P->Height(), (HYPRE_BigInt) P->Height(), (HYPRE_BigInt) P->Width(),
-                            P->GetI(), P->GetJ(), P->GetData(),
-                            row_starts, col_starts); 
-
+  return new HypreParMatrix(
+    MPI_COMM_WORLD,
+    P->Height(),
+    (HYPRE_BigInt) P->Height(),
+    (HYPRE_BigInt) P->Width(),
+    P->GetI(),
+    P->GetJ(),
+    P->GetData(),
+    row_starts,
+    col_starts
+  ); 
 }
 
 
-void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & x, int & kdim,
-           int & max_newton_iter, int & max_krylov_iter,
-           double & newton_tol, double & krylov_tol, 
-           double & Ip, int N_control, int do_control,
-           int add_alpha, int obj_option, double & obj_weight,
-           double & rho_gamma,
-           Mesh * mesh,
-           ExactForcingCoefficient * exact_forcing_coeff,
-           ExactCoefficient * exact_coefficient,
-           InitialCoefficient * init_coeff,
-           bool include_plasma,
-           double & weight_coils,
-           double & weight_solenoids,
-           Vector * uv,
-           double & alpha,
-           int & PC_option, int & max_levels, int & max_dofs, double & light_tol,
-           double & alpha_in, double & gamma_in,
-           int amg_cycle_type, int amg_num_sweeps_a, int amg_num_sweeps_b, int amg_max_iter,
-           double amr_frac_in, double amr_frac_out) {
-
+void Solve(
+  FiniteElementSpace &fespace,
+  PlasmaModelBase *model,
+  GridFunction &x,
+  int &kdim,
+  int &max_newton_iter,
+  int &max_krylov_iter,
+  double &newton_tol,
+  double &krylov_tol, 
+  double &Ip,
+  int N_control,
+  int do_control,
+  int add_alpha,
+  int obj_option,
+  double &obj_weight,
+  double &rho_gamma,
+  Mesh *mesh,
+  ExactForcingCoefficient *exact_forcing_coeff,
+  ExactCoefficient *exact_coefficient,
+  InitialCoefficient *init_coeff,
+  bool include_plasma,
+  double &weight_coils,
+  double &weight_solenoids,
+  Vector *uv,
+  double &alpha,
+  int &PC_option,
+  int &max_levels,
+  int &max_dofs,
+  double &light_tol,
+  double &alpha_in,
+  double &gamma_in,
+  int amg_cycle_type,
+  int amg_num_sweeps_a,
+  int amg_num_sweeps_b,
+  int amg_max_iter,
+  double amr_frac_in,
+  double amr_frac_out
+) {
 
   // initialize MPI and Hypre so we can use AMG
   Mpi::Init();
@@ -621,10 +651,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
           Solver *inv_BT, *inv_B;
 
-          // HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
-          // HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
-          HypreParMatrix * B_Hypre = convert_to_hypre(ScaleByT);
-          HypreParMatrix * BT_Hypre = convert_to_hypre(ScaleBy);
+          // HypreParMatrix * B_Hypre = ConvertToHypre(BMat);
+          // HypreParMatrix * BT_Hypre = ConvertToHypre(BTMat);
+          HypreParMatrix * B_Hypre = ConvertToHypre(ScaleByT);
+          HypreParMatrix * BT_Hypre = ConvertToHypre(ScaleBy);
 
           HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
@@ -682,8 +712,8 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
           Solver *inv_SC, *inv_BT;
 
-          HypreParMatrix * SC_Hypre = convert_to_hypre(SC);
-          HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
+          HypreParMatrix * SC_Hypre = ConvertToHypre(SC);
+          HypreParMatrix * BT_Hypre = ConvertToHypre(BTMat);
 
           HypreBoomerAMG *SC_AMG = new HypreBoomerAMG(*SC_Hypre);
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
@@ -715,10 +745,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
             Non Symmetric System, AMG on full block system
           */
           Solver *inv_BlockMatrix;
-          HypreParMatrix * AMat_Hypre = convert_to_hypre(AMat);
-          HypreParMatrix * BMat_Hypre = convert_to_hypre(BMat);
-          HypreParMatrix * BTMat_Hypre = convert_to_hypre(BTMat);
-          HypreParMatrix * CMat_Hypre = convert_to_hypre(CMat);
+          HypreParMatrix * AMat_Hypre = ConvertToHypre(AMat);
+          HypreParMatrix * BMat_Hypre = ConvertToHypre(BMat);
+          HypreParMatrix * BTMat_Hypre = ConvertToHypre(BTMat);
+          HypreParMatrix * CMat_Hypre = ConvertToHypre(CMat);
 
           Array2D<HypreParMatrix *> Block(2, 2);
           Block(0, 0) = BMat_Hypre;
@@ -744,9 +774,9 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
             Non Symmetric System, AMG on partial full block system
           */
           Solver *inv_BlockMatrix;
-          HypreParMatrix * AMat_Hypre = convert_to_hypre(AMat);
-          HypreParMatrix * BMat_Hypre = convert_to_hypre(BMat);
-          HypreParMatrix * BTMat_Hypre = convert_to_hypre(BTMat);
+          HypreParMatrix * AMat_Hypre = ConvertToHypre(AMat);
+          HypreParMatrix * BMat_Hypre = ConvertToHypre(BMat);
+          HypreParMatrix * BTMat_Hypre = ConvertToHypre(BTMat);
 
           Array2D<HypreParMatrix *> Block(2, 2);
           Block(0, 0) = BMat_Hypre;
@@ -774,8 +804,8 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
           Solver *inv_BT, *inv_B;
 
-          HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
-          HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
+          HypreParMatrix * B_Hypre = ConvertToHypre(BMat);
+          HypreParMatrix * BT_Hypre = ConvertToHypre(BTMat);
 
           HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
@@ -823,10 +853,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           // upper triangular AMG
           Solver *inv_BT, *inv_B;
 
-          // HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
-          // HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
-          HypreParMatrix * B_Hypre = convert_to_hypre(ScaleByT);
-          HypreParMatrix * BT_Hypre = convert_to_hypre(ScaleBy);
+          // HypreParMatrix * B_Hypre = ConvertToHypre(BMat);
+          // HypreParMatrix * BT_Hypre = ConvertToHypre(BTMat);
+          HypreParMatrix * B_Hypre = ConvertToHypre(ScaleByT);
+          HypreParMatrix * BT_Hypre = ConvertToHypre(ScaleBy);
 
           HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
@@ -855,10 +885,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
           Solver *inv_BT, *inv_B;
 
-          // HypreParMatrix * B_Hypre = convert_to_hypre(BMat);
-          // HypreParMatrix * BT_Hypre = convert_to_hypre(BTMat);
-          HypreParMatrix * B_Hypre = convert_to_hypre(ScaleByT);
-          HypreParMatrix * BT_Hypre = convert_to_hypre(ScaleBy);
+          // HypreParMatrix * B_Hypre = ConvertToHypre(BMat);
+          // HypreParMatrix * BT_Hypre = ConvertToHypre(BTMat);
+          HypreParMatrix * B_Hypre = ConvertToHypre(ScaleByT);
+          HypreParMatrix * BT_Hypre = ConvertToHypre(ScaleBy);
 
           HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
@@ -887,8 +917,8 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
           Solver *inv_BT, *inv_B;
 
-          HypreParMatrix * B_Hypre = convert_to_hypre(ScaleByT);
-          HypreParMatrix * BT_Hypre = convert_to_hypre(ScaleBy);
+          HypreParMatrix * B_Hypre = ConvertToHypre(ScaleByT);
+          HypreParMatrix * BT_Hypre = ConvertToHypre(ScaleBy);
 
           HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
@@ -943,7 +973,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
           //https://hypre.readthedocs.io/en/latest/api-sol-parcsr.html
           // set up AMG for Schur complement
-          HypreParMatrix * SC_Hypre = convert_to_hypre(SC_op);
+          HypreParMatrix * SC_Hypre = ConvertToHypre(SC_op);
           HypreBoomerAMG *SC_AMG = new HypreBoomerAMG(*SC_Hypre);
           SC_AMG->SetPrintLevel(0);
           SC_AMG->SetCycleType(1);
@@ -1202,7 +1232,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       // Mat->WriteSparseMatrixToFile();
 
       Solver *inv_B;
-      HypreParMatrix * B_Hypre = convert_to_hypre(&By);
+      HypreParMatrix * B_Hypre = ConvertToHypre(&By);
       HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
       B_AMG->SetPrintLevel(0);
       B_AMG->SetCycleType(1);
