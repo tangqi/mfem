@@ -1,33 +1,27 @@
 #include "mfem.hpp"
 #include "diffusion_term.hpp"
+
 using namespace mfem;
 using namespace std;
 
+// Evaluate the diffusion coefficient 1/r for the diffusion operator at a given quadrature point
+double DiffusionIntegratorCoefficient::Eval(
+  ElementTransformation &T,
+  const IntegrationPoint &ip
+) {
+  // Transform integration (quadrature point) from reference to physical coordinates (r, z)
+  double x_[3];
+  Vector x(x_, 3);
+  T.Transform(ip, x);
 
-double DiffusionIntegratorCoefficient::Eval(ElementTransformation & T,
-                                            const IntegrationPoint & ip)
-{
-   double x_[3];
-   Vector x(x_, 3);
-   T.Transform(ip, x);
-   double ri(x(0));
-   // if (true) {
-   //   return 1.0;
-   // }
+  // Extract r component
+  double ri(x(0));
 
-   // const int *v = T.mesh->GetElement(T.ElementNo)->GetVertices();
-   // double *r1 = T.mesh->GetVertex(v[0]);
-   // double *r2 = T.mesh->GetVertex(v[1]);
-   // double *r3 = T.mesh->GetVertex(v[2]);
-   // double min_r = min(min(r1[0], r2[0]), r3[0]);
-   // if (min_r < 0.1) {
-   //   return min_r / (ri * model->get_mu());
-   // }
-   if (T.Attribute != 1100) {
-     // return 1.0 / (ri * model->get_mu());
-     return 1.0 / (ri);
-   } else {
-     return 0.0;
-   }
-   // return 1.0 / (ri);
+  if (T.Attribute != 1100) {  // What is 1100? A coil or a region in the domain?
+    return 1.0 / (ri);
+  }
+
+  else {
+    return 0.0;
+  }
 }

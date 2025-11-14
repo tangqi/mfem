@@ -3,6 +3,7 @@
 
 #include "mfem.hpp"
 #include "plasma_model.hpp"
+
 using namespace mfem;
 using namespace std;
 
@@ -15,11 +16,11 @@ class DiffusionIntegratorCoefficient : public Coefficient
 {
 private:
   PlasmaModelBase *model;
+
 public:
   DiffusionIntegratorCoefficient(PlasmaModelBase *model_) : model(model_) { }
   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
   virtual ~DiffusionIntegratorCoefficient() { }
 };
-
 
 #endif

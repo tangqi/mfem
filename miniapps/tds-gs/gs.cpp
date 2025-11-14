@@ -196,7 +196,7 @@ void DefineLHS(PlasmaModelBase &model, double rho_gamma, BilinearForm &diff_oper
   pw_vector_ = 0.0;
   pw_vector_(1100 - 1) = 1.0;  // What does 1100 correspond to? A particular coil?
   PWConstCoefficient pw_coeff(pw_vector_);  // TODO: what is the namespace for PWConstCoefficient?
-  ConstantCoefficient one(1.0);
+  ConstantCoefficient one(1.0);  // TODO: is this needed?
   diff_operator.AddDomainIntegrator(new MassIntegrator(pw_coeff));
 
   // magnetic permittivity
@@ -322,7 +322,7 @@ void Solve(
   // Solve the optimization problem of determining currents to fit the desired plasma shape
   if (do_control) {
 
-    // Log plasma current, alpha, X-point, and magnetic axis values per iteration in out_iter/ directory
+    // Initialize log for plasma current, alpha, X-point, and magnetic axis values per iteration in out_iter/ directory
     FILE *fp;
     char filename[60];
     sprintf(filename, "out_iter/iters_model%d_pc%d_cyc%d_it%d.txt", model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
@@ -352,24 +352,28 @@ void Solve(
     b2 = 0.0;
     b3 = 0.0;
 
-    // define error estimator for AMR
-    ErrorEstimator *estimator{nullptr};
-    ConstantCoefficient one(1.0);
-    DiffusionIntegratorCoefficient diff_op_coeff(model);
+    // Define error estimator for AMR
+    // MFEM uses ErrorEstimator objects to determine where the mesh should be refined in AMR
+    // The "x" parameter is the current finite element solution
+    DiffusionIntegratorCoefficient diff_op_coeff(model);  // DiffusionIntegratorCoefficient is defined in diffusion_term.cpp
     DiffusionIntegrator *integ = new DiffusionIntegrator(diff_op_coeff);
-    estimator = new LSZienkiewiczZhuEstimator(*integ, x);
-    // estimator = new LSZienkiewiczZhuEstimator(*integ, f);
-    RegionalThresholdRefiner refiner(*estimator);
+    ErrorEstimator *estimator{nullptr};
+    estimator = new LSZienkiewiczZhuEstimator(*integ, x);  // Estimator: Zienkiewicz-Zhu error estimation
+    RegionalThresholdRefiner refiner(*estimator);  // MFEM mesh refiner that uses the estimator to decide which elements to refine
 
-    // track time
+    // Initialize time tracker
     auto t_init = std::chrono::high_resolution_clock::now();
 
     // *** AMR LOOP *** //
     vector<double> psi_ma_vals, psi_x_vals, cpasma_vals;
 
+    // TODO: there doesn't appear to be any limit to the max number of AMR loops in case the solver doesn't converge. If
+    // the solver never converges, then it will run forever. Perhaps it is a good idea to add a max AMR loop feature.
+
     for (int it_amr = 0; ; ++it_amr) {
       int total_gmres = 0;
       int cdofs = fespace.GetTrueVSize();
+
       printf("AMR iteration %d\n", it_amr);
       printf("Number of unknowns: %d\n", cdofs);
 
@@ -388,7 +392,7 @@ void Solve(
       // elliptic operator
       BilinearForm diff_operator(&fespace);
       // Hessian matrix for objective function
-      SparseMatrix * K_;
+      SparseMatrix *K_;
       // linear term in objective function
       Vector g_;
       // weights and locations of objective function coefficients
@@ -397,7 +401,7 @@ void Solve(
       alpha_coeffs = new vector<Vector>;
       J_inds = new vector<Array<int>>;
       // regularization matrix
-      SparseMatrix * H;
+      SparseMatrix *H;
       H = new SparseMatrix(num_currents, num_currents);
 
       // computations
@@ -1138,8 +1142,8 @@ void Solve(
       printf("******* fespace.GetTrueVSize(): %d\n", fespace.GetTrueVSize());
     }
 
+    // Print elapsed time to convergence
     auto t_end = std::chrono::high_resolution_clock::now();
-
     std::chrono::duration<double, std::milli> ms_double = t_end - t_init;
     printf("time elapsed: %f seconds\n", ms_double.count() / 1000.0);
 
