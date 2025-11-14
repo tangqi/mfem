@@ -273,7 +273,7 @@ void Solve(
   bool include_plasma,
   double &weight_coils,
   double &weight_solenoids,
-  Vector *uv,
+  Vector *uv,  // External coil currents [I_1, I_2, ..., I_N]
   double &alpha,
   int &PC_option,
   int &max_levels,
@@ -304,7 +304,7 @@ void Solve(
   GridFunction Bz_field(&fespace);
   GridFunction f(&fespace);
 
-  // Save data in the VisIt format
+  // Save data in the VisIt format for visualization
   char outname[60];
   sprintf(outname, "out/gs_model%d_pc%d_cyc%d_it%d", model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
   VisItDataCollection visit_dc(outname, fespace.GetMesh());
@@ -319,34 +319,32 @@ void Solve(
   double psi_x;  // Psi at X-point
   double f_x;  // Constant set by the vacuum toroidal field
 
+  // Solve the optimization problem of determining currents to fit the desired plasma shape
   if (do_control) {
-    // solve the optimization problem of determining currents to fit desired plasma shape
-    /*
-      pv: Lagrange multiplier
-      lv: Lagrange multiplier      
-     */
 
+    // Log plasma current, alpha, X-point, and magnetic axis values per iteration in out_iter/ directory
     FILE *fp;
     char filename[60];
     sprintf(filename, "out_iter/iters_model%d_pc%d_cyc%d_it%d.txt", model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
     fp = fopen(filename, "w");
 
-    // print initial currents
-    printf("currents: [");
-    for (int i = 0; i < uv->Size(); ++i) {
-      printf("%.3e ", (*uv)[i]);
-    }
-    printf("]\n");
+    // Print initial currents
+    printf("Initial currents: [");
+    for (int i = 0; i < uv->Size(); ++i) { printf("%.3e ", (*uv)[i]); };  // uv: list of external coil currents
+    printf("]\n\n");
 
-    // initial condition for lagrange multipliers
+    // Initialize Lagrange multipliers pv and lv (corresponding to p and \lambda in the paper, respectively)
     GridFunction pv(&fespace);
     pv = 0.0;
     double lv = 0.0;
 
-    // initialize residual, rhs
-    GridFunction eq_res(&fespace);
-    Vector reg_res(uv->Size());
-    GridFunction opt_res(&fespace);
+    // Initialize residuals and regularization
+    GridFunction eq_res(&fespace);  // Residual of the GS equation \Delta^* \psi - J_{\phi}(\psi)
+    Vector reg_res(uv->Size());  // Regularization term R(u) = \frac{1}{2} u^T H u, where u is a vector of external coil currents I_j, j = 1, ... , N
+    GridFunction opt_res(&fespace);  // Optimization residual \psi - \psi_{target}
+
+    // Initialize b1, b2, b3: elements of RHS vector
+    // TODO: where are b4 and b5? Shouldn't these also be initialized?
     GridFunction b1(&fespace);
     Vector b2(uv->Size());
     GridFunction b3(&fespace);
@@ -455,10 +453,11 @@ void Solve(
         SparseMatrix * AMat = op.compute_hess_obj(x);
         Vector g = op.compute_grad_obj(x);
 
-        // plasma current
+        // Print plasma current
         printf("plasma_current = %10.8e\n", C / op.get_mu());
         printf("alpha = %10.8e\n", alpha);
 
+        // Log plasma current in out_iter/ directory
         fprintf(fp, "plasma_current = %10.8e\n", C / op.get_mu());
         fprintf(fp, "alpha = %10.8e\n", alpha);
 
@@ -470,10 +469,15 @@ void Solve(
         BrCoeff.set_psi_vals(psi_x, psi_ma);
         BpCoeff.set_psi_vals(psi_x, psi_ma);
         BzCoeff.set_psi_vals(psi_x, psi_ma);
+
+        // Print X-point and magnetic axis
         printf("psi_x = %10.8e; r_x = %10.8e; z_x = %10.8e\n", psi_x, x_x[0], x_x[1]);
         printf("psi_ma = %10.8e; r_ma = %10.8e; z_ma = %10.8e\n", psi_ma, x_ma[0], x_ma[1]);
+
+        // Log X-point and magnetic axis in out_iter/ directory
         fprintf(fp, "psi_x = %10.8e; r_x = %10.8e; z_x = %10.8e\n", psi_x, x_x[0], x_x[1]);
         fprintf(fp, "psi_ma = %10.8e; r_ma = %10.8e; z_ma = %10.8e\n", psi_ma, x_ma[0], x_ma[1]);
+
         psi_ma_vals.push_back(psi_ma); 
         psi_x_vals.push_back(psi_x); 
         cpasma_vals.push_back(C / op.get_mu()); 
@@ -1299,7 +1303,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
           int amg_cycle_type, int amg_num_sweeps_a, int amg_num_sweeps_b, int amg_max_iter,
           double amr_frac_in, double amr_frac_out) {
 
-   Vector uv_currents(num_currents);
+   Vector uv_currents(num_currents);  // Are these the external currents?
    uv_currents[0] = c1;
    uv_currents[1] = c2;
    uv_currents[2] = c3;
