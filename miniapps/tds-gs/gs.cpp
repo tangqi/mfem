@@ -364,7 +364,10 @@ void Solve(
     // Initialize time tracker
     auto t_init = std::chrono::high_resolution_clock::now();
 
-    // *** AMR LOOP *** //
+    // ============================================================================
+    // AMR loop
+    // ============================================================================
+
     vector<double> psi_ma_vals, psi_x_vals, cpasma_vals;
 
     // TODO: there doesn't appear to be any limit to the max number of AMR loops in case the solver doesn't converge. If
@@ -377,44 +380,52 @@ void Solve(
       printf("AMR iteration %d\n", it_amr);
       printf("Number of unknowns: %d\n", cdofs);
 
-      // save mesh
+      // Save mesh
+      // TODO: POTENTIAL BUG: check why we are saving "meshes/mesh_refine.mesh" here. Wouldn't it make sense to save at the end of the AMR loop, since the mesh isn't yet refined?
       char name_mesh[60];
       sprintf(name_mesh, "gf/mesh_amr%d_model%d_pc%d_cyc%d_it%d.mesh", it_amr, model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
-      mesh->Save(name_mesh);
-      mesh->Save("meshes/mesh_refine.mesh");
+      mesh->Save(name_mesh);  // Unique saved mesh for each iteration
+      mesh->Save("meshes/mesh_refine.mesh");  // Overwritten in each iteration
 
-      // *** prepare operators for solver *** //
-      // RHS forcing of equation
+      // ============================================================================
+      // Define and assemble PDE operator components
+      // ============================================================================
+
+      // RHS forcing term for the GS equation due to coil currents u
       LinearForm coil_term(&fespace);
-      // coefficient matrix for currents
-      SparseMatrix *F;
-      F = new SparseMatrix(fespace.GetNDofs(), num_currents);
-      // elliptic operator
-      BilinearForm diff_operator(&fespace);
-      // Hessian matrix for objective function
-      SparseMatrix *K_;
-      // linear term in objective function
-      Vector g_;
-      // weights and locations of objective function coefficients
-      vector<Vector> *alpha_coeffs;
-      vector<Array<int>> *J_inds;
-      alpha_coeffs = new vector<Vector>;
-      J_inds = new vector<Array<int>>;
-      // regularization matrix
-      SparseMatrix *H;
-      H = new SparseMatrix(num_currents, num_currents);
 
-      // computations
+      // Coefficient matrix F -- maps coil currents -> PDE forcing
+      SparseMatrix *F = new SparseMatrix(fespace.GetNDofs(), num_currents);
+
+
+      // Elliptic PDE operator (LHS of GS equation + plasma contributions + far-field BCs)
+      BilinearForm diff_operator(&fespace);
+
+      // Assemble PDE operators
       DefineRHS(*model, rho_gamma, *mesh, *exact_coefficient, *exact_forcing_coeff, coil_term, F);
       DefineLHS(*model, rho_gamma, diff_operator);
-      init_coeff->compute_QP(N_control, mesh, &fespace);
-      K_ = init_coeff->compute_K();
-      g_ = init_coeff->compute_g();
-      J_inds = init_coeff->get_J();
-      alpha_coeffs = init_coeff->get_alpha();
 
+      // ============================================================================
+      // Define objective function components
+      // ============================================================================
+
+      // Precompute quadrature point data for objective and constraints
+      init_coeff->compute_QP(N_control, mesh, &fespace);  // TODO: where does init_coeff come from?
+
+      // Compute gradient w.r.t. ψ
+      Vector g_ = init_coeff->compute_g();
+      
+      // Compute Hessian w.r.t. ψ
+      SparseMatrix *K_ = init_coeff->compute_K();
+
+      // Quadrature point weighting coefficients and indices
+      std::vector<Vector>     *alpha_coeffs = init_coeff->get_alpha();
+      std::vector<Array<int>> *J_inds       = init_coeff->get_J();
+
+      // Regularization matrix H -- R(u) = 1/2 uᵀ H u (L2 regularization)
+      SparseMatrix *H = new SparseMatrix(num_currents, num_currents);
       for (int i = 0; i < num_currents; ++i) {
-        if (i < 5) {
+        if (i < 5) {  // TODO: this is a hard-coded assumption that there are exactly 5 "coil" currents, and the rest are "solenoid" currents. This should be fixed.
           H->Set(i, i, weight_coils);
         } else {
           H->Set(i, i, weight_solenoids);
@@ -422,8 +433,10 @@ void Solve(
       }
       H->Finalize();
 
+      // SysOperator and KKT system
+
       // define system operator
-      SysOperator op(&diff_operator, &coil_term, model, &fespace, mesh, attr_lim, &x, F, uv, H, K_, &g_, alpha_coeffs, J_inds, &alpha, include_plasma);
+      SysOperator op(&diff_operator, &coil_term, model, &fespace, mesh, attr_lim, &x, F, uv, H, K_, &g_, alpha_coeffs, J_inds, &alpha, include_plasma);  // This is in sys_operator.cpp. TODO: does SysOperator clean up memory?
       op.set_i_option(obj_option);
       op.set_obj_weight(obj_weight);  
 
@@ -432,6 +445,10 @@ void Solve(
       row_offsets[0] = 0;
       row_offsets[1] = pv.Size();
       row_offsets[2] = row_offsets[1] + pv.Size();
+
+      // ============================================================================
+      // Newton loop
+      // ============================================================================
 
       // inexact newton settings
       double eta_last = 0.0;
