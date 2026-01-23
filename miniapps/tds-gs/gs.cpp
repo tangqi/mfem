@@ -656,17 +656,6 @@ void Solve(
         // Preconditioners. TODO: move these preconditioners to a separate file (preconditioners.cpp, for example) to reduce clutter
         
         int ind_x, ind_p;
-        // // If we have a symmetric block matrix
-        // if (PC_option >= 0) {  // PC_option: preconditioner option
-        //   ind_x = 1;
-        //   ind_p = 0;
-        // }
-        
-        // // If we have a non-symmetric block matrix
-        // else {
-        //   ind_x = 0;
-        //   ind_p = 1;
-        // }
 
         // If we have a non-symmetric block matrix
         if (PC_option == 0) {  // PC_option: preconditioner option
