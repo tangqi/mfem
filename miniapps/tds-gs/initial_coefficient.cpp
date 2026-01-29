@@ -272,6 +272,7 @@ void InitialCoefficient::compute_QP(int N_control_, Mesh * mesh, FiniteElementSp
   Array<int> elem_ids;
   Array<IntegrationPoint> ips;
   mesh->FindPoints(point_mat, elem_ids, ips);
+  
   // get alpha and J for each control point
   alpha = new vector<Vector>;
   J = new vector<Array<int>>;
