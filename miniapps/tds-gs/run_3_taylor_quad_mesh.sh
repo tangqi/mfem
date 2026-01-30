@@ -13,12 +13,10 @@ model=2
 
 # plasma current
 Ip=1.5e+7
-# Ip=1.2e+7
 
 R0=2.4
 rho_gamma=16
 mu=12.5663706144e-7
-# mu=1.0
 
 # mesh_file="meshes/iter_gen.msh"
 mesh_file="meshes/iter_gen_quad.msh"
@@ -26,7 +24,6 @@ data_file="data/separated_file.data"
 
 refinement_factor=1
 amr_frac_in=0.08
-# amr_frac_in=0.3
 amr_frac_out=0.3
 max_levels=4
 max_dofs=100000
@@ -58,13 +55,6 @@ obj_option=1
 
 alpha_in=1.61803398875
 gamma_in=1.0
-
-# 0: block AMG
-# 1: block AMG schur comp
-# 2: AMG on full
-# 3: AMG on partial full block
-# 4: schur complement
-# 5: gauss seidel
 pc_option=5
 amg_cycle_type=1
 amg_num_sweeps_a=1
@@ -85,13 +75,6 @@ c2=-2.478694e+04
 c3=-3.022037e+04
 c4=-2.205664e+04
 c5=-2.848113e+03
-
-# # center solenoids
-# c1=-1.143284e+06
-# c2=2.478694e+07
-# c3=3.022037e+07
-# c4=2.205664e+07
-# c5=2.848113e+06
 
 ur_coeff=1.0
 
@@ -153,10 +136,5 @@ srun -n 1 ./main \
     --amg_max_iter $amg_max_iter \
     --amr_frac_in $amr_frac_in \
     --amr_frac_out $amr_frac_out
-
-    
-
-
-
 
 # ./../gslib/field-interp -m1 mesh.mesh -m2 meshes/geqdsk.msh -s1 final.gf -no-vis
