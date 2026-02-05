@@ -323,553 +323,684 @@ void Solve(
   double f_x;  // Constant set by the vacuum toroidal field
 
   // Solve the optimization problem of determining currents to fit the desired plasma shape
+  if (do_control) {
 
-  // Initialize log for plasma current, alpha, X-point, and magnetic axis values per iteration in out_iter/ directory
-  FILE *fp;
-  char filename[60];
-  sprintf(filename, "out_iter/iters_model%d_pc%d_cyc%d_it%d.txt", model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
-  fp = fopen(filename, "w");
+    // Initialize log for plasma current, alpha, X-point, and magnetic axis values per iteration in out_iter/ directory
+    FILE *fp;
+    char filename[60];
+    sprintf(filename, "out_iter/iters_model%d_pc%d_cyc%d_it%d.txt", model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
+    fp = fopen(filename, "w");
 
-  // Print initial currents
-  printf("Initial currents: [");
-  for (int i = 0; i < uv->Size(); ++i) { printf("%.3e ", (*uv)[i]); };  // uv: list of external coil currents
-  printf("]\n\n");
+    // Print initial currents
+    printf("Initial currents: [");
+    for (int i = 0; i < uv->Size(); ++i) { printf("%.3e ", (*uv)[i]); };  // uv: list of external coil currents
+    printf("]\n\n");
 
-  // Initialize Lagrange multipliers pv and lv (corresponding to p and \lambda in the paper, respectively)
-  GridFunction pv(&fespace);
-  pv = 0.0;
-  double lv = 0.0;
+    // Initialize Lagrange multipliers pv and lv (corresponding to p and \lambda in the paper, respectively)
+    GridFunction pv(&fespace);
+    pv = 0.0;
+    double lv = 0.0;
 
-  // Initialize residuals and regularization
-  GridFunction eq_res(&fespace);  // Residual of the GS equation \Delta^* \psi - J_{\phi}(\psi)
-  Vector reg_res(uv->Size());  // Regularization term R(u) = \frac{1}{2} u^T H u, where u is a vector of external coil currents I_j, j = 1, ... , N
-  GridFunction opt_res(&fespace);  // Optimization residual \psi - \psi_{target}
+    // Initialize residuals and regularization
+    GridFunction eq_res(&fespace);  // Residual of the GS equation \Delta^* \psi - J_{\phi}(\psi)
+    Vector reg_res(uv->Size());  // Regularization term R(u) = \frac{1}{2} u^T H u, where u is a vector of external coil currents I_j, j = 1, ... , N
+    GridFunction opt_res(&fespace);  // Optimization residual \psi - \psi_{target}
 
-  // Initialize b1, b2, b3: elements of RHS vector. The other elements b4 and b5 are initialized later in the Newton iteration.
-  GridFunction b1(&fespace);
-  Vector b2(uv->Size());
-  GridFunction b3(&fespace);
-  b1 = 0.0;
-  b2 = 0.0;
-  b3 = 0.0;
+    // Initialize b1, b2, b3: elements of RHS vector. The other elements b4 and b5 are initialized later in the Newton iteration.
+    GridFunction b1(&fespace);
+    Vector b2(uv->Size());
+    GridFunction b3(&fespace);
+    b1 = 0.0;
+    b2 = 0.0;
+    b3 = 0.0;
 
-  // Define error estimator for AMR
-  // MFEM uses ErrorEstimator objects to determine where the mesh should be refined in AMR
-  // The "x" parameter is the current finite element solution
-  DiffusionIntegratorCoefficient diff_op_coeff(model);  // DiffusionIntegratorCoefficient is defined in diffusion_term.cpp
-  DiffusionIntegrator *integ = new DiffusionIntegrator(diff_op_coeff);
-  ErrorEstimator *estimator{nullptr};
-  estimator = new LSZienkiewiczZhuEstimator(*integ, x);  // Estimator: Zienkiewicz-Zhu error estimation
-  RegionalThresholdRefiner refiner(*estimator);  // MFEM mesh refiner that uses the estimator to decide which elements to refine
+    // Define error estimator for AMR
+    // MFEM uses ErrorEstimator objects to determine where the mesh should be refined in AMR
+    // The "x" parameter is the current finite element solution
+    DiffusionIntegratorCoefficient diff_op_coeff(model);  // DiffusionIntegratorCoefficient is defined in diffusion_term.cpp
+    DiffusionIntegrator *integ = new DiffusionIntegrator(diff_op_coeff);
+    ErrorEstimator *estimator{nullptr};
+    estimator = new LSZienkiewiczZhuEstimator(*integ, x);  // Estimator: Zienkiewicz-Zhu error estimation
+    RegionalThresholdRefiner refiner(*estimator);  // MFEM mesh refiner that uses the estimator to decide which elements to refine
 
-  // Initialize time tracker
-  auto t_init = std::chrono::high_resolution_clock::now();
-
-  // ============================================================================
-  // AMR loop
-  // ============================================================================
-
-  // Initialize vectors storing magnetic axis, X-point, and cpasma_vals (TODO: what is cpasma_vals? The plasma domain?)
-  vector<double> psi_ma_vals, psi_x_vals, cpasma_vals;
-
-  // TODO: there doesn't appear to be any limit to the max number of AMR loops in case the solver doesn't converge. If
-  // the solver never converges, then it will run forever. Perhaps it is a good idea to add a max AMR loop feature.
-
-  for (int it_amr = 0; ; ++it_amr) {
-    int total_gmres = 0;
-    int cdofs = fespace.GetTrueVSize();
-
-    printf("AMR iteration %d\n", it_amr);
-    printf("Number of unknowns: %d\n", cdofs);
-
-    // Save mesh
-    // TODO: POTENTIAL BUG: check why we are saving "meshes/mesh_refine.mesh" here. Wouldn't it make sense to save at the end of the AMR loop, since the mesh isn't yet refined?
-    char name_mesh[60];
-    sprintf(name_mesh, "gf/mesh_amr%d_model%d_pc%d_cyc%d_it%d.mesh", it_amr, model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
-    mesh->Save(name_mesh);  // Unique saved mesh for each iteration
-    mesh->Save("meshes/mesh_refine.mesh");  // Overwritten in each iteration
+    // Initialize time tracker
+    auto t_init = std::chrono::high_resolution_clock::now();
 
     // ============================================================================
-    // Define and assemble PDE operator components
+    // AMR loop
     // ============================================================================
 
-    // RHS forcing term for the GS equation due to coil currents u
+    // Initialize vectors storing magnetic axis, X-point, and cpasma_vals (TODO: what is cpasma_vals? The plasma domain?)
+    vector<double> psi_ma_vals, psi_x_vals, cpasma_vals;
+
+    // TODO: there doesn't appear to be any limit to the max number of AMR loops in case the solver doesn't converge. If
+    // the solver never converges, then it will run forever. Perhaps it is a good idea to add a max AMR loop feature.
+
+    for (int it_amr = 0; ; ++it_amr) {
+      int total_gmres = 0;
+      int cdofs = fespace.GetTrueVSize();
+
+      printf("AMR iteration %d\n", it_amr);
+      printf("Number of unknowns: %d\n", cdofs);
+
+      // Save mesh
+      // TODO: POTENTIAL BUG: check why we are saving "meshes/mesh_refine.mesh" here. Wouldn't it make sense to save at the end of the AMR loop, since the mesh isn't yet refined?
+      char name_mesh[60];
+      sprintf(name_mesh, "gf/mesh_amr%d_model%d_pc%d_cyc%d_it%d.mesh", it_amr, model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
+      mesh->Save(name_mesh);  // Unique saved mesh for each iteration
+      mesh->Save("meshes/mesh_refine.mesh");  // Overwritten in each iteration
+
+      // ============================================================================
+      // Define and assemble PDE operator components
+      // ============================================================================
+
+      // RHS forcing term for the GS equation due to coil currents u
+      LinearForm coil_term(&fespace);
+
+      // Coefficient matrix F -- maps coil currents -> PDE forcing
+      SparseMatrix *F = new SparseMatrix(fespace.GetNDofs(), num_currents);
+
+
+      // Elliptic PDE operator (LHS of GS equation + plasma contributions + far-field BCs)
+      BilinearForm diff_operator(&fespace);
+
+      // Assemble PDE operators
+      DefineRHS(*model, rho_gamma, *mesh, *exact_coefficient, *exact_forcing_coeff, coil_term, F);
+      DefineLHS(*model, rho_gamma, diff_operator);
+
+      // ============================================================================
+      // Define objective function components
+      // ============================================================================
+
+      cout << "\n Checking for bugs in quadrature point computations." << endl;  // DEBUGGING
+
+      // Precompute quadrature point data for objective and constraints
+      init_coeff->compute_QP(N_control, mesh, &fespace);  // TODO: where does init_coeff come from?
+
+      cout << "\n No bugs found in quadrature point computations." << endl;  // DEBUGGING
+
+      // Compute gradient w.r.t. ψ
+      Vector g_ = init_coeff->compute_g();
+      
+      // Compute Hessian w.r.t. ψ
+      SparseMatrix *K_ = init_coeff->compute_K();
+
+      // Quadrature point weighting coefficients and indices
+      std::vector<Vector>     *alpha_coeffs = init_coeff->get_alpha();
+      std::vector<Array<int>> *J_inds       = init_coeff->get_J();
+
+      // Regularization matrix H -- R(u) = 1/2 uᵀ H u (L2 regularization)
+      SparseMatrix *H = new SparseMatrix(num_currents, num_currents);
+      for (int i = 0; i < num_currents; ++i) {
+        if (i < 5) {  // TODO: this is a hard-coded assumption that there are exactly 5 "coil" currents, and the rest are "solenoid" currents. This should be fixed.
+          H->Set(i, i, weight_coils);
+        } else {
+          H->Set(i, i, weight_solenoids);
+        }
+      }
+      H->Finalize();
+
+      // SysOperator and KKT system
+
+      // Define system operator
+      SysOperator op(&diff_operator, &coil_term, model, &fespace, mesh, attr_lim, &x, F, uv, H, K_, &g_, alpha_coeffs, J_inds, &alpha, include_plasma);  // This is in sys_operator.cpp. TODO: does SysOperator clean up memory?
+      op.set_i_option(obj_option);
+      op.set_obj_weight(obj_weight);  
+
+      // Set size of blocks in equation
+      Array<int> row_offsets(3);
+      row_offsets[0] = 0;
+      row_offsets[1] = pv.Size();
+      row_offsets[2] = row_offsets[1] + pv.Size();
+
+      // ============================================================================
+      // Newton loop
+      // ============================================================================
+
+      // TODO: memory leak potential in this Newton loop. Every time a "new" object is created, there is a memory leak risk if no "delete" is added afterwards. No "delete" lines are present in the code.
+
+      // Inexact newton settings
+      double eta_last = 0.0;
+      double sg_threshold = 0.1;
+      double lin_rtol_max = krylov_tol;
+      double eta = krylov_tol;
+
+      double error_old;
+      double error;
+
+      for (int i = 0; i <= max_newton_iter; ++i) {
+
+        // compute matrices and vectors in problem
+        op.NonlinearEquationRes(x, uv, alpha);
+
+        // Get operators
+        SparseMatrix By = op.get_By();
+        double C = op.get_plasma_current();
+        double Ca = op.get_Ca();
+        Vector Cy = op.get_Cy();
+        Vector Ba = op.get_Ba();
+        SparseMatrix *AMat = op.compute_hess_obj(x);
+        Vector g = op.compute_grad_obj(x);
+
+        // Print plasma current
+        printf("plasma_current = %10.8e\n", C / op.get_mu());
+        printf("alpha = %10.8e\n", alpha);
+
+        // Log plasma current in out_iter/ directory
+        fprintf(fp, "plasma_current = %10.8e\n", C / op.get_mu());
+        fprintf(fp, "alpha = %10.8e\n", alpha);
+
+        // Locate X-point (psi_x) and magnetic axis (psi_ma)
+        psi_x = op.get_psi_x();
+        double* x_x = op.get_x_x();
+        double* x_ma = op.get_x_ma();
+        double psi_ma = op.get_psi_ma();
+        BrCoeff.set_psi_vals(psi_x, psi_ma);
+        BpCoeff.set_psi_vals(psi_x, psi_ma);
+        BzCoeff.set_psi_vals(psi_x, psi_ma);
+
+        psi_ma_vals.push_back(psi_ma);
+        psi_x_vals.push_back(psi_x);
+        cpasma_vals.push_back(C / op.get_mu());
+
+        // Print X-point and magnetic axis
+        printf("psi_x = %10.8e; r_x = %10.8e; z_x = %10.8e\n", psi_x, x_x[0], x_x[1]);
+        printf("psi_ma = %10.8e; r_ma = %10.8e; z_ma = %10.8e\n", psi_ma, x_ma[0], x_ma[1]);
+
+        // Log X-point and magnetic axis in out_iter/ directory
+        fprintf(fp, "psi_x = %10.8e; r_x = %10.8e; z_x = %10.8e\n", psi_x, x_x[0], x_x[1]);
+        fprintf(fp, "psi_ma = %10.8e; r_ma = %10.8e; z_ma = %10.8e\n", psi_ma, x_ma[0], x_ma[1]);
+
+
+        // Compute RHS vector components (equation 4.11 from paper)
+
+        // -b1 = Gy + By^T p + Cy lambda
+        opt_res = g;
+        By.AddMultTranspose(pv, opt_res);
+        add(opt_res, lv, Cy, opt_res);
+        b1 = opt_res;
+        b1 *= -1.0;
+
+        // -b2 = reg_res = H u^n - F^T p^n
+        H->Mult(*uv, reg_res);
+        F->AddMultTranspose(pv, reg_res, -1.0);
+        b2 = reg_res;
+        b2 *= -1.0;
+
+        // -b3 = eq_res = B(y^n) - F u^n
+        eq_res = op.get_res();
+        b3 = eq_res;
+        b3 *= -1.0;
+
+        // -b4 = B_a^T p^n + C_a l^n
+        double b4 = Ba * pv + Ca * lv;
+        b4 *= -1.0;
+
+        // -b5 = C - Ip * mu
+        double b5 = C - Ip * op.get_mu();  // TODO: mu is not present in the calculation of b5 in equation 4.11 of the paper--check if this is a bug here.
+        b5 *= -1.0;
+
+        // Save equilibrium residual (b3)
+        char name_eq_res[60];
+        sprintf(name_eq_res, "gf/eq_res_amr%d_i%d.gf", it_amr, i);
+        eq_res.Save(name_eq_res);
+
+        // Get max errors for residuals
+        error = GetMaxError(eq_res);
+        double max_opt_res = op.get_mu() * GetMaxError(opt_res);
+        double max_reg_res = GetMaxError(reg_res) / op.get_mu();
+
+        // Inexact Newton. Adjust the relative tolerance eta as the Newton iteration converges
+        if (i > 0) {
+          eta = gamma_in * pow(error / error_old, alpha_in);  // alpha_in and gamma_in: inexact Newton parameters inputted as arguments through main.cpp
+          double sg_eta = gamma_in * pow(eta_last, alpha_in); // safeguard to prevent eta from becoming too small too quickly
+          if (sg_eta > sg_threshold) {  // if eta is above a predefined threshold, truncate eta
+            eta = max(eta, sg_eta);
+          }
+          eta = min(eta, lin_rtol_max);
+          eta_last = eta;  // for the next iteration
+        }
+
+        printf("inexact newton rtol: %.2e\n", eta);
+        printf("\n");
+
+        // Newton iteration stopping conditions
+        if (error < newton_tol) {
+          break;
+        }
+        if (i == max_newton_iter) {
+          break;
+        }
+
+        // Save current residual for the next iteration
+        error_old = error;
+
+        // Compute the C matrix in the block linear system: CMat
+
+        // invH is diagonal inverse of H (regularization on coil currents)
+        const int nu = uv->Size();  // number of coil currents (control dofs)
+        mfem::SparseMatrix* invH = new mfem::SparseMatrix(nu, nu);
+        for (int j = 0; j < nu; ++j) {
+            const double hjj = (*H)(j, j);
+            MFEM_VERIFY(hjj > 0.0, "H must be positive diagonal.");
+            invH->Set(j, j, 1.0 / hjj);
+        }
+        invH->Finalize();
+
+        // Calculations to form CMat
+        SparseMatrix *FT = Transpose(*F);
+        SparseMatrix *mF = Add(-1.0, *F, 0.0, *F);  // This is just calculating -F
+        SparseMatrix *invHFT = Mult(*invH, *FT);
+        SparseMatrix *mFinvHFT = Mult(*mF, *invHFT);
+        SparseMatrix *FinvH = Mult(*F, *invH);
+        SparseMatrix *mMuFinvHFT = Add(op.get_mu(), *mFinvHFT, 0.0, *mFinvHFT);
+        SparseMatrix *MuFinvH = Add(op.get_mu(), *FinvH, 0.0, *FinvH);
+        double scale = 1.0 / sqrt(mMuFinvHFT->MaxNorm());
+
+        // Form CMat
+        SparseMatrix *CMat = Add(scale * scale, *mMuFinvHFT, 0.0, *mMuFinvHFT);
+
+        // Compute the B and B^T matrices in the block linear system: BMat and BTMat
+
+        // Compute 1 / Ca Cy Ba^T
+        SparseMatrix *CyBa = new SparseMatrix(pv.Size(), pv.Size());
+        for (int j = 0; j < pv.Size(); ++j) {
+          for (int k = 0; k < pv.Size(); ++k) {
+            if (Ba(j) * Cy(k) != 0.0) {
+              CyBa->Set(j, k, Cy(j) * Ba(k) / Ca);
+            }
+          }
+        }
+        CyBa->Finalize();
+
+        SparseMatrix *ByT = Transpose(By);
+        SparseMatrix *ScaleByT = Add(scale, *ByT, 0.0, *CyBa);  // Scales By^T by a scale factor defined ~20 lines up
+        SparseMatrix *ScaleBy = Transpose(*ScaleByT);  // Scales By by the same scale factor
+
+        // Form BMat and BTMat
+        SparseMatrix *BMat = Add(scale, *ByT, -scale, *CyBa);
+        SparseMatrix *BTMat = Transpose(*BMat);
+
+        // Build block linear system
+
+        // Initialize block matrix and RHS
+        BlockOperator BlockSystem(row_offsets);
+        BlockVector rhs(row_offsets);
+        
+        int ind_x, ind_p;
+
+        // If we have a non-symmetric block matrix
+        if (PC_option == 0) {  // PC_option: preconditioner option
+          ind_x = 0;
+          ind_p = 1;
+        }
+        
+        // If we have a symmetric block matrix
+        else {
+          ind_x = 1;
+          ind_p = 0;
+        }
+
+        // Form block matrix
+        BlockSystem.SetBlock(0, ind_x, AMat);
+        BlockSystem.SetBlock(0, ind_p, BMat);
+        BlockSystem.SetBlock(1, ind_x, BTMat);
+        BlockSystem.SetBlock(1, ind_p, CMat);
+
+        // Write contents of matrices to text files in CSR format using the WriteSparseMatrixToFile function
+        FILE *fp_spy;
+        char filename_spy[60];
+        sprintf(filename_spy, "spys/spy_model%d_amr%d.txt", model->get_model_choice(), it_amr);
+        fp_spy = fopen(filename_spy, "w");
+        fprintf(fp_spy, "AMat\n");
+        WriteSparseMatrixToFile(fp_spy, AMat);
+        fprintf(fp_spy, "\nBMat\n");
+        WriteSparseMatrixToFile(fp_spy, BMat);
+        fprintf(fp_spy, "\nCMat\n");
+        WriteSparseMatrixToFile(fp_spy, CMat);
+
+        // Define RHS of the block linear system (equation 5.3 of paper)
+        // RHS = [c1, c2]
+        // c1 = b1 - Cy b4 / Ca
+        // c2 = b3 + mu F H^{-1} b_2 - Ba b5 / Ca
+        rhs = 0;
+        add(1.0, b1, -b4 / Ca, Cy, rhs.GetBlock(0));  // c1
+        MuFinvH->Mult(b2, rhs.GetBlock(1));  // c2 (this line and subsequent lines)
+        rhs.GetBlock(1) += b3;
+        add(1.0, rhs.GetBlock(1), - b5 / Ca, Ba, rhs.GetBlock(1));
+        rhs.GetBlock(1) *= scale;
+
+        // Configure the FGMRES solver
+        FGMRESSolver solver;
+        solver.SetAbsTol(1e-12);
+        solver.SetRelTol(eta);
+        solver.SetMaxIter(max_krylov_iter);
+        solver.SetOperator(BlockSystem);
+        solver.SetKDim(kdim);
+        solver.SetPrintLevel(-1);
+
+        // Initialize solution guess dx to zero
+        BlockVector dx(row_offsets);
+        dx = 0.0;
+
+        double dalpha, dlv;
+
+        // ============================================================================
+        // Preconditioners
+        // ============================================================================
+
+        // Preconditioning: 0 = block diagonal PC, 5 = block upper triangular PC, 6 = block lower triangular PC
+        if (PC_option == 0 || PC_option == 5 || PC_option == 6) {
+
+          Solver *inv_BT, *inv_B;
+
+          // Build AMG solvers for B_y and B_y^T using Hypre
+          HypreParMatrix *B_Hypre = ConvertToHypre(ScaleByT);
+          HypreParMatrix *BT_Hypre = ConvertToHypre(ScaleBy);
+          HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
+          HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
+
+          // Configure AMG parameters for AMG(B_y)
+          B_AMG->SetPrintLevel(0);
+          B_AMG->SetCycleType(amg_cycle_type);  // choose V-cycle/W-cycle
+          B_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);  // number of relaxation sweeps: a--pre-smoothing, b--post-smoothing
+          B_AMG->SetMaxIter(amg_max_iter);  // number of AMG cycles
+
+          // Configure AMG parameters for AMG(B_y^T)
+          BT_AMG->SetPrintLevel(0);
+          BT_AMG->SetCycleType(amg_cycle_type);
+          BT_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          BT_AMG->SetMaxIter(amg_max_iter);
+
+          // TODO: is this renaming necessary?
+          inv_B = B_AMG;
+          inv_BT = BT_AMG;
+
+          // Block diagonal preconditioner: equation 5.4 from paper
+          if (PC_option == 0) {
+            BlockDiagonalPreconditioner BlockPrec(row_offsets);
+            BlockPrec.SetDiagonalBlock(0, inv_B);
+            BlockPrec.SetDiagonalBlock(1, inv_BT);
+            solver.SetPreconditioner(BlockPrec);
+          }
+
+          // Block upper triangular preconditioner: equation 5.5 from paper
+          else if (PC_option == 5) {
+            SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 1);
+            solver.SetPreconditioner(SCPC);
+          }
+
+          // Block lower triangular preconditioner: equation 5.6 from paper
+          else if (PC_option == 6) {
+            SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 2);
+            solver.SetPreconditioner(SCPC);
+          }
+        
+          // Solve the block system using FGMRES with preconditioning
+          solver.Mult(rhs, dx);
+          fprintf(fp, "amr=%d newton=%d iters=%d\n", it_amr, i, solver.GetNumIterations());
+        }
+        
+        // Terminate if preconditioner option is unsupported
+        else {
+          fprintf(stderr, "ERROR: Unsupported PC_option=%d (currently supported: 0, 5, 6)\n", PC_option);
+          MFEM_ABORT("Unsupported PC_option");
+        }
+
+        // Check for convergence
+        if (solver.GetConverged()) {
+          printf("GMRES converged in %d iterations with a residual norm of %e\n", solver.GetNumIterations(), solver.GetFinalNorm());
+        }
+        else {
+          printf("GMRES did not converge in %d iterations. Residual norm is %e\n", solver.GetNumIterations(), solver.GetFinalNorm());
+        }
+        total_gmres += solver.GetNumIterations();
+
+        if (solver.GetNumIterations() == -1) {
+          printf("failure...\n");
+          return;
+        }
+        dx.GetBlock(ind_p) *= scale;
+
+        ///////////////////////////////////////////////////////////////////////////////////
+
+        // get solution
+        x += dx.GetBlock(ind_x);
+        pv += dx.GetBlock(ind_p);
+
+        invHFT->AddMult(dx.GetBlock(ind_p), *uv);
+        invH->AddMult(b2, *uv);
+
+        dalpha = (b5 - (Cy * dx.GetBlock(ind_x))) / Ca;
+        dlv = (b4 - (Ba * dx.GetBlock(ind_p))) / Ca;
+        alpha += dalpha;
+        lv += dlv;
+
+        // *** calculate residuals after solve *** //
+        // first block row
+        Vector res1(pv.Size());
+        res1 = 0.0;
+        AMat->AddMult(dx.GetBlock(ind_x), res1);
+        ByT->AddMult(dx.GetBlock(ind_p), res1);
+        add(res1, dlv, Cy, res1);
+        add(res1, -1.0, b1, res1);
+        printf("res1: %.2e\n", GetMaxError(res1));
+
+        // second block row
+        Vector res2(pv.Size());
+        res2 = 0.0;
+        mMuFinvHFT->AddMult(dx.GetBlock(ind_p), res2);
+        MuFinvH->Mult(b2, res2);
+        res2 *= -1.0;
+        By.AddMult(dx.GetBlock(ind_x), res2);
+        mMuFinvHFT->AddMult(dx.GetBlock(ind_p), res2);
+        add(res2, dalpha, Ba, res2);
+        add(res2, -1.0, b3, res2);
+        printf("res2: %.2e\n", GetMaxError(res2));
+
+        // Print currents
+        printf("Currents: [");
+        for (int i = 0; i < uv->Size(); ++i) {
+          printf("%.3e ", (*uv)[i]);
+        }
+        printf("]\n");
+
+        // Save grid function and magnetic field
+        char name_[60];
+        sprintf(name_, "gf/xtmp_amr%d.gf", it_amr);
+        x.Save(name_);
+        char name[60];
+        sprintf(name, "gf/xtmp_amr%d_i%d.gf", it_amr, i);
+        x.Save(name);
+        Br_field.Save("gf/Br.gf");
+        Bp_field.Save("gf/Bp.gf");
+        Bz_field.Save("gf/Bz.gf");
+        x.GetDerivative(1, 0, psi_r);
+        x.GetDerivative(1, 1, psi_z);
+        Br_field.ProjectCoefficient(BrCoeff);
+        Bp_field.ProjectCoefficient(BpCoeff);
+        Bz_field.ProjectCoefficient(BzCoeff);
+
+        visit_dc.Save();
+      }
+      
+      if (it_amr >= max_levels) {
+        printf("max number of refinement levels\n");
+        break;
+      }
+      if (cdofs > max_dofs)
+        {
+          cout << "Reached the maximum number of dofs. Stop." << endl;
+          break;
+        }
+
+      f = op.get_f();
+      refiner.ApplyRef(*mesh, 1000, amr_frac_in, amr_frac_out);
+      if (refiner.Stop()) {
+        cout << "Stopping criterion satisfied. Stop." << endl;
+        break;
+      } else {
+        printf("Refining mesh, i=%d\n", it_amr+1);
+      }
+
+      // update variables due to refinement
+      fespace.Update();
+      x.Update();
+      psi_r.Update();
+      psi_z.Update();
+      Br_field.Update();
+      Bp_field.Update();
+      Bz_field.Update();
+      pv.Update();
+      eq_res.Update();
+      opt_res.Update();
+      b1.Update();
+      b3.Update();
+      
+      printf("******* fespace.GetTrueVSize(): %d\n", fespace.GetTrueVSize());
+    }
+
+    // Print elapsed time to convergence
+    auto t_end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> ms_double = t_end - t_init;
+    printf("time elapsed: %f seconds\n", ms_double.count() / 1000.0);
+
+    f_x = model->get_f_x();
+
+    // Write final value of psi_ma to a different file for GQDSK
+    system("mkdir -p ../gslib/GEQDSK"); 
+    ofstream file("../gslib/GEQDSK/GEQDSK_simagx_sibdry_cpasma.txt"); 
+    file << scientific << setprecision(9)
+      << setw(16) << psi_ma_vals.back() << "\n"
+      << setw(16) << psi_x_vals.back() << "\n"
+      << setw(16) << cpasma_vals.back() << "\n";
+      file.close();    
+  } 
+  
+  // do_control == 0
+  else {
+    // for given currents, solve the GS equations
+
+    GridFunction dx(&fespace);
+    dx = 0.0;
+
+    // *** prepare operators for solver *** //
+    // RHS forcing of equation
     LinearForm coil_term(&fespace);
-
-    // Coefficient matrix F -- maps coil currents -> PDE forcing
-    SparseMatrix *F = new SparseMatrix(fespace.GetNDofs(), num_currents);
-
-
-    // Elliptic PDE operator (LHS of GS equation + plasma contributions + far-field BCs)
+    // coefficient matrix for currents
+    SparseMatrix *F;
+    F = new SparseMatrix(fespace.GetNDofs(), num_currents);
+    // elliptic operator
     BilinearForm diff_operator(&fespace);
+    // Hessian matrix for objective function
+    SparseMatrix * K_;
+    // linear term in objective function
+    Vector g_;
+    // weights and locations of objective function coefficients
+    vector<Vector> *alpha_coeffs;
+    vector<Array<int>> *J_inds;
+    alpha_coeffs = new vector<Vector>;
+    J_inds = new vector<Array<int>>;
+    // regularization matrix
+    SparseMatrix * H;
+    H = new SparseMatrix(num_currents, num_currents);
 
-    // Assemble PDE operators
+    // computations
     DefineRHS(*model, rho_gamma, *mesh, *exact_coefficient, *exact_forcing_coeff, coil_term, F);
     DefineLHS(*model, rho_gamma, diff_operator);
+    init_coeff->compute_QP(N_control, mesh, &fespace);
+    K_ = init_coeff->compute_K();
+    g_ = init_coeff->compute_g();
+    J_inds = init_coeff->get_J();
+    alpha_coeffs = init_coeff->get_alpha();
 
-    // ============================================================================
-    // Define objective function components
-    // ============================================================================
-
-    // Precompute quadrature point data for objective and constraints
-    init_coeff->compute_QP(N_control, mesh, &fespace);  // TODO: where does init_coeff come from?
-
-    // Compute gradient w.r.t. ψ
-    Vector g_ = init_coeff->compute_g();
-    
-    // Compute Hessian w.r.t. ψ
-    SparseMatrix *K_ = init_coeff->compute_K();
-
-    // Quadrature point weighting coefficients and indices
-    std::vector<Vector>     *alpha_coeffs = init_coeff->get_alpha();
-    std::vector<Array<int>> *J_inds       = init_coeff->get_J();
-
-    // Regularization matrix H -- R(u) = 1/2 uᵀ H u (L2 regularization)
-    SparseMatrix *H = new SparseMatrix(num_currents, num_currents);
     for (int i = 0; i < num_currents; ++i) {
-      if (i < 5) {  // TODO: this is a hard-coded assumption that there are exactly 5 "coil" currents, and the rest are "solenoid" currents. This should be fixed.
+      if (i < 5) {
         H->Set(i, i, weight_coils);
       } else {
         H->Set(i, i, weight_solenoids);
       }
     }
     H->Finalize();
-
-    // SysOperator and KKT system
-
-    // Define system operator
-    SysOperator op(&diff_operator, &coil_term, model, &fespace, mesh, attr_lim, &x, F, uv, H, K_, &g_, alpha_coeffs, J_inds, &alpha, include_plasma);  // This is in sys_operator.cpp. TODO: does SysOperator clean up memory?
+    
+    SysOperator op(&diff_operator, &coil_term, model, &fespace, mesh, attr_lim, &x, F, uv, H, K_, &g_, alpha_coeffs, J_inds, &alpha, include_plasma);
     op.set_i_option(obj_option);
-    op.set_obj_weight(obj_weight);  
+    op.set_obj_weight(obj_weight);
 
-    // Set size of blocks in equation
-    Array<int> row_offsets(3);
-    row_offsets[0] = 0;
-    row_offsets[1] = pv.Size();
-    row_offsets[2] = row_offsets[1] + pv.Size();
-
-    // ============================================================================
-    // Newton loop
-    // ============================================================================
-
-    // TODO: memory leak potential in this Newton loop. Every time a "new" object is created, there is a memory leak risk if no "delete" is added afterwards. No "delete" lines are present in the code.
-
-    // Inexact newton settings
-    double eta_last = 0.0;
-    double sg_threshold = 0.1;
-    double lin_rtol_max = krylov_tol;
-    double eta = krylov_tol;
-
+    GridFunction eq_res(&fespace);
+    GridFunction b3(&fespace);
+    b3 = 0.0;
+    
+    LinearForm out_vec(&fespace);
     double error_old;
     double error;
+    for (int i = 0; i < max_newton_iter; ++i) {
 
-    for (int i = 0; i <= max_newton_iter; ++i) {
-
-      // compute matrices and vectors in problem
       op.NonlinearEquationRes(x, uv, alpha);
 
-      // Get operators
-      SparseMatrix By = op.get_By();
-      double C = op.get_plasma_current();
-      double Ca = op.get_Ca();
-      Vector Cy = op.get_Cy();
-      Vector Ba = op.get_Ba();
-      SparseMatrix *AMat = op.compute_hess_obj(x);
-      Vector g = op.compute_grad_obj(x);
-
-      // Print plasma current
-      printf("plasma_current = %10.8e\n", C / op.get_mu());
-      printf("alpha = %10.8e\n", alpha);
-
-      // Log plasma current in out_iter/ directory
-      fprintf(fp, "plasma_current = %10.8e\n", C / op.get_mu());
-      fprintf(fp, "alpha = %10.8e\n", alpha);
-
-      // Locate X-point (psi_x) and magnetic axis (psi_ma)
-      psi_x = op.get_psi_x();
-      double* x_x = op.get_x_x();
-      double* x_ma = op.get_x_ma();
-      double psi_ma = op.get_psi_ma();
-      BrCoeff.set_psi_vals(psi_x, psi_ma);
-      BpCoeff.set_psi_vals(psi_x, psi_ma);
-      BzCoeff.set_psi_vals(psi_x, psi_ma);
-
-      psi_ma_vals.push_back(psi_ma);
-      psi_x_vals.push_back(psi_x);
-      cpasma_vals.push_back(C / op.get_mu());
-
-      // Print X-point and magnetic axis
-      printf("psi_x = %10.8e; r_x = %10.8e; z_x = %10.8e\n", psi_x, x_x[0], x_x[1]);
-      printf("psi_ma = %10.8e; r_ma = %10.8e; z_ma = %10.8e\n", psi_ma, x_ma[0], x_ma[1]);
-
-      // Log X-point and magnetic axis in out_iter/ directory
-      fprintf(fp, "psi_x = %10.8e; r_x = %10.8e; z_x = %10.8e\n", psi_x, x_x[0], x_x[1]);
-      fprintf(fp, "psi_ma = %10.8e; r_ma = %10.8e; z_ma = %10.8e\n", psi_ma, x_ma[0], x_ma[1]);
-
-
-      // Compute RHS vector components (equation 4.11 from paper)
-
-      // -b1 = Gy + By^T p + Cy lambda
-      opt_res = g;
-      By.AddMultTranspose(pv, opt_res);
-      add(opt_res, lv, Cy, opt_res);
-      b1 = opt_res;
-      b1 *= -1.0;
-
-      // -b2 = reg_res = H u^n - F^T p^n
-      H->Mult(*uv, reg_res);
-      F->AddMultTranspose(pv, reg_res, -1.0);
-      b2 = reg_res;
-      b2 *= -1.0;
-
-      // -b3 = eq_res = B(y^n) - F u^n
       eq_res = op.get_res();
-      b3 = eq_res;
-      b3 *= -1.0;
+      b3 = eq_res;  // b3 *= -1.0;
+      // F->AddMult(*uv, eq_res, -op.get_mu());
 
-      // -b4 = B_a^T p^n + C_a l^n
-      double b4 = Ba * pv + Ca * lv;
-      b4 *= -1.0;
-
-      // -b5 = C - Ip * mu
-      double b5 = C - Ip * op.get_mu();  // TODO: mu is not present in the calculation of b5 in equation 4.11 of the paper--check if this is a bug here.
-      b5 *= -1.0;
-
-      // Save equilibrium residual (b3)
-      char name_eq_res[60];
-      sprintf(name_eq_res, "gf/eq_res_amr%d_i%d.gf", it_amr, i);
-      eq_res.Save(name_eq_res);
-
-      // Get max errors for residuals
       error = GetMaxError(eq_res);
-      double max_opt_res = op.get_mu() * GetMaxError(opt_res);
-      double max_reg_res = GetMaxError(reg_res) / op.get_mu();
 
-      // Inexact Newton. Adjust the relative tolerance eta as the Newton iteration converges
-      if (i > 0) {
-        eta = gamma_in * pow(error / error_old, alpha_in);  // alpha_in and gamma_in: inexact Newton parameters inputted as arguments through main.cpp
-        double sg_eta = gamma_in * pow(eta_last, alpha_in); // safeguard to prevent eta from becoming too small too quickly
-        if (sg_eta > sg_threshold) {  // if eta is above a predefined threshold, truncate eta
-          eta = max(eta, sg_eta);
-        }
-        eta = min(eta, lin_rtol_max);
-        eta_last = eta;  // for the next iteration
-      }
+      // op.Mult(x, out_vec);
+      // error = GetMaxError(out_vec);
+      // cout << "eq_res" << "i" << i << endl;
+      // out_vec.Print();
 
-      printf("inexact newton rtol: %.2e\n", eta);
       printf("\n");
+      if (i == 0) {
+        printf("i: %3d, max residual: %.3e\n", i, error);
+      } else {
+        printf("i: %3d, max residual: %.3e, ratio %.3e\n", i, error, error_old / error);
+      }
+      error_old = error;
 
-      // Newton iteration stopping conditions
       if (error < newton_tol) {
         break;
       }
-      if (i == max_newton_iter) {
-        break;
-      }
 
-      // Save current residual for the next iteration
-      error_old = error;
-
-      // Compute the C matrix in the block linear system: CMat
-
-      // invH is diagonal inverse of H (regularization on coil currents)
-      const int nu = uv->Size();  // number of coil currents (control dofs)
-      mfem::SparseMatrix* invH = new mfem::SparseMatrix(nu, nu);
-      for (int j = 0; j < nu; ++j) {
-          const double hjj = (*H)(j, j);
-          MFEM_VERIFY(hjj > 0.0, "H must be positive diagonal.");
-          invH->Set(j, j, 1.0 / hjj);
-      }
-      invH->Finalize();
-
-      // Calculations to form CMat
-      SparseMatrix *FT = Transpose(*F);
-      SparseMatrix *mF = Add(-1.0, *F, 0.0, *F);  // This is just calculating -F
-      SparseMatrix *invHFT = Mult(*invH, *FT);
-      SparseMatrix *mFinvHFT = Mult(*mF, *invHFT);
-      SparseMatrix *FinvH = Mult(*F, *invH);
-      SparseMatrix *mMuFinvHFT = Add(op.get_mu(), *mFinvHFT, 0.0, *mFinvHFT);
-      SparseMatrix *MuFinvH = Add(op.get_mu(), *FinvH, 0.0, *FinvH);
-      double scale = 1.0 / sqrt(mMuFinvHFT->MaxNorm());
-
-      // Form CMat
-      SparseMatrix *CMat = Add(scale * scale, *mMuFinvHFT, 0.0, *mMuFinvHFT);
-
-      // Compute the B and B^T matrices in the block linear system: BMat and BTMat
-
-      // Compute 1 / Ca Cy Ba^T
-      SparseMatrix *CyBa = new SparseMatrix(pv.Size(), pv.Size());
-      for (int j = 0; j < pv.Size(); ++j) {
-        for (int k = 0; k < pv.Size(); ++k) {
-          if (Ba(j) * Cy(k) != 0.0) {
-            CyBa->Set(j, k, Cy(j) * Ba(k) / Ca);
-          }
-        }
-      }
-      CyBa->Finalize();
-
-      SparseMatrix *ByT = Transpose(By);
-      SparseMatrix *ScaleByT = Add(scale, *ByT, 0.0, *CyBa);  // Scales By^T by a scale factor defined ~20 lines up
-      SparseMatrix *ScaleBy = Transpose(*ScaleByT);  // Scales By by the same scale factor
-
-      // Form BMat and BTMat
-      SparseMatrix *BMat = Add(scale, *ByT, -scale, *CyBa);
-      SparseMatrix *BTMat = Transpose(*BMat);
-
-      // Build block linear system
-
-      // Initialize block matrix and RHS
-      BlockOperator BlockSystem(row_offsets);
-      BlockVector rhs(row_offsets);
-      
-      int ind_x, ind_p;
-
-      // If we have a non-symmetric block matrix
-      if (PC_option == 0) {  // PC_option: preconditioner option
-        ind_x = 0;
-        ind_p = 1;
-      }
-      
-      // If we have a symmetric block matrix
-      else {
-        ind_x = 1;
-        ind_p = 0;
-      }
-
-      // Form block matrix
-      BlockSystem.SetBlock(0, ind_x, AMat);
-      BlockSystem.SetBlock(0, ind_p, BMat);
-      BlockSystem.SetBlock(1, ind_x, BTMat);
-      BlockSystem.SetBlock(1, ind_p, CMat);
-
-      // Write contents of matrices to text files in CSR format using the WriteSparseMatrixToFile function
-      FILE *fp_spy;
-      char filename_spy[60];
-      sprintf(filename_spy, "spys/spy_model%d_amr%d.txt", model->get_model_choice(), it_amr);
-      fp_spy = fopen(filename_spy, "w");
-      fprintf(fp_spy, "AMat\n");
-      WriteSparseMatrixToFile(fp_spy, AMat);
-      fprintf(fp_spy, "\nBMat\n");
-      WriteSparseMatrixToFile(fp_spy, BMat);
-      fprintf(fp_spy, "\nCMat\n");
-      WriteSparseMatrixToFile(fp_spy, CMat);
-
-      // Define RHS of the block linear system (equation 5.3 of paper)
-      // RHS = [c1, c2]
-      // c1 = b1 - Cy b4 / Ca
-      // c2 = b3 + mu F H^{-1} b_2 - Ba b5 / Ca
-      rhs = 0;
-      add(1.0, b1, -b4 / Ca, Cy, rhs.GetBlock(0));  // c1
-      MuFinvH->Mult(b2, rhs.GetBlock(1));  // c2 (this line and subsequent lines)
-      rhs.GetBlock(1) += b3;
-      add(1.0, rhs.GetBlock(1), - b5 / Ca, Ba, rhs.GetBlock(1));
-      rhs.GetBlock(1) *= scale;
-
-      // Configure the FGMRES solver
-      FGMRESSolver solver;
-      solver.SetAbsTol(1e-12);
-      solver.SetRelTol(eta);
-      solver.SetMaxIter(max_krylov_iter);
-      solver.SetOperator(BlockSystem);
-      solver.SetKDim(kdim);
-      solver.SetPrintLevel(-1);
-
-      // Initialize solution guess dx to zero
-      BlockVector dx(row_offsets);
       dx = 0.0;
+      SparseMatrix By = op.get_By();
+      // SparseMatrix *Mat = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
 
-      double dalpha, dlv;
+      // cout << "By" << "i" << i << endl;
+      // Mat->WriteSparseMatrixToFile();
 
-      // ============================================================================
-      // Preconditioners
-      // ============================================================================
-
-      // Preconditioning: 0 = block diagonal PC, 5 = block upper triangular PC, 6 = block lower triangular PC
-      if (PC_option == 0 || PC_option == 5 || PC_option == 6) {
-
-        Solver *inv_BT, *inv_B;
-
-        // Build AMG solvers for B_y and B_y^T using Hypre
-        HypreParMatrix *B_Hypre = ConvertToHypre(ScaleByT);
-        HypreParMatrix *BT_Hypre = ConvertToHypre(ScaleBy);
-        HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
-        HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
-
-        // Configure AMG parameters for AMG(B_y)
-        B_AMG->SetPrintLevel(0);
-        B_AMG->SetCycleType(amg_cycle_type);  // choose V-cycle/W-cycle
-        B_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);  // number of relaxation sweeps: a--pre-smoothing, b--post-smoothing
-        B_AMG->SetMaxIter(amg_max_iter);  // number of AMG cycles
-
-        // Configure AMG parameters for AMG(B_y^T)
-        BT_AMG->SetPrintLevel(0);
-        BT_AMG->SetCycleType(amg_cycle_type);
-        BT_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
-        BT_AMG->SetMaxIter(amg_max_iter);
-
-        // TODO: is this renaming necessary?
-        inv_B = B_AMG;
-        inv_BT = BT_AMG;
-
-        // Block diagonal preconditioner: equation 5.4 from paper
-        if (PC_option == 0) {
-          BlockDiagonalPreconditioner BlockPrec(row_offsets);
-          BlockPrec.SetDiagonalBlock(0, inv_B);
-          BlockPrec.SetDiagonalBlock(1, inv_BT);
-          solver.SetPreconditioner(BlockPrec);
-        }
-
-        // Block upper triangular preconditioner: equation 5.5 from paper
-        else if (PC_option == 5) {
-          SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 1);
-          solver.SetPreconditioner(SCPC);
-        }
-
-        // Block lower triangular preconditioner: equation 5.6 from paper
-        else if (PC_option == 6) {
-          SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 2);
-          solver.SetPreconditioner(SCPC);
-        }
+      Solver *inv_B;
+      HypreParMatrix * B_Hypre = ConvertToHypre(&By);
+      HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
+      B_AMG->SetPrintLevel(0);
+      B_AMG->SetCycleType(1);
+      B_AMG->SetCycleNumSweeps(1, 1);
+      B_AMG->SetMaxIter(1);
+      inv_B = B_AMG;
       
-        // Solve the block system using FGMRES with preconditioning
-        solver.Mult(rhs, dx);
-        fprintf(fp, "amr=%d newton=%d iters=%d\n", it_amr, i, solver.GetNumIterations());
-      }
-      
-      // Terminate if preconditioner option is unsupported
-      else {
-        fprintf(stderr, "ERROR: Unsupported PC_option=%d (currently supported: 0, 5, 6)\n", PC_option);
-        MFEM_ABORT("Unsupported PC_option");
-      }
+      // GSSmoother M(By);
+      // printf("iter: %d, tol: %e, kdim: %d\n", max_krylov_iter, krylov_tol, kdim);
+      int gmres_iter = max_krylov_iter;
+      double gmres_tol = krylov_tol;
+      int gmres_kdim = kdim;
+      GMRES(By, dx, b3, *inv_B, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
+      printf("gmres iters: %d, gmres err: %e\n", gmres_iter, gmres_tol);
 
-      // Check for convergence
-      if (solver.GetConverged()) {
-        printf("GMRES converged in %d iterations with a residual norm of %e\n", solver.GetNumIterations(), solver.GetFinalNorm());
-      }
-      else {
-        printf("GMRES did not converge in %d iterations. Residual norm is %e\n", solver.GetNumIterations(), solver.GetFinalNorm());
-      }
-      total_gmres += solver.GetNumIterations();
+      // add(dx, ur_coeff - 1.0, dx, dx);
+      x -= dx;
 
-      if (solver.GetNumIterations() == -1) {
-        printf("failure...\n");
-        return;
-      }
-      dx.GetBlock(ind_p) *= scale;
-
-      ///////////////////////////////////////////////////////////////////////////////////
-
-      // get solution
-      x += dx.GetBlock(ind_x);
-      pv += dx.GetBlock(ind_p);
-
-      invHFT->AddMult(dx.GetBlock(ind_p), *uv);
-      invH->AddMult(b2, *uv);
-
-      dalpha = (b5 - (Cy * dx.GetBlock(ind_x))) / Ca;
-      dlv = (b4 - (Ba * dx.GetBlock(ind_p))) / Ca;
-      alpha += dalpha;
-      lv += dlv;
-
-      // *** calculate residuals after solve *** //
-      // first block row
-      Vector res1(pv.Size());
-      res1 = 0.0;
-      AMat->AddMult(dx.GetBlock(ind_x), res1);
-      ByT->AddMult(dx.GetBlock(ind_p), res1);
-      add(res1, dlv, Cy, res1);
-      add(res1, -1.0, b1, res1);
-      printf("res1: %.2e\n", GetMaxError(res1));
-
-      // second block row
-      Vector res2(pv.Size());
-      res2 = 0.0;
-      mMuFinvHFT->AddMult(dx.GetBlock(ind_p), res2);
-      MuFinvH->Mult(b2, res2);
-      res2 *= -1.0;
-      By.AddMult(dx.GetBlock(ind_x), res2);
-      mMuFinvHFT->AddMult(dx.GetBlock(ind_p), res2);
-      add(res2, dalpha, Ba, res2);
-      add(res2, -1.0, b3, res2);
-      printf("res2: %.2e\n", GetMaxError(res2));
-
-      // Print currents
-      printf("Currents: [");
-      for (int i = 0; i < uv->Size(); ++i) {
-        printf("%.3e ", (*uv)[i]);
-      }
-      printf("]\n");
-
-      // Save grid function and magnetic field
-      char name_[60];
-      sprintf(name_, "gf/xtmp_amr%d.gf", it_amr);
-      x.Save(name_);
-      char name[60];
-      sprintf(name, "gf/xtmp_amr%d_i%d.gf", it_amr, i);
-      x.Save(name);
-      Br_field.Save("gf/Br.gf");
-      Bp_field.Save("gf/Bp.gf");
-      Bz_field.Save("gf/Bz.gf");
-      x.GetDerivative(1, 0, psi_r);
-      x.GetDerivative(1, 1, psi_z);
-      Br_field.ProjectCoefficient(BrCoeff);
-      Bp_field.ProjectCoefficient(BpCoeff);
-      Bz_field.ProjectCoefficient(BzCoeff);
+      x.Save("gf/xtmp.gf");
+      GridFunction err(&fespace);
+      err = out_vec;
+      err.Save("gf/res.gf");
 
       visit_dc.Save();
     }
-    
-    if (it_amr >= max_levels) {
-      printf("max number of refinement levels\n");
-      break;
-    }
-    if (cdofs > max_dofs)
-      {
-        cout << "Reached the maximum number of dofs. Stop." << endl;
-        break;
-      }
-
-    f = op.get_f();
-    refiner.ApplyRef(*mesh, 1000, amr_frac_in, amr_frac_out);
-    if (refiner.Stop()) {
-      cout << "Stopping criterion satisfied. Stop." << endl;
-      break;
-    } else {
-      printf("Refining mesh, i=%d\n", it_amr+1);
-    }
-
-    // update variables due to refinement
-    fespace.Update();
-    x.Update();
-    psi_r.Update();
-    psi_z.Update();
-    Br_field.Update();
-    Bp_field.Update();
-    Bz_field.Update();
-    pv.Update();
-    eq_res.Update();
-    opt_res.Update();
-    b1.Update();
-    b3.Update();
-    
-    printf("******* fespace.GetTrueVSize(): %d\n", fespace.GetTrueVSize());
+    op.Mult(x, out_vec);
+    error = GetMaxError(out_vec);
+    printf("\n\n********************************\n");
+    printf("final max residual: %.3e, ratio %.3e\n", error, error_old / error);
+    printf("********************************\n\n");
   }
-
-  // Print elapsed time to convergence
-  auto t_end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double, std::milli> ms_double = t_end - t_init;
-  printf("time elapsed: %f seconds\n", ms_double.count() / 1000.0);
-
-  f_x = model->get_f_x();
-
-  // Write final value of psi_ma to a different file for GQDSK
-  system("mkdir -p ../gslib/GEQDSK"); 
-  ofstream file("../gslib/GEQDSK/GEQDSK_simagx_sibdry_cpasma.txt"); 
-  file << scientific << setprecision(9)
-    << setw(16) << psi_ma_vals.back() << "\n"
-    << setw(16) << psi_x_vals.back() << "\n"
-    << setw(16) << cpasma_vals.back() << "\n";
-    file.close();
 
   system("mkdir -p ../gslib/GEQDSK"); 
   ofstream NewFile("../gslib/GEQDSK/GEQDSK_alpha_f_x_psi_x.txt");
@@ -945,6 +1076,10 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
       Solve
       -------------------------------------------------------------------------------------------
     */
+
+   if (do_initial) {
+     do_control = false;
+   }
    
    // Define the solution x as a finite element grid function in fespace. Set
    // the initial guess to zero, which also sets the boundary conditions.
@@ -990,6 +1125,8 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
      include_plasma = false;
    }
 
+   cout << "Beginning GS Solve." << endl;
+
    // TODO: remove optimize_alpha
    Solve(fespace, &model, x, kdim, max_newton_iter, max_krylov_iter, newton_tol, krylov_tol, 
          Ip, N_control, do_control,
@@ -1020,9 +1157,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
      printf("Saved solution to %s\n", name_gf_out);
      printf("Saved mesh to %s\n", name_mesh_out);
      printf("glvis -m %s -g %s\n", name_mesh_out, name_gf_out);
-   }
-   
-   else {
+   } else {
      char name_gf_out[60];
      sprintf(name_gf_out, "gf/final_model%d_pc%d_cyc%d_it%d.gf", model.get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
      x.Save(name_gf_out);
@@ -1041,6 +1176,25 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
         paraview_dc.Save();
      }
    }
-   
-   return 0.0;
+   /* 
+      -------------------------------------------------------------------------------------------
+      Error
+      -------------------------------------------------------------------------------------------
+    */
+
+   if (do_manufactured_solution) {
+     GridFunction diff(&fespace);
+     add(x, -1.0, u, diff);
+     double num_error = GetMaxError(diff);
+     diff.Save("gf/error.gf");
+     double L2_error = x.ComputeL2Error(exact_coefficient);
+     printf("\n\n********************************\n");
+     printf("numerical error: %.3e\n", num_error);
+     printf("L2 error: %.3e\n", L2_error);
+     printf("********************************\n\n");
+
+     return L2_error;
+   } else {
+     return 0.0;
+   }
 }

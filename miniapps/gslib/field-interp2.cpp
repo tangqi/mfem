@@ -22,6 +22,9 @@ double scalar_func(const Vector &x)
 
 int main (int argc, char *argv[])
 {
+
+   Mpi::Init(argc, argv);   // CHANGE FROM EXISTING FILE: added MPI initialization. Run with srun -n 1 ./field-interp ...
+
    // Set the method's default parameters.
    const char *src_mesh_file = "../meshing/square01.mesh";
    const char *tar_mesh_file = "../../data/inline-tri.mesh";
@@ -194,6 +197,7 @@ int main (int argc, char *argv[])
    FindPointsGSLIB finder;
    finder.Setup(mesh_1);
    finder.Interpolate(vxyz, *func_source, interp_vals, point_ordering);
+
 
    // Project the interpolated values to the target FiniteElementSpace.
    func_target = interp_vals;

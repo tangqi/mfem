@@ -277,13 +277,40 @@ void InitialCoefficient::compute_QP(int N_control_, Mesh * mesh, FiniteElementSp
   alpha = new vector<Vector>;
   J = new vector<Array<int>>;
   for (int i = 0; i < N_control; ++i) {
+
     // get finite element
     const FiniteElement * fe = fes->GetFE(elem_ids[i]);
     
-    //
     Vector shape;
+
+    cout << "\n Looking for bug in initial_coeffiicent.cpp." << endl;  // DEBUGGING
+
+    // DEBUGGING
+    std::cout << "Mesh elements: " << mesh->GetNE() << std::endl;  // Looks to be the same as the # of FES elements
+    std::cout << "FES elements: " << fes->GetNE() << std::endl;  // Looks to be the same as the # of mesh elements
+    std::cout << "Element ID: " << elem_ids[i] << std::endl;  // Looks okay--returns 116
+    // std::cout << "Integration Point: " << ips[i] << std::endl;  // NOTE: This crashes the code--it can't compile
+    // std::cout << "FE type: " << fe->GetName() << ", DoFs: " << fe->GetDof() << std::endl;  // NOTE: This crashes the code--it can't compile
+    std::cout << "IP: " << ips[i].x << ", " << ips[i].y << std::endl;  // Prints 0.262755, 0.52872
+    std::cout << "FESpace Collection: " << fes->FEColl()->Name() << std::endl;  // Prints H1_2D_P1
+    std::cout << "Element FE Type: " << typeid(*fe).name() << std::endl;  // Prints N4mfem23H1_QuadrilateralElementE
+    std::cout << "Element geometry: " << mesh->GetElementGeometry(elem_ids[i]) << std::endl;  // Prints 3 (quadrilaterals)
+
+    // DEBUGGING
+    if (fe == nullptr) {
+        std::cerr << "Null FiniteElement pointer for element " << elem_ids[i] << std::endl;
+        continue;
+    }
+
+    // DEBUGGING
+    if (i >= ips.Size()) {
+        std::cerr << "Invalid IntegrationPoint index: " << i << std::endl;
+        continue;
+    }
+
     fe->CalcShape(ips[i], shape);
     // shape is alpha_l^{(k)}
+    cout << "\n No bug here." << endl;  // DEBUGGING
 
     Array<int> vdofs;
     fes->GetElementVDofs(elem_ids[i], vdofs);

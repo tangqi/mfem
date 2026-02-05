@@ -78,10 +78,17 @@ c5=-2.848113e+03
 
 ur_coeff=1.0
 
-#./../gslib/field-interp -m1 initial/initial_mesh_g3.mesh \
+# ./../gslib/field-interp -m1 initial/initial_mesh_g3.mesh \
 #                        -m2 $mesh_file \
 #                        -s1 initial/initial_guess_g3.gf \
 #                        -r $refinement_factor \
+#                        -no-vis
+
+# ./../gslib/field-interp -m1 meshes/mesh_refine.mesh \
+#                        -m2 $mesh_file \
+#                        -s1 gf/final_model2_pc5_cyc1_it5.gf \
+#                        -r $refinement_factor \
+# #                        -o 2 \
 #                        -no-vis
 
 # lldb -- main.o \
