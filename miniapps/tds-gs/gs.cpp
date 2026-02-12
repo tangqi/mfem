@@ -376,6 +376,7 @@ void Solve(
     // TODO: there doesn't appear to be any limit to the max number of AMR loops in case the solver doesn't converge. If
     // the solver never converges, then it will run forever. Perhaps it is a good idea to add a max AMR loop feature.
 
+    // for (int it_amr = 0; it_amr < 1; ++it_amr) {
     for (int it_amr = 0; ; ++it_amr) {
       int total_gmres = 0;
       int cdofs = fespace.GetTrueVSize();
@@ -468,10 +469,21 @@ void Solve(
       double error_old;
       double error;
 
+      cout << "Debugging: Starting Newton loop. AMR iteration " << it_amr << endl;  // Debugging
+
       for (int i = 0; i <= max_newton_iter; ++i) {
 
+        // Debugging
+        std::cout << "Entering NonlinearEquationRes with alpha = " << alpha << std::endl;
+        MFEM_VERIFY(x.Size() > 0, "x vector is empty!");
+        MFEM_VERIFY(uv->Size() > 0, "uv vector is empty!");
+        // std::cout << "By size: " << By.Height() << " x " << By.Width() << std::endl;  // Not compiling
+        // std::cout << "Cy size: " << Cy.Size() << std::endl;  // Not compiling
+
         // compute matrices and vectors in problem
-        op.NonlinearEquationRes(x, uv, alpha);
+        op.NonlinearEquationRes(x, uv, alpha);  // There is a bug here at AMR iteration 1
+
+        cout << "Debugging: Getting Newton loop operators. AMR iteration " << it_amr << endl;  // Debugging
 
         // Get operators
         SparseMatrix By = op.get_By();
@@ -481,6 +493,8 @@ void Solve(
         Vector Ba = op.get_Ba();
         SparseMatrix *AMat = op.compute_hess_obj(x);
         Vector g = op.compute_grad_obj(x);
+
+        cout << "Debugging: Got Newton loop operators. AMR iteration " << it_amr << endl;  // Debugging
 
         // Print plasma current
         printf("plasma_current = %10.8e\n", C / op.get_mu());
@@ -547,8 +561,8 @@ void Solve(
 
         // Get max errors for residuals
         error = GetMaxError(eq_res);
-        double max_opt_res = op.get_mu() * GetMaxError(opt_res);
-        double max_reg_res = GetMaxError(reg_res) / op.get_mu();
+        // double max_opt_res = op.get_mu() * GetMaxError(opt_res);
+        // double max_reg_res = GetMaxError(reg_res) / op.get_mu();
 
         // Inexact Newton. Adjust the relative tolerance eta as the Newton iteration converges
         if (i > 0) {
@@ -726,18 +740,36 @@ void Solve(
 
           // Block upper triangular preconditioner: equation 5.5 from paper
           else if (PC_option == 5) {
-            SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 1);
-            solver.SetPreconditioner(SCPC);
+            // SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 1);
+            // solver.SetPreconditioner(SCPC);
+
+            // These next two lines were added to make the solver work with quad mesh
+            SchurPC *SCPC = new SchurPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 1);
+            solver.SetPreconditioner(*SCPC);
           }
 
           // Block lower triangular preconditioner: equation 5.6 from paper
           else if (PC_option == 6) {
-            SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 2);
-            solver.SetPreconditioner(SCPC);
+            // SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 2);
+            // solver.SetPreconditioner(SCPC);
+
+            // These next two lines were added to make the solver work with quad mesh
+            SchurPC *SCPC = new SchurPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 2);
+            solver.SetPreconditioner(*SCPC);
           }
-        
+
           // Solve the block system using FGMRES with preconditioning
+          cout << "Checking FGMRES solver for bugs." << endl;  // DEBUGGING
+          // std::cout << "rhs.Size(): " << rhs.Size() << ", dx.Size(): " << dx.Size() << std::endl;  // Is fine.
+          // std::cout << "solver height: " << solver.Height() << ", width: " << solver.Width() << std::endl;  // Is fine.
+
+          // MFEM_VERIFY(B_Hypre != nullptr, "B_Hypre is null");
+          // MFEM_VERIFY(BT_Hypre != nullptr, "BT_Hypre is null");
+          // MFEM_VERIFY(inv_B != nullptr, "inv_B is null");
+          // MFEM_VERIFY(inv_BT != nullptr, "inv_BT is null");
+
           solver.Mult(rhs, dx);
+          cout << "No bugs found." << endl;  // DEBUGGING
           fprintf(fp, "amr=%d newton=%d iters=%d\n", it_amr, i, solver.GetNumIterations());
         }
         
@@ -1157,7 +1189,9 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
      printf("Saved solution to %s\n", name_gf_out);
      printf("Saved mesh to %s\n", name_mesh_out);
      printf("glvis -m %s -g %s\n", name_mesh_out, name_gf_out);
-   } else {
+   }
+   
+   else {
      char name_gf_out[60];
      sprintf(name_gf_out, "gf/final_model%d_pc%d_cyc%d_it%d.gf", model.get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
      x.Save(name_gf_out);
