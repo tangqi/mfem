@@ -1,7 +1,10 @@
 # coefficient of ff' term
-alpha=-.2
+alpha=1.46579418e-01  # This is the tri-mesh solve value
+# alpha=-.2
+
 # coefficient of p' term
 beta=0.0
+
 # unused?
 gamma=0.0
 
@@ -25,7 +28,7 @@ data_file="data/separated_file.data"
 refinement_factor=1
 amr_frac_in=0.08
 amr_frac_out=0.3
-max_levels=4
+max_levels=8
 max_dofs=100000
 
 do_test=0
@@ -36,7 +39,7 @@ do_initial=0
 light_tol=1e-8
 max_krylov_iter=10000
 krylov_tol=1e-4
-max_newton_iter=8
+max_newton_iter=1
 newton_tol=1e-6
 
 # number of control points on plasma
@@ -61,20 +64,35 @@ amg_num_sweeps_a=1
 amg_num_sweeps_b=1
 amg_max_iter=5
 
-# poloidal flux coils
-c6=-4.552585e+06
-c7=3.180596e+06
-c8=5.678096e+06
-c9=3.825538e+06
-c10=1.066498e+07
-c11=-2.094771e+07
+# poloidal flux coils  # These are tri-mesh solve values
+c6=-1.715e+06
+c7=3.871e+06
+c8=3.369e+06
+c9=-2.728e+04
+c10=1.618e+07
+c11=-2.453e+07
 
-# center solenoids
-c1=1.143284e+03
-c2=-2.478694e+04
-c3=-3.022037e+04
-c4=-2.205664e+04
-c5=-2.848113e+03
+# center solenoids  # These are tri-mesh solve values
+c1=-1.459e+07
+c2=3.377e+07
+c3=1.824e+07
+c4=2.105e+07
+c5=-3.116e+06
+
+# # poloidal flux coils
+# c6=-4.552585e+06
+# c7=3.180596e+06
+# c8=5.678096e+06
+# c9=3.825538e+06
+# c10=1.066498e+07
+# c11=-2.094771e+07
+
+# # center solenoids
+# c1=1.143284e+03
+# c2=-2.478694e+04
+# c3=-3.022037e+04
+# c4=-2.205664e+04
+# c5=-2.848113e+03
 
 ur_coeff=1.0
 
