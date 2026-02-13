@@ -39,7 +39,7 @@ do_initial=0
 light_tol=1e-8
 max_krylov_iter=10000
 krylov_tol=1e-4
-max_newton_iter=1
+max_newton_iter=8
 newton_tol=1e-6
 
 # number of control points on plasma
