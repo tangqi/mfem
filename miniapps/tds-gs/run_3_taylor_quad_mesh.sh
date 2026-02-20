@@ -96,22 +96,13 @@ c5=-3.116e+06
 
 ur_coeff=1.0
 
-# ./../gslib/field-interp -m1 initial/initial_mesh_g3.mesh \
-#                        -m2 $mesh_file \
-#                        -s1 initial/initial_guess_g3.gf \
-#                        -r $refinement_factor \
-#                        -no-vis
+# Interpolate Taylor state triangular mesh final solution to quadrilateral mesh
+srun -n 1 ./../gslib/field-interp -m1 initial/final_tri_mesh_refine.mesh -m2 meshes/iter_gen_quad.msh -s1 initial/final_tri_model2_pc5_cyc1_it5.gf -no-vis
+initial_gf="interpolated.gf"
 
-# ./../gslib/field-interp -m1 meshes/mesh_refine.mesh \
-#                        -m2 $mesh_file \
-#                        -s1 gf/final_model2_pc5_cyc1_it5.gf \
-#                        -r $refinement_factor \
-# #                        -o 2 \
-#                        -no-vis
-
-# lldb -- main.o \
 srun -n 1 ./main \
     -m $mesh_file \
+    --initial_gf $initial_gf \
     -o 1 \
     -d $data_file \
     -g $refinement_factor \
@@ -161,5 +152,3 @@ srun -n 1 ./main \
     --amg_max_iter $amg_max_iter \
     --amr_frac_in $amr_frac_in \
     --amr_frac_out $amr_frac_out
-
-# ./../gslib/field-interp -m1 mesh.mesh -m2 meshes/geqdsk.msh -s1 final.gf -no-vis
