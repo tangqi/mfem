@@ -477,8 +477,6 @@ void Solve(
         std::cout << "Entering NonlinearEquationRes with alpha = " << alpha << std::endl;
         MFEM_VERIFY(x.Size() > 0, "x vector is empty!");
         MFEM_VERIFY(uv->Size() > 0, "uv vector is empty!");
-        // std::cout << "By size: " << By.Height() << " x " << By.Width() << std::endl;  // Not compiling
-        // std::cout << "Cy size: " << Cy.Size() << std::endl;  // Not compiling
 
         // compute matrices and vectors in problem
         op.NonlinearEquationRes(x, uv, alpha);  // There is a bug here at AMR iteration 1
