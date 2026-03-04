@@ -348,9 +348,12 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   }
 }
 
-map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib) {
+map<int, vector<int>> compute_vertex_map(Mesh &mesh, int with_attrib) {
+
   // get map between vertices and neighboring vertices
+
   map<int, vector<int>> vertex_map;
+
   for (int i = 0; i < mesh.GetNE(); i++) {
     const int *v = mesh.GetElement(i)->GetVertices();
     const int ne = mesh.GetElement(i)->GetNEdges();
@@ -359,7 +362,18 @@ map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib) {
     if ((with_attrib == -1) || (attrib == with_attrib)) {
       for (int j = 0; j < ne; j++) {
         const int *e = mesh.GetElement(i)->GetEdgeVertices(j);
+
         vertex_map[v[e[0]]].push_back(v[e[1]]);
+
+        // DEBUGGING--the next few lines fix mesh adjacency list issues
+        vertex_map[v[e[1]]].push_back(v[e[0]]);
+        for (auto &p : vertex_map)
+        {
+            auto &nbrs = p.second;
+            std::sort(nbrs.begin(), nbrs.end());
+            nbrs.erase(std::unique(nbrs.begin(), nbrs.end()), nbrs.end());
+        }
+
       }
     }
   }
@@ -367,34 +381,65 @@ map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib) {
 }
 
 
+void compute_plasma_points(
+  GridFunction *z,
+  const Mesh &mesh,
+  const map<int,
+  vector<int>> &vertex_map,
+  set<int> &plasma_inds,
+  int &ind_min,
+  int &ind_max,
+  double &min_val,
+  double &max_val,
+  int iprint
+) {
 
-void compute_plasma_points(GridFunction * z, const Mesh & mesh,
-                           const map<int, vector<int>> & vertex_map,
-                           set<int> & plasma_inds,
-                           int &ind_min, int &ind_max, double &min_val, double & max_val,
-                           int iprint) {
-
-  // mag ax point: global minimum in z
-  // saddle point: closest saddle point to mag ax point, otherwise maximum on limiter boundary
-
-  // keep track of elements inside of plasma region
+   // mag ax point: global minimum in z
+   // saddle point: closest saddle point to mag ax point, otherwise maximum on limiter boundary
+   // keep track of elements inside of plasma region
   
    Vector nval;
    z->GetNodalValues(nval);
 
+   // Initialize global extrema trackers
    min_val = + numeric_limits<double>::infinity();
    max_val = - numeric_limits<double>::infinity();
    ind_min = 0;
    ind_max = 0;
 
+   // Candidate saddle points (X-points)
    vector<int> candidate_x_points;
      
    int count = 0;
-   // **********************************************************************************
-   // loop through vertices and check neighboring vertices to see if we found a saddle point
+
+   //////////////////////////////////////////////////////////////////////////////////////////////////
+   // DEBUGGING
+   int min_deg = 1e9, max_deg = 0;
+   std::vector<int> degree_count;
+   for (auto &p : vertex_map) {
+     int deg = (int)p.second.size();
+     min_deg = std::min(min_deg, deg);
+     max_deg = std::max(max_deg, deg);
+    if (deg >= degree_count.size())
+        degree_count.resize(deg + 1);
+    degree_count[deg]++;
+   }
+   std::cout << "vertex_map size=" << vertex_map.size()
+             << " min_deg=" << min_deg
+             << " max_deg=" << max_deg << "\n";
+   for (int d = 0; d < degree_count.size(); ++d) {
+       if (degree_count[d] > 0)
+           std::cout << "degree " << d << " : " << degree_count[d] << " nodes\n";
+   }
+   //////////////////////////////////////////////////////////////////////////////////////////////////
+
+   // DEBUGGING: find max number of sign changes
+   int max_sc_seen = 0;
+
+   // Loop over all vertices to determine: global minimum, global maximum, candidate saddle points
    for(int iv = 0; iv < mesh.GetNV(); ++iv) {
 
-     // ensure point is in vertex map
+     // Get neighbors of vertex iv from adjacency map
      vector<int> adjacent;
      try {
        adjacent = vertex_map.at(iv);
@@ -402,7 +447,7 @@ void compute_plasma_points(GridFunction * z, const Mesh & mesh,
        continue;
      }
 
-     // min/max checker
+     // Update global minimum and maximum values and indices of z
      if (nval[iv] < min_val) {
        min_val = nval[iv];
        ind_min = iv;
@@ -411,30 +456,36 @@ void compute_plasma_points(GridFunction * z, const Mesh & mesh,
        max_val = nval[iv];
        ind_max = iv;
      }
-     
-     // saddle point checker
-     int j = 0;
+
+     // -----------------------------------------------------------------------
+     // Detect saddle point candidates using neighbor sign changes
+     // -----------------------------------------------------------------------
+
      const double* x0 = mesh.GetVertex(iv);
-
-
      map<double, double> clock;
      set<double> ordered_angs;
-     for (j = 0; j < static_cast<int>( adjacent.size()); ++j) {
+
+     // For each node iv, sort adjacent nodes by angular order
+     int j = 0;
+     for (j = 0; j < static_cast<int>(adjacent.size()); ++j) {
+
        const int jv = adjacent[j];
-       const double* b = mesh.GetVertex(jv);
+       const double *b = mesh.GetVertex(jv);
+
+       // Difference in z between center node iv and adjacent node
        double diff = nval[jv] - nval[iv];
-       // cout << b[0] << ", " << b[1] << endl;
 
-
-
+       // Compute polar angle w.r.t x-axis
        double bx = b[0]-x0[0];
        double by = b[1]-x0[1];
-
        double ang = atan2(by, bx);
+
+       // Store polar angles and their associated differences
        clock[ang] = diff;
        ordered_angs.insert(ang);
      }
 
+     // For each node iv, loop through adjacent nodes to see if iv is a saddle point.
      int sign_changes = 0;
      set<double>::iterator it = ordered_angs.begin();
      double init = clock[*it];
@@ -446,19 +497,30 @@ void compute_plasma_points(GridFunction * z, const Mesh & mesh,
        }
        prev = clock[*it];
      }
-     if (prev * init < 0.0) {
+     if (prev * init < 0.0) {  // Complete the loop: last adjacent node to first adjacent node
        ++sign_changes;
      }
 
+     // DEBUGGING: find max number of sign changes
+     max_sc_seen = std::max(max_sc_seen, sign_changes);
+
+     // If 4 or more sign changes, save node iv as a saddle point.
      if (sign_changes >= 4) {
        if (iprint) {
          printf("Found saddle at (%9.6f, %9.6f), val=%9.6f\n", x0[0], x0[1], nval[iv]);
        }
+
+       // DEBUGGING
+       cout << "Found saddle at (" << x0[0] << ", " << x0[1] << "), val=" << nval[iv] << endl;
+
        candidate_x_points.push_back(iv);
        ++count;
      } 
    }
 
+   // Determine which saddle point is the X-point.
+   // X-point is the saddle point with the minimum value of z. If no saddle points were found,
+   // X-point is the max value of z.
    int ind_x = ind_max;
    double x_val = max_val;
    for (int i = 0; i < static_cast<int>(candidate_x_points.size()); ++i) {
@@ -473,7 +535,11 @@ void compute_plasma_points(GridFunction * z, const Mesh & mesh,
    const double* x_max = mesh.GetVertex(ind_max);
    const double* x_x = mesh.GetVertex(ind_x);
    
-   // cout << "total saddles found: " << count << endl;
+   cout << "total saddles found: " << count << endl;  // <-- TODO: useful to un-comment out
+
+   // DEBUGGING: find max number of sign changes
+   std::cout << "max sign_changes observed = " << max_sc_seen << "\n";
+
    if (iprint) {
      printf("  min of %9.6f at (%9.6f, %9.6f), ind %d\n", min_val, x_min[0], x_min[1], ind_min);
      printf("  max of %9.6f at (%9.6f, %9.6f), ind %d\n", max_val, x_max[0], x_max[1], ind_max);
@@ -482,22 +548,30 @@ void compute_plasma_points(GridFunction * z, const Mesh & mesh,
 
    // DAS: we need to return the x_val, not the max_val.
    // TODO, refactor to make less confusing...
-   max_val = x_val;
-   ind_max = ind_x;
+   max_val = x_val;  // max_val used to be the maximum z value, now it is the X-point value
+   ind_max = ind_x;  // ind_max used to be the node index with maximum z, now it is the index of the X-point node
 
-   // **********************************************************************************
-   // start at x_min and mark vertices that are in the plasma
+   // ---------------------------------------------------------------------------
+   // Flood-fill from magnetic axis to mark plasma region using
+   // breadth-first search starting from the minimum vertex. A vertex is
+   // considered inside the plasma if its value lies between min_val and x_val.
+   // ---------------------------------------------------------------------------
+
+   // Initialize queue for BFS and set to hold vertices classified as part of the plasma region
    list<int> queue;
    set<int>::iterator plasma_inds_it;
+
+   // Start BFS from minimum vertex index
    queue.push_back(ind_min);
    plasma_inds.insert(ind_min);
    plasma_inds.insert(ind_x);
    while (!queue.empty()) {
-     // get a point that is already in the plasma region
+
+     // Get a point that is already in the plasma region
      int iv = queue.front();
      queue.pop_front();
 
-     // check for neighboring points
+     // Check for neighboring points and store in adjacent
      vector<int> adjacent;
      try {
        adjacent = vertex_map.at(iv);
@@ -505,25 +579,25 @@ void compute_plasma_points(GridFunction * z, const Mesh & mesh,
        continue;
      }
 
-     // check if neighboring points are in the plasma
+     // Check if the neighboring points are in the plasma region
      for (int i = 0; i < static_cast<int>(adjacent.size()); ++i) {
        double val = nval[adjacent[i]];
        plasma_inds_it = plasma_inds.find(adjacent[i]);
-       // check that found vertex is not already accounted for
+
+       // Check that found vertex is not already accounted for
        if (plasma_inds_it == plasma_inds.end()) {
-         // point is not yet in plasma inds
+
+         // If the value at this vertex is between min and X-point vals, then add to plasma region
          if ((val >= min_val) && (val <= x_val)) {
-           // value at this point is between min and max, it is part of plasma
-           // add the point to the queue
            queue.push_back(adjacent[i]);
            plasma_inds.insert(adjacent[i]);
-         } else {
-           // value at point is not between min and max, it is adjacent to the plasma
+         }
+         
+         else {
+           // If the value at this vertex is not between min and X-point vals, don't add but mark as visited.
            plasma_inds.insert(adjacent[i]);
          }
        }
      }
    }
-   
-   
 }
