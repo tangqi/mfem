@@ -348,35 +348,52 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   }
 }
 
+
 map<int, vector<int>> compute_vertex_map(Mesh &mesh, int with_attrib) {
+    /**
+  * Build a vertex adjacency map for a mesh. For each vertex in the mesh, record
+  * the set of neighboring vertices that share an element edge with it. Optionally,
+  * the adjacency can be restricted to elements with a specific attribute.
+  *
+  * @param mesh        MFEM mesh containing the elements and vertices.
+  * @param with_attrib Element attribute filter. If -1, all elements are used;
+  *                    otherwise only elements whose attribute matches this
+  *                    value contribute to the adjacency map.
+  *
+  * @return A map from vertex index -> vector of neighboring vertex indices.
+  */
 
-  // get map between vertices and neighboring vertices
-
+  // Initialize dictionary for adjacent nodes
   map<int, vector<int>> vertex_map;
 
   for (int i = 0; i < mesh.GetNE(); i++) {
+
+    // Get element node indices, number of edges in the element, and element attributes
     const int *v = mesh.GetElement(i)->GetVertices();
     const int ne = mesh.GetElement(i)->GetNEdges();
     const int attrib = mesh.GetElement(i)->GetAttribute();
 
+    // with_attrib = -1: accept all elements. Otherwise, only accept elements that match with_attrib input
     if ((with_attrib == -1) || (attrib == with_attrib)) {
+
+      // For each edge in an element, get the nodes that form the edge and store them in vertex_map
       for (int j = 0; j < ne; j++) {
         const int *e = mesh.GetElement(i)->GetEdgeVertices(j);
 
         vertex_map[v[e[0]]].push_back(v[e[1]]);
-
-        // DEBUGGING--the next few lines fix mesh adjacency list issues
         vertex_map[v[e[1]]].push_back(v[e[0]]);
-        for (auto &p : vertex_map)
-        {
-            auto &nbrs = p.second;
-            std::sort(nbrs.begin(), nbrs.end());
-            nbrs.erase(std::unique(nbrs.begin(), nbrs.end()), nbrs.end());
-        }
-
       }
     }
   }
+
+  // Remove duplicates in vertex_map
+  for (auto &p : vertex_map)
+  {
+      auto &nbrs = p.second;
+      std::sort(nbrs.begin(), nbrs.end());
+      nbrs.erase(std::unique(nbrs.begin(), nbrs.end()), nbrs.end());
+  }
+
   return vertex_map;
 }
 
