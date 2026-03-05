@@ -349,39 +349,37 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
 }
 
 
+/**
+* Build a vertex adjacency map for a mesh. For each vertex in the mesh, record
+* the set of neighboring vertices that share an element with it. Optionally,
+* the adjacency can be restricted to elements with a specific attribute.
+*
+* @param mesh        MFEM mesh containing the elements and vertices.
+* @param with_attrib Element attribute filter. If -1, all elements are used;
+*                    otherwise only elements whose attribute matches this
+*                    value contribute to the adjacency map.
+*
+* @return A map from vertex index -> vector of neighboring vertex indices.
+*/
 map<int, vector<int>> compute_vertex_map(Mesh &mesh, int with_attrib) {
-    /**
-  * Build a vertex adjacency map for a mesh. For each vertex in the mesh, record
-  * the set of neighboring vertices that share an element edge with it. Optionally,
-  * the adjacency can be restricted to elements with a specific attribute.
-  *
-  * @param mesh        MFEM mesh containing the elements and vertices.
-  * @param with_attrib Element attribute filter. If -1, all elements are used;
-  *                    otherwise only elements whose attribute matches this
-  *                    value contribute to the adjacency map.
-  *
-  * @return A map from vertex index -> vector of neighboring vertex indices.
-  */
-
-  // Initialize dictionary for adjacent nodes
   map<int, vector<int>> vertex_map;
 
   for (int i = 0; i < mesh.GetNE(); i++) {
 
-    // Get element node indices, number of edges in the element, and element attributes
+    // Get element node indices, number of nodes in the element, and element attributes
     const int *v = mesh.GetElement(i)->GetVertices();
-    const int ne = mesh.GetElement(i)->GetNEdges();
+    const int nv = mesh.GetElement(i)->GetNVertices();
     const int attrib = mesh.GetElement(i)->GetAttribute();
 
     // with_attrib = -1: accept all elements. Otherwise, only accept elements that match with_attrib input
     if ((with_attrib == -1) || (attrib == with_attrib)) {
 
-      // For each edge in an element, get the nodes that form the edge and store them in vertex_map
-      for (int j = 0; j < ne; j++) {
-        const int *e = mesh.GetElement(i)->GetEdgeVertices(j);
-
-        vertex_map[v[e[0]]].push_back(v[e[1]]);
-        vertex_map[v[e[1]]].push_back(v[e[0]]);
+      // For each edge in an element, store every pair of vertices in vertex_map
+      for (int a = 0; a < nv; ++a) {
+        for (int b = 0; b < nv; ++b) {
+          if (a == b) continue;
+          vertex_map[v[a]].push_back(v[b]);
+        }
       }
     }
   }
@@ -398,6 +396,62 @@ map<int, vector<int>> compute_vertex_map(Mesh &mesh, int with_attrib) {
 }
 
 
+/**
+* @brief Identify magnetic axis, X-point, and plasma region for a given flux field ψ.
+*
+* This routine analyzes the nodal values of the Grad–Shafranov solution ψ
+* stored in the MFEM GridFunction `z` and performs three tasks:
+*
+* 1. **Magnetic axis detection (O-point)**  
+*    The magnetic axis is defined as the global minimum of ψ over all mesh vertices.
+*
+* 2. **X-point (saddle point) detection**  
+*    For each vertex, neighboring vertices are sorted by polar angle around
+*    the candidate vertex. The differences are examined along the circular ordering
+*    of neighbors. A vertex is classified as a saddle point if at least four sign changes
+*    occur. Among all detected saddles, the one with the smallest ψ value is
+*    selected as the X-point. If no saddles are detected, the vertex with
+*    maximum ψ is used as a fallback.
+*
+* 3. **Plasma region identification**  
+*    Starting from the magnetic axis, a breadth-first search (BFS) over the
+*    vertex adjacency graph marks vertices belonging to the plasma region.
+*    A vertex is classified as inside the plasma if ψ_axis ≤ ψ ≤ ψ_X
+*    where ψ_axis is the flux at the magnetic axis and ψ_X is the flux at
+*    the X-point.
+*
+* The vertex adjacency information is provided by `vertex_map`, which lists
+* neighboring vertices for each vertex in the mesh.
+*
+* @param[in]  z
+*      GridFunction containing the nodal values of ψ on the mesh.
+*
+* @param[in]  mesh
+*      MFEM mesh containing vertex coordinates and element connectivity.
+*
+* @param[in]  vertex_map
+*      Map from vertex index → vector of neighboring vertex indices used for
+*      saddle detection and BFS traversal.
+*
+* @param[out] plasma_inds
+*      Set of vertex indices classified as belonging to the plasma region.
+*
+* @param[out] ind_min
+*      Index of the magnetic axis vertex (global minimum of ψ).
+*
+* @param[out] ind_max
+*      Index of the detected X-point vertex.
+*
+* @param[out] min_val
+*      Value of ψ at the magnetic axis.
+*
+* @param[out] max_val
+*      Value of ψ at the X-point.
+*
+* @param[in]  iprint
+*      Verbosity flag. If non-zero, diagnostic information about detected
+*      extrema and saddle points is printed.
+*/
 void compute_plasma_points(
   GridFunction *z,
   const Mesh &mesh,
@@ -410,211 +464,168 @@ void compute_plasma_points(
   double &max_val,
   int iprint
 ) {
+  Vector nval;
+  z->GetNodalValues(nval);
 
-   // mag ax point: global minimum in z
-   // saddle point: closest saddle point to mag ax point, otherwise maximum on limiter boundary
-   // keep track of elements inside of plasma region
-  
-   Vector nval;
-   z->GetNodalValues(nval);
+  min_val = + numeric_limits<double>::infinity();
+  max_val = - numeric_limits<double>::infinity();
+  ind_min = 0;
+  ind_max = 0;
 
-   // Initialize global extrema trackers
-   min_val = + numeric_limits<double>::infinity();
-   max_val = - numeric_limits<double>::infinity();
-   ind_min = 0;
-   ind_max = 0;
+  vector<int> candidate_x_points;
+  int saddle_pt_count = 0;
 
-   // Candidate saddle points (X-points)
-   vector<int> candidate_x_points;
-     
-   int count = 0;
+  // Loop over all vertices to determine: global minimum, global maximum, candidate saddle points
+  for(int iv = 0; iv < mesh.GetNV(); ++iv) {
 
-   //////////////////////////////////////////////////////////////////////////////////////////////////
-   // DEBUGGING
-   int min_deg = 1e9, max_deg = 0;
-   std::vector<int> degree_count;
-   for (auto &p : vertex_map) {
-     int deg = (int)p.second.size();
-     min_deg = std::min(min_deg, deg);
-     max_deg = std::max(max_deg, deg);
-    if (deg >= degree_count.size())
-        degree_count.resize(deg + 1);
-    degree_count[deg]++;
-   }
-   std::cout << "vertex_map size=" << vertex_map.size()
-             << " min_deg=" << min_deg
-             << " max_deg=" << max_deg << "\n";
-   for (int d = 0; d < degree_count.size(); ++d) {
-       if (degree_count[d] > 0)
-           std::cout << "degree " << d << " : " << degree_count[d] << " nodes\n";
-   }
-   //////////////////////////////////////////////////////////////////////////////////////////////////
+    // Get neighbors of vertex iv from adjacency map
+    vector<int> adjacent;
+    try {
+      adjacent = vertex_map.at(iv);
+    } catch (...) {
+      continue;
+    }
 
-   // DEBUGGING: find max number of sign changes
-   int max_sc_seen = 0;
+    // Find global minimum and maximum values and indices of z
+    if (nval[iv] < min_val) {
+      min_val = nval[iv];
+      ind_min = iv;
+    }
+    if (nval[iv] > max_val) {
+      max_val = nval[iv];
+      ind_max = iv;
+    }
 
-   // Loop over all vertices to determine: global minimum, global maximum, candidate saddle points
-   for(int iv = 0; iv < mesh.GetNV(); ++iv) {
+    // -----------------------------------------------------------------------
+    // Detect saddle point candidates using neighbor sign changes
+    // -----------------------------------------------------------------------
 
-     // Get neighbors of vertex iv from adjacency map
-     vector<int> adjacent;
-     try {
-       adjacent = vertex_map.at(iv);
-     } catch (...) {
-       continue;
-     }
+    const double* x0 = mesh.GetVertex(iv);
+    map<double, double> clock;
+    set<double> ordered_angs;
 
-     // Update global minimum and maximum values and indices of z
-     if (nval[iv] < min_val) {
-       min_val = nval[iv];
-       ind_min = iv;
-     }
-     if (nval[iv] > max_val) {
-       max_val = nval[iv];
-       ind_max = iv;
-     }
+    // For each node iv, sort adjacent nodes by angular order
+    int j = 0;
+    for (j = 0; j < static_cast<int>(adjacent.size()); ++j) {
 
-     // -----------------------------------------------------------------------
-     // Detect saddle point candidates using neighbor sign changes
-     // -----------------------------------------------------------------------
+      const int jv = adjacent[j];
+      const double *b = mesh.GetVertex(jv);
 
-     const double* x0 = mesh.GetVertex(iv);
-     map<double, double> clock;
-     set<double> ordered_angs;
+      // Difference in z between center node iv and adjacent node
+      double diff = nval[jv] - nval[iv];
 
-     // For each node iv, sort adjacent nodes by angular order
-     int j = 0;
-     for (j = 0; j < static_cast<int>(adjacent.size()); ++j) {
+      // Compute polar angle w.r.t x-axis
+      double bx = b[0]-x0[0];
+      double by = b[1]-x0[1];
+      double ang = atan2(by, bx);
 
-       const int jv = adjacent[j];
-       const double *b = mesh.GetVertex(jv);
+      // Store polar angles and their associated differences
+      clock[ang] = diff;
+      ordered_angs.insert(ang);
+    }
 
-       // Difference in z between center node iv and adjacent node
-       double diff = nval[jv] - nval[iv];
+    // For each node iv, loop through adjacent nodes to see if iv is a saddle point.
+    int sign_changes = 0;
+    set<double>::iterator it = ordered_angs.begin();
+    double init = clock[*it];
+    double prev = clock[*it];
+    ++it;
+    for (; it != ordered_angs.end(); ++it) {
+      if (clock[*it] * prev < 0.0) {
+        ++sign_changes;
+      }
+      prev = clock[*it];
+    }
+    if (prev * init < 0.0) {  // Complete the loop: last adjacent node to first adjacent node
+      ++sign_changes;
+    }
 
-       // Compute polar angle w.r.t x-axis
-       double bx = b[0]-x0[0];
-       double by = b[1]-x0[1];
-       double ang = atan2(by, bx);
+    // If 4 or more sign changes, save node iv as a saddle point.
+    if (sign_changes >= 4) {
+      if (iprint) {
+        printf("Found saddle at (%9.6f, %9.6f), val=%9.6f\n", x0[0], x0[1], nval[iv]);
+      }
 
-       // Store polar angles and their associated differences
-       clock[ang] = diff;
-       ordered_angs.insert(ang);
-     }
+      cout << "Found saddle at (" << x0[0] << ", " << x0[1] << "), val=" << nval[iv] << endl;  // Debugging: remove later
 
-     // For each node iv, loop through adjacent nodes to see if iv is a saddle point.
-     int sign_changes = 0;
-     set<double>::iterator it = ordered_angs.begin();
-     double init = clock[*it];
-     double prev = clock[*it];
-     ++it;
-     for (; it != ordered_angs.end(); ++it) {
-       if (clock[*it] * prev < 0.0) {
-         ++sign_changes;
-       }
-       prev = clock[*it];
-     }
-     if (prev * init < 0.0) {  // Complete the loop: last adjacent node to first adjacent node
-       ++sign_changes;
-     }
+      candidate_x_points.push_back(iv);
+      ++saddle_pt_count;
+    } 
+  }
 
-     // DEBUGGING: find max number of sign changes
-     max_sc_seen = std::max(max_sc_seen, sign_changes);
+  // Determine which saddle point is the X-point
+  int ind_x = ind_max;
+  double x_val = max_val;
+  for (int i = 0; i < static_cast<int>(candidate_x_points.size()); ++i) {
+    int iv = candidate_x_points[i];
+    if (nval[iv] < x_val) {
+      x_val = nval[iv];
+      ind_x = iv;
+    }
+  }
 
-     // If 4 or more sign changes, save node iv as a saddle point.
-     if (sign_changes >= 4) {
-       if (iprint) {
-         printf("Found saddle at (%9.6f, %9.6f), val=%9.6f\n", x0[0], x0[1], nval[iv]);
-       }
-
-       // DEBUGGING
-       cout << "Found saddle at (" << x0[0] << ", " << x0[1] << "), val=" << nval[iv] << endl;
-
-       candidate_x_points.push_back(iv);
-       ++count;
-     } 
-   }
-
-   // Determine which saddle point is the X-point.
-   // X-point is the saddle point with the minimum value of z. If no saddle points were found,
-   // X-point is the max value of z.
-   int ind_x = ind_max;
-   double x_val = max_val;
-   for (int i = 0; i < static_cast<int>(candidate_x_points.size()); ++i) {
-     int iv = candidate_x_points[i];
-     if (nval[iv] < x_val) {
-       x_val = nval[iv];
-       ind_x = iv;
-     }
-   }
-
-   const double* x_min = mesh.GetVertex(ind_min);
-   const double* x_max = mesh.GetVertex(ind_max);
-   const double* x_x = mesh.GetVertex(ind_x);
+  const double* x_min = mesh.GetVertex(ind_min);
+  const double* x_max = mesh.GetVertex(ind_max);
+  const double* x_x = mesh.GetVertex(ind_x);
    
-   cout << "total saddles found: " << count << endl;  // <-- TODO: useful to un-comment out
+  cout << "total saddles found: " << saddle_pt_count << endl;  // Debugging: remove later
 
-   // DEBUGGING: find max number of sign changes
-   std::cout << "max sign_changes observed = " << max_sc_seen << "\n";
+  if (iprint) {
+    printf("  min of %9.6f at (%9.6f, %9.6f), ind %d\n", min_val, x_min[0], x_min[1], ind_min);
+    printf("  max of %9.6f at (%9.6f, %9.6f), ind %d\n", max_val, x_max[0], x_max[1], ind_max);
+    printf("x_val of %9.6f at (%9.6f, %9.6f), ind %d\n", x_val, x_x[0], x_x[1], ind_x);
+  }
 
-   if (iprint) {
-     printf("  min of %9.6f at (%9.6f, %9.6f), ind %d\n", min_val, x_min[0], x_min[1], ind_min);
-     printf("  max of %9.6f at (%9.6f, %9.6f), ind %d\n", max_val, x_max[0], x_max[1], ind_max);
-     printf("x_val of %9.6f at (%9.6f, %9.6f), ind %d\n", x_val, x_x[0], x_x[1], ind_x);
-   }
+  // DAS: we need to return the x_val, not the max_val.
+  // TODO, refactor to make less confusing...
+  max_val = x_val;  // max_val used to be the maximum z value, now it is the X-point value
+  ind_max = ind_x;  // ind_max used to be the node index with maximum z, now it is the index of the X-point node
 
-   // DAS: we need to return the x_val, not the max_val.
-   // TODO, refactor to make less confusing...
-   max_val = x_val;  // max_val used to be the maximum z value, now it is the X-point value
-   ind_max = ind_x;  // ind_max used to be the node index with maximum z, now it is the index of the X-point node
+  // ---------------------------------------------------------------------------
+  // Plasma region identification
+  // ---------------------------------------------------------------------------
 
-   // ---------------------------------------------------------------------------
-   // Flood-fill from magnetic axis to mark plasma region using
-   // breadth-first search starting from the minimum vertex. A vertex is
-   // considered inside the plasma if its value lies between min_val and x_val.
-   // ---------------------------------------------------------------------------
+  // Initialize queue for BFS and set to hold vertices classified as part of the plasma region
+  list<int> queue;
+  set<int>::iterator plasma_inds_it;
 
-   // Initialize queue for BFS and set to hold vertices classified as part of the plasma region
-   list<int> queue;
-   set<int>::iterator plasma_inds_it;
+  // Start BFS from minimum vertex index
+  queue.push_back(ind_min);
+  plasma_inds.insert(ind_min);
+  plasma_inds.insert(ind_x);
+  while (!queue.empty()) {
 
-   // Start BFS from minimum vertex index
-   queue.push_back(ind_min);
-   plasma_inds.insert(ind_min);
-   plasma_inds.insert(ind_x);
-   while (!queue.empty()) {
+    // Get a point that is already in the plasma region
+    int iv = queue.front();
+    queue.pop_front();
 
-     // Get a point that is already in the plasma region
-     int iv = queue.front();
-     queue.pop_front();
+    // Check for neighboring points and store in adjacent
+    vector<int> adjacent;
+    try {
+      adjacent = vertex_map.at(iv);
+    } catch (...) {
+      continue;
+    }
 
-     // Check for neighboring points and store in adjacent
-     vector<int> adjacent;
-     try {
-       adjacent = vertex_map.at(iv);
-     } catch (...) {
-       continue;
-     }
+    // Check if the neighboring points are in the plasma region
+    for (int i = 0; i < static_cast<int>(adjacent.size()); ++i) {
+      double val = nval[adjacent[i]];
+      plasma_inds_it = plasma_inds.find(adjacent[i]);
 
-     // Check if the neighboring points are in the plasma region
-     for (int i = 0; i < static_cast<int>(adjacent.size()); ++i) {
-       double val = nval[adjacent[i]];
-       plasma_inds_it = plasma_inds.find(adjacent[i]);
+      // Check that found vertex is not already accounted for
+      if (plasma_inds_it == plasma_inds.end()) {
 
-       // Check that found vertex is not already accounted for
-       if (plasma_inds_it == plasma_inds.end()) {
-
-         // If the value at this vertex is between min and X-point vals, then add to plasma region
-         if ((val >= min_val) && (val <= x_val)) {
-           queue.push_back(adjacent[i]);
-           plasma_inds.insert(adjacent[i]);
-         }
+        // If the value at this vertex is between min and X-point vals, then add to plasma region
+        if ((val >= min_val) && (val <= x_val)) {
+          queue.push_back(adjacent[i]);
+          plasma_inds.insert(adjacent[i]);
+        }
          
-         else {
-           // If the value at this vertex is not between min and X-point vals, don't add but mark as visited.
-           plasma_inds.insert(adjacent[i]);
-         }
-       }
-     }
-   }
+        else {
+          // If the value at this vertex is not between min and X-point vals, don't add but mark as visited.
+          plasma_inds.insert(adjacent[i]);
+        }
+      }
+    }
+  }
 }
