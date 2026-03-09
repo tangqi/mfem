@@ -386,72 +386,83 @@ double SysOperator::get_plasma_current(GridFunction &x, double &alpha) {
 }
 
 
-
-
-
-
-
-
-
-
 void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, double &alpha) {
+  // Assemble the necessary constraints and Jacobians needed to solve the linearized system of equations
+  // solved by Newton for the PDE-constrained optimization.
+  // Specific operators/vectors assembled:
+  // 1) Grad-Shafranov PDE constraint: B(y, alpha) - F u = 0
+  // 2) Total plasma current constraint: C(y, alpha) = I_p
+  // 3) Jacobians needed in the linearized system of equations solved by Newton: B_y, B_alpha, C_y, C_alpha
 
   GridFunction x(fespace);
   x = psi;
 
-  // set alpha in the plasma model
+  // Set alpha in the plasma model to current alpha value
   model->set_alpha_bar(alpha);
 
-  // compute the x point and magnetic axis
+  // Compute the X-point and magnetic axis and determine plasma region
   double val_ma, val_x;
   int iprint = 0;
   set<int> plasma_inds_;
   compute_plasma_points(&x, *mesh, vertex_map, plasma_inds_, ind_ma, ind_x, val_ma, val_x, iprint);
+
   psi_x = val_x;
   psi_ma = val_ma;
   plasma_inds = plasma_inds_;
+
+  // Get vertices associated with X-point and magnetic axis
   double* x_ma_ = mesh->GetVertex(ind_ma);
   double* x_x_ = mesh->GetVertex(ind_x);
   x_ma = x_ma_;
   x_x = x_x_;
  
+  // Create coefficient object to evaluate plasma source terms (GS RHS) at any point
   NonlinearGridCoefficient nlgcoeff0(model, 0, &x, val_ma, val_x, plasma_inds, attr_lim);
   GridFunction f_(fespace);
   f_.ProjectCoefficient(nlgcoeff0);
   f_.Save("gf/f.gf");
+
   f = f_;
 
-  // ------------------------------------------------
-  // *** compute res ***
-  // contribution from plasma terms
+  // ----------------------------------------------------------------------------------------
+  // Compute the residual: res = B(y, alpha) - F u
+  // ----------------------------------------------------------------------------------------
+
+  // Assemble contribution from plasma source terms in GS
   NonlinearGridCoefficient nlgcoeff1(model, 1, &x, val_ma, val_x, plasma_inds, attr_lim);
   LinearForm plasma_term(fespace);
   plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
   plasma_term.Assemble();
 
-  // contribution from LHS
+  // Assemble contribution from LHS
   diff_operator->Mult(psi, res);
   
+  // Subtract coil term (and plasma term if enabled) from res
   add(res, -1.0, *coil_term, res);
   if (include_plasma) {
     add(res, -1.0, plasma_term, res);
   }
+
+  // Debugging/visualization
   GridFunction ffp(fespace);
   ffp = 0;
   add(ffp, 1.0, plasma_term, ffp);
+  ffp.Save("gf/plasma_term.gf");
 
+  // Debugging/visualization
   GridFunction outres(fespace);
   diff_operator->Mult(psi, outres);
   outres.Save("gf/diff_operator.gf");
-  ffp.Save("gf/plasma_term.gf");
+
+  // Debugging/visualization
   GridFunction plascoeff(fespace);
   plascoeff.ProjectCoefficient(nlgcoeff1);
   plascoeff.Save("gf/plascoeff.gf");
 
-  // contribution from currents
+  // Include contribution from currents to res
   F->AddMult(*currents, res, -model->get_mu());
 
-  // boundary conditions
+  // Enforce Dirichlet boundary conditions
   Vector u_b_exact, u_tmp, u_b;
   psi.GetSubVector(boundary_dofs, u_b);
   u_tmp = u_b;
@@ -459,113 +470,146 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   u_tmp -= u_b_exact;
   res.SetSubVector(boundary_dofs, u_tmp);
 
-  // zero-out residual where we are interpolating from a guess
+  // Zero-out residual where we are interpolating from a guess
   res *= hat;
 
-  // ------------------------------------------------
-  // *** compute jacobian ***
+  // ----------------------------------------------------------------------------------------
+  // Compute Jacobians: B_y, B_alpha, C_y, C_alpha
+  // ----------------------------------------------------------------------------------------
 
-  // first nonlinear contribution: bilinear operator
+  // Bilinear operator corresponding to the Jacobian contribution from plasma source term (Gateaux semiderivative--Eq. 3.10 in the paper)
   NonlinearGridCoefficient nlgcoeff_2(model, 2, &x, psi_ma, psi_x, plasma_inds, attr_lim);
   BilinearForm diff_plasma_term_2(fespace);
   diff_plasma_term_2.AddDomainIntegrator(new MassIntegrator(nlgcoeff_2));
   diff_plasma_term_2.Assemble();
 
-  // second nonlinear contribution: corresponds to the magnetic axis point column in jacobian
+  // Jacobian contribution associated with the magnetic axis: build column in Jacobian corresponding to the magnetic axis DOF
   NonlinearGridCoefficient nlgcoeff_3(model, 3, &x, psi_ma, psi_x, plasma_inds, attr_lim);
   LinearForm diff_plasma_term_3(fespace);
   diff_plasma_term_3.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_3));
   diff_plasma_term_3.Assemble();
 
-  // third nonlinear contribution: corresponds to the x-point column in jacobian
+  // Jacobian contribution associated with the X-point: build column in Jacobian corresponding to the X-point DOF
   NonlinearGridCoefficient nlgcoeff_4(model, 4, &x, psi_ma, psi_x, plasma_inds, attr_lim);
   LinearForm diff_plasma_term_4(fespace);
   diff_plasma_term_4.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_4));
   diff_plasma_term_4.Assemble();
 
-  // turn diff_operator and diff_plasma_term_2 into sparse matrices
+  // Turn diff_operator and diff_plasma_term_2 into sparse matrices in CSR format
   SparseMatrix diff_operator_sp_mat = diff_operator->SpMat();
   SparseMatrix psi_coeff_sp_mat = diff_plasma_term_2.SpMat();
-
   diff_operator_sp_mat.Finalize();
   psi_coeff_sp_mat.Finalize();
 
-  // create a new sparse matrix, Mat, that will combine all terms
+  // Create a new sparse matrix that will later combine all terms to form the Jacobian
   int m = fespace->GetTrueVSize();
-  SparseMatrix *psi_x_psi_ma_coeff_sp_mat;
-  psi_x_psi_ma_coeff_sp_mat = new SparseMatrix(m, m);
+  SparseMatrix *psi_x_psi_ma_coeff_sp_mat = new SparseMatrix(m, m);
+
+  // Build the two columns of the Jacobian that correspond to the magnetic axis and X-point
   for (int k = 0; k < m; ++k) {
     psi_x_psi_ma_coeff_sp_mat->Add(k, ind_ma, -diff_plasma_term_3[k]);
     psi_x_psi_ma_coeff_sp_mat->Add(k, ind_x, -diff_plasma_term_4[k]);
   }
   psi_x_psi_ma_coeff_sp_mat->Finalize();
 
-  // psi_x_psi_ma_coeff_sp_mat->PrintMatlab();
-
+  // Build a preliminary Jacobian
   SparseMatrix *Mat_Prelim;
   if (!include_plasma) {
-    Mat_Prelim = Add(1.0, diff_operator_sp_mat, 0.0, diff_operator_sp_mat);
-  } else {
-    Mat_Prelim = Add(1.0, diff_operator_sp_mat, -1.0, psi_coeff_sp_mat);
+    Mat_Prelim = Add(1.0, diff_operator_sp_mat, 0.0, diff_operator_sp_mat);  // Just the diffusion operator
   }
+  else {
+    Mat_Prelim = Add(1.0, diff_operator_sp_mat, -1.0, psi_coeff_sp_mat);  // Diffusion operator and plasma source term
+  }
+
+  // Apply Dirichlet boundary conditions to the preliminary Jacobian
   for (int k = 0; k < boundary_dofs.Size(); ++k) {
     Mat_Prelim->EliminateRow((boundary_dofs)[k], DIAG_ONE);
   }
 
-  By_symmetric = Add(1.0, *Mat_Prelim, 0.0, *Mat_Prelim);
-  if (!include_plasma) {
-    By = Add(1.0, *Mat_Prelim, 0.0, *Mat_Prelim);
-  } else {
-    By = Add(*Mat_Prelim, *psi_x_psi_ma_coeff_sp_mat);
+  cout << "Bug found here during second AMR iteration" << endl;  // DEBUGGING
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  // DEBUGGING
+
+  std::cout << "ind_x = " << ind_x
+            << " ind_ma = " << ind_ma
+            << " TrueVSize = " << m
+            << std::endl;
+  MFEM_VERIFY(ind_ma >= 0 && ind_ma < m, "ind_ma out of true-dof range");
+  MFEM_VERIFY(ind_x  >= 0 && ind_x  < m, "ind_x out of true-dof range");
+
+  for (int k = 0; k < boundary_dofs.Size(); ++k) {
+    int r = boundary_dofs[k];
+    if (r < 0 || r >= m) {
+      std::cout << "BAD boundary dof: " << r << " (m=" << m << ")\n";
+    }
   }
 
-  
-  // derivative with respect to alpha
-  NonlinearGridCoefficient nlgcoeff_5(model, 5, &x, psi_ma, psi_x, plasma_inds, attr_lim);
+  cout << "\n" << endl;
+  cout << "Mat_Prelim.Size():        " << Mat_Prelim->Size() << endl;
+  cout << "diff_plasma_term_2.Size():" << diff_plasma_term_2.Size() << endl;
+  cout << "diff_plasma_term_3.Size():" << diff_plasma_term_3.Size() << endl;
+  cout << "diff_plasma_term_4.Size():" << diff_plasma_term_4.Size() << endl;
+  cout << "m:                        " << m << endl;
 
-  // int_{Omega} 1 / (mu r) \frac{d \bar{S}_{ff'}}{da} v dr dz
+  cout << "\n" << endl;
+  std::cout << "VSize = " << fespace->GetVSize() << " TrueVSize = " << fespace->GetTrueVSize() << std::endl;
+
+  MFEM_VERIFY(diff_plasma_term_3.Size() == m, "diff_plasma_term_3 wrong size");  // This is the bug: diff_plasma_term_3 is the wrong size
+  MFEM_VERIFY(diff_plasma_term_4.Size() == m, "diff_plasma_term_4 wrong size");  // This is also a bug: diff_plasma_term_4 is also the wrong size
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  // Create a copy of Mat_Prelim to produce a symmetric B_y (no magnetic axis or X-point contributions). Used elsewhere for preconditioning
+  By_symmetric = Add(1.0, *Mat_Prelim, 0.0, *Mat_Prelim);
+
+  
+  // Produce B_y
+  if (!include_plasma) {
+
+    cout << "If statement triggered" << endl;  // DEBUGGING
+
+    By = Add(1.0, *Mat_Prelim, 0.0, *Mat_Prelim);  // Just Mat_Prelim
+  }
+  else {
+
+    cout << "Else statement triggered" << endl;  // DEBUGGING
+
+    By = Add(*Mat_Prelim, *psi_x_psi_ma_coeff_sp_mat);  // Mat_Prelim + magnetic axis and X-point  // Bug found here during second AMR iteration
+  }
+
+  cout << "Bug fixed" << endl;  // DEBUGGING
+  
+  // Compute B_alpha
+  NonlinearGridCoefficient nlgcoeff_5(model, 5, &x, psi_ma, psi_x, plasma_inds, attr_lim);
   LinearForm diff_plasma_term_5(fespace);
   diff_plasma_term_5.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_5));
   diff_plasma_term_5.Assemble();
-
   Ba = diff_plasma_term_5;
   Ba *= -1.0;
 
-  // ------------------------------------------------
-  // *** compute plasma current ***
-  // Ip = int ...
-  // d_\psi ...
-  SparseMatrix *Mat_Plasma;
-  Mat_Plasma = Add(-1.0, *psi_x_psi_ma_coeff_sp_mat, 1.0, psi_coeff_sp_mat);
+  // Assemble Jacobian of plasma operator w.r.t. ψ
+  SparseMatrix *Mat_Plasma = Add(-1.0, *psi_x_psi_ma_coeff_sp_mat, 1.0, psi_coeff_sp_mat);
 
-  // GridFunction ones(fespace);
-  // ones = 1.0;
+  // Compute plasma current I_p
   plasma_current = plasma_term(ones);
   plasma_current *= -1.0;
   
-  // ------------------------------------------------
-  // *** compute Cy ***
+  // Compute C_y
   Vector Plasma_Vec_(m);
   Mat_Plasma->MultTranspose(ones, Plasma_Vec_);
   Plasma_Vec_ *= -1.0;
   Cy = Plasma_Vec_;
 
-  // ------------------------------------------------
-  // *** compute Ca ***
-  // - int_{Omega_p} 1 / (mu r) \frac{d \bar{S}_{ff'}}{da} dr dz
+  // Compute C_alpha
   Ca = diff_plasma_term_5(ones);
   Ca *= -1.0;
-
-  // printf("%e\n", Ca);
-
-
-
 }
 
 
 void SysOperator::Mult(const Vector &psi, Vector &y) const {
 }
-
 
 
 void ByMinusRankOnePerturbation::Mult(const Vector &k, Vector &y) const {
@@ -575,12 +619,14 @@ void ByMinusRankOnePerturbation::Mult(const Vector &k, Vector &y) const {
   By->AddMult(k, y, 1.0);
 };
 
+
 void ByMinusRankOnePerturbation::MultTranspose(const Vector &k, Vector &y) const {
   // By^T - 1/Ca Cy Ba^T
   double inner = k * (*Ba); // inner product
   add(- inner / ca, *Cy, 0.0, *Cy, y);
   By->AddMultTranspose(k, y, 1.0);
 };
+
 
 void SchurComplement::Mult(const Vector &x, Vector &y) const {
   // D - C A^{-1} B
@@ -596,6 +642,7 @@ void SchurComplement::Mult(const Vector &x, Vector &y) const {
   total_calls += 1;
   total_iterations += solver.GetNumIterations();
 }
+
 
 void SchurComplementInverse::Mult(const Vector &x, Vector &y) const {
   // (D - C A^{-1} B)^{-1}

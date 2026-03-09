@@ -376,7 +376,7 @@ void Solve(
     // TODO: there doesn't appear to be any limit to the max number of AMR loops in case the solver doesn't converge. If
     // the solver never converges, then it will run forever. Perhaps it is a good idea to add a max AMR loop feature.
 
-    for (int it_amr = 0; it_amr < 1; ++it_amr) {
+    for (int it_amr = 0; it_amr < 2; ++it_amr) {
     // for (int it_amr = 0; ; ++it_amr) {
       int total_gmres = 0;
       int cdofs = fespace.GetTrueVSize();
