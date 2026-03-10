@@ -502,7 +502,8 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   psi_coeff_sp_mat.Finalize();
 
   // Create a new sparse matrix that will later combine all terms to form the Jacobian
-  int m = fespace->GetTrueVSize();
+  // int m = fespace->GetTrueVSize();
+  const int m = fespace->GetVSize();
   SparseMatrix *psi_x_psi_ma_coeff_sp_mat = new SparseMatrix(m, m);
 
   // Build the two columns of the Jacobian that correspond to the magnetic axis and X-point
