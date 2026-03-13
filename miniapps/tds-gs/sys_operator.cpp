@@ -434,10 +434,10 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
   plasma_term.Assemble();
 
-  // Assemble contribution from LHS
+  // Start by setting res as the diffusion operator contribution
   diff_operator->Mult(psi, res);
   
-  // Subtract coil term (and plasma term if enabled) from res
+  // Subtract coil term (and plasma term if enabled) from res -> this is B(y, alpha)
   add(res, -1.0, *coil_term, res);
   if (include_plasma) {
     add(res, -1.0, plasma_term, res);
@@ -459,7 +459,7 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   plascoeff.ProjectCoefficient(nlgcoeff1);
   plascoeff.Save("gf/plascoeff.gf");
 
-  // Include contribution from currents to res
+  // Include contribution from currents to res -> This is F u
   F->AddMult(*currents, res, -model->get_mu());
 
   // Enforce Dirichlet boundary conditions
@@ -513,13 +513,13 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   }
   psi_x_psi_ma_coeff_sp_mat->Finalize();
 
-  // Build a preliminary Jacobian
+  // Build a preliminary Jacobian that will eventually become B_y
   SparseMatrix *Mat_Prelim;
   if (!include_plasma) {
-    Mat_Prelim = Add(1.0, diff_operator_sp_mat, 0.0, diff_operator_sp_mat);  // Just the diffusion operator
+    Mat_Prelim = Add(1.0, diff_operator_sp_mat, 0.0, diff_operator_sp_mat);  // Jacobian is just the diffusion operator
   }
   else {
-    Mat_Prelim = Add(1.0, diff_operator_sp_mat, -1.0, psi_coeff_sp_mat);  // Diffusion operator and plasma source term
+    Mat_Prelim = Add(1.0, diff_operator_sp_mat, -1.0, psi_coeff_sp_mat);  // Jacobian is the diffusion operator minus the Gateaux semiderivative of the plasma source
   }
 
   // Apply Dirichlet boundary conditions to the preliminary Jacobian
@@ -597,13 +597,13 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   plasma_current = plasma_term(ones);
   plasma_current *= -1.0;
   
-  // Compute C_y
+  // Compute C_y (derivative of I_p w.r.t. y)
   Vector Plasma_Vec_(m);
   Mat_Plasma->MultTranspose(ones, Plasma_Vec_);
   Plasma_Vec_ *= -1.0;
   Cy = Plasma_Vec_;
 
-  // Compute C_alpha
+  // Compute C_alpha (derivative of I_p w.r.t. alpha)
   Ca = diff_plasma_term_5(ones);
   Ca *= -1.0;
 }
