@@ -502,9 +502,9 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   psi_coeff_sp_mat.Finalize();
 
   // Create a new sparse matrix that will later combine all terms to form the Jacobian
-  // int m = fespace->GetTrueVSize();
-  const int m = fespace->GetVSize();
-  SparseMatrix *psi_x_psi_ma_coeff_sp_mat = new SparseMatrix(m, m);
+  int m = fespace->GetTrueVSize();
+  // const int m = fespace->GetVSize();
+  SparseMatrix *psi_x_psi_ma_coeff_sp_mat = new SparseMatrix(m, m);  // DEBUGGING: dimensions of psi_x_psi_ma_coeff_sp_mat are in true-DOF space
 
   // Build the two columns of the Jacobian that correspond to the magnetic axis and X-point
   for (int k = 0; k < m; ++k) {
@@ -548,11 +548,12 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   }
 
   cout << "\n" << endl;
-  cout << "Mat_Prelim.Size():        " << Mat_Prelim->Size() << endl;
-  cout << "diff_plasma_term_2.Size():" << diff_plasma_term_2.Size() << endl;
-  cout << "diff_plasma_term_3.Size():" << diff_plasma_term_3.Size() << endl;
-  cout << "diff_plasma_term_4.Size():" << diff_plasma_term_4.Size() << endl;
-  cout << "m:                        " << m << endl;
+  cout << "psi_x_psi_ma_coeff_sp_mat.Size():" << psi_x_psi_ma_coeff_sp_mat->Size() << endl;
+  cout << "Mat_Prelim.Size():               " << Mat_Prelim->Size() << endl;
+  cout << "diff_plasma_term_2.Size():       " << diff_plasma_term_2.Size() << endl;
+  cout << "diff_plasma_term_3.Size():       " << diff_plasma_term_3.Size() << endl;
+  cout << "diff_plasma_term_4.Size():       " << diff_plasma_term_4.Size() << endl;
+  cout << "m:                               " << m << endl;
 
   cout << "\n" << endl;
   std::cout << "VSize = " << fespace->GetVSize() << " TrueVSize = " << fespace->GetTrueVSize() << std::endl;

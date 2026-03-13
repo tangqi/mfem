@@ -112,7 +112,7 @@ public:
     ess_bdr[attr_axis-1] = 1;
     int box_axis = 832;
     ess_bdr[box_axis-1] = 1;
-    fespace->GetEssentialTrueDofs(ess_bdr, boundary_dofs, 1);
+    fespace->GetEssentialTrueDofs(ess_bdr, boundary_dofs, 1);  // True DOFs that correspond to the Dirichlet boundary conditions
 
     Vector pw_vector(3000);
     pw_vector = 1.0;
