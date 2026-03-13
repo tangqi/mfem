@@ -464,11 +464,11 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
 
   // Enforce Dirichlet boundary conditions
   Vector u_b_exact, u_tmp, u_b;
-  psi.GetSubVector(boundary_dofs, u_b);
+  psi.GetSubVector(boundary_tdofs, u_b);
   u_tmp = u_b;
-  u_boundary->GetSubVector(boundary_dofs, u_b_exact);
+  u_boundary->GetSubVector(boundary_tdofs, u_b_exact);
   u_tmp -= u_b_exact;
-  res.SetSubVector(boundary_dofs, u_tmp);
+  res.SetSubVector(boundary_tdofs, u_tmp);
 
   // Zero-out residual where we are interpolating from a guess
   res *= hat;
@@ -523,8 +523,8 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   }
 
   // Apply Dirichlet boundary conditions to the preliminary Jacobian
-  for (int k = 0; k < boundary_dofs.Size(); ++k) {
-    Mat_Prelim->EliminateRow((boundary_dofs)[k], DIAG_ONE);
+  for (int k = 0; k < boundary_tdofs.Size(); ++k) {
+    Mat_Prelim->EliminateRow((boundary_tdofs)[k], DIAG_ONE);
   }
 
   cout << "Bug found here during second AMR iteration" << endl;  // DEBUGGING
@@ -540,8 +540,8 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   MFEM_VERIFY(ind_ma >= 0 && ind_ma < m, "ind_ma out of true-dof range");
   MFEM_VERIFY(ind_x  >= 0 && ind_x  < m, "ind_x out of true-dof range");
 
-  for (int k = 0; k < boundary_dofs.Size(); ++k) {
-    int r = boundary_dofs[k];
+  for (int k = 0; k < boundary_tdofs.Size(); ++k) {
+    int r = boundary_tdofs[k];
     if (r < 0 || r >= m) {
       std::cout << "BAD boundary dof: " << r << " (m=" << m << ")\n";
     }

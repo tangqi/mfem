@@ -28,7 +28,8 @@ private:
   map<int, vector<int>> vertex_map;
   mutable SparseMatrix *Mat;
   int attr_lim;
-  Array<int> boundary_dofs;
+  Array<int> boundary_tdofs;
+  Array<int> boundary_vdofs;
   GridFunction *u_boundary;
 
   mutable Vector Plasma_Vec;
@@ -62,7 +63,6 @@ private:
   GridFunction ones;
   GridFunction hat;
 
-  //
   GridFunction res;
   GridFunction Ba;
   GridFunction Cy;
@@ -112,7 +112,8 @@ public:
     ess_bdr[attr_axis-1] = 1;
     int box_axis = 832;
     ess_bdr[box_axis-1] = 1;
-    fespace->GetEssentialTrueDofs(ess_bdr, boundary_dofs, 1);  // True DOFs that correspond to the Dirichlet boundary conditions
+    fespace->GetEssentialTrueDofs(ess_bdr, boundary_tdofs, 1);  // True DOFs that correspond to the Dirichlet boundary conditions
+    fespace->GetEssentialVDofs(ess_bdr, boundary_vdofs, 1);
 
     Vector pw_vector(3000);
     pw_vector = 1.0;
@@ -142,16 +143,8 @@ public:
     GridFunction Cy_(fespace);
     Cy_ = 0.0;
     Cy = Cy_;
-    // GridFunction Cy_(fespace);
-    // Cy_ = 0.0;
-    // Cy = Cy_;
-
-    // int m = fespace->GetTrueVSize();
-    // SparseMatrix By_(m, m);
-    // By = By_;
-    
-    
   }
+
   virtual void Mult(const Vector &psi, Vector &y) const;
   virtual ~SysOperator() { };
 
@@ -218,7 +211,6 @@ public:
   }
 
   Vector get_res() {return res;}
-  // GridFunction* get_res() {return res;}
   SparseMatrix get_By() {return *By;}
   SparseMatrix get_By_symmetric() {return *By_symmetric;}
   Vector get_Ba() {return Ba;}
@@ -232,8 +224,7 @@ public:
 
   double get_plasma_current(GridFunction &x, double &alpha);
 
-  void NonlinearEquationRes(GridFunction &x, Vector *currents, double &alpha);
-    
+  void NonlinearEquationRes(GridFunction &x, Vector *currents, double &alpha); 
 };
 
 
