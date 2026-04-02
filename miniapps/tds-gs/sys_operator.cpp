@@ -502,9 +502,11 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   psi_coeff_sp_mat.Finalize();
 
   // Create a new sparse matrix that will later combine all terms to form the Jacobian
-  int m = fespace->GetTrueVSize();
-  // const int m = fespace->GetVSize();
-  SparseMatrix *psi_x_psi_ma_coeff_sp_mat = new SparseMatrix(m, m);  // DEBUGGING: dimensions of psi_x_psi_ma_coeff_sp_mat are in true-DOF space
+  // Use GetVSize() so all operators are consistently in full-DOF space.
+  // The true-DOF conversion (for hanging node constraints) happens in gs.cpp
+  // before the block system is solved.
+  const int m = fespace->GetVSize();
+  SparseMatrix *psi_x_psi_ma_coeff_sp_mat = new SparseMatrix(m, m);
 
   // Build the two columns of the Jacobian that correspond to the magnetic axis and X-point
   for (int k = 0; k < m; ++k) {
@@ -527,40 +529,6 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
     Mat_Prelim->EliminateRow((boundary_tdofs)[k], DIAG_ONE);
   }
 
-  cout << "Bug found here during second AMR iteration" << endl;  // DEBUGGING
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  // DEBUGGING
-
-  std::cout << "ind_x = " << ind_x
-            << " ind_ma = " << ind_ma
-            << " TrueVSize = " << m
-            << std::endl;
-  MFEM_VERIFY(ind_ma >= 0 && ind_ma < m, "ind_ma out of true-dof range");
-  MFEM_VERIFY(ind_x  >= 0 && ind_x  < m, "ind_x out of true-dof range");
-
-  for (int k = 0; k < boundary_tdofs.Size(); ++k) {
-    int r = boundary_tdofs[k];
-    if (r < 0 || r >= m) {
-      std::cout << "BAD boundary dof: " << r << " (m=" << m << ")\n";
-    }
-  }
-
-  cout << "\n" << endl;
-  cout << "psi_x_psi_ma_coeff_sp_mat.Size():" << psi_x_psi_ma_coeff_sp_mat->Size() << endl;
-  cout << "Mat_Prelim.Size():               " << Mat_Prelim->Size() << endl;
-  cout << "diff_plasma_term_2.Size():       " << diff_plasma_term_2.Size() << endl;
-  cout << "diff_plasma_term_3.Size():       " << diff_plasma_term_3.Size() << endl;
-  cout << "diff_plasma_term_4.Size():       " << diff_plasma_term_4.Size() << endl;
-  cout << "m:                               " << m << endl;
-
-  cout << "\n" << endl;
-  std::cout << "VSize = " << fespace->GetVSize() << " TrueVSize = " << fespace->GetTrueVSize() << std::endl;
-
-  MFEM_VERIFY(diff_plasma_term_3.Size() == m, "diff_plasma_term_3 wrong size");  // This is the bug: diff_plasma_term_3 is the wrong size
-  MFEM_VERIFY(diff_plasma_term_4.Size() == m, "diff_plasma_term_4 wrong size");  // This is also a bug: diff_plasma_term_4 is also the wrong size
-
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   // Create a copy of Mat_Prelim to produce a symmetric B_y (no magnetic axis or X-point contributions). Used elsewhere for preconditioning
@@ -569,19 +537,11 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   
   // Produce B_y
   if (!include_plasma) {
-
-    cout << "If statement triggered" << endl;  // DEBUGGING
-
-    By = Add(1.0, *Mat_Prelim, 0.0, *Mat_Prelim);  // Just Mat_Prelim
+    By = Add(1.0, *Mat_Prelim, 0.0, *Mat_Prelim);
   }
   else {
-
-    cout << "Else statement triggered" << endl;  // DEBUGGING
-
-    By = Add(*Mat_Prelim, *psi_x_psi_ma_coeff_sp_mat);  // Mat_Prelim + magnetic axis and X-point  // Bug found here during second AMR iteration
+    By = Add(*Mat_Prelim, *psi_x_psi_ma_coeff_sp_mat);
   }
-
-  cout << "Bug fixed" << endl;  // DEBUGGING
   
   // Compute B_alpha
   NonlinearGridCoefficient nlgcoeff_5(model, 5, &x, psi_ma, psi_x, plasma_inds, attr_lim);

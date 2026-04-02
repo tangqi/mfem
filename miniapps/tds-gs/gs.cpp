@@ -25,6 +25,38 @@
 using namespace std;
 using namespace mfem;
 
+// ---------------------------------------------------------------------------
+// True-DOF conversion helpers for hanging node support (quad mesh AMR)
+// ---------------------------------------------------------------------------
+
+// Convert a VSize x VSize SparseMatrix to TrueVSize x TrueVSize
+// via A_true = R * A * P  (conforming projection, R = P^T)
+SparseMatrix* ToTrueDofs(const SparseMatrix &A, const FiniteElementSpace &fes) {
+    const SparseMatrix *P = fes.GetConformingProlongation();
+    if (!P) return new SparseMatrix(A);  // no hanging nodes
+    const SparseMatrix *R = fes.GetConformingRestriction();
+    SparseMatrix *RA = mfem::Mult(*R, A);
+    SparseMatrix *result = mfem::Mult(*RA, *P);
+    delete RA;
+    return result;
+}
+
+// Convert a VSize Vector to TrueVSize Vector
+void ToTrueDofs(const Vector &v_full, Vector &v_true, const FiniteElementSpace &fes) {
+    const SparseMatrix *R = fes.GetConformingRestriction();
+    if (!R) { v_true = v_full; return; }
+    R->Mult(v_full, v_true);
+}
+
+// Prolong a TrueVSize Vector back to VSize
+void ToFullDofs(const Vector &v_true, Vector &v_full, const FiniteElementSpace &fes) {
+    const SparseMatrix *P = fes.GetConformingProlongation();
+    if (!P) { v_full = v_true; return; }
+    P->Mult(v_true, v_full);
+}
+
+// ---------------------------------------------------------------------------
+
 
 void WriteSparseMatrixToFile(FILE *fp, SparseMatrix *Mat) {
   /**
@@ -448,11 +480,12 @@ void Solve(
       op.set_i_option(obj_option);
       op.set_obj_weight(obj_weight);  
 
-      // Set size of blocks in equation
+      // Set size of blocks in equation (use TrueVSize for hanging node support)
+      int tdof = fespace.GetTrueVSize();
       Array<int> row_offsets(3);
       row_offsets[0] = 0;
-      row_offsets[1] = pv.Size();
-      row_offsets[2] = row_offsets[1] + pv.Size();
+      row_offsets[1] = tdof;
+      row_offsets[2] = 2 * tdof;
 
       // ============================================================================
       // Newton loop
@@ -614,10 +647,11 @@ void Solve(
 
         // Compute the B and B^T matrices in the block linear system: BMat and BTMat
 
-        // Compute 1 / Ca Cy Ba^T
-        SparseMatrix *CyBa = new SparseMatrix(pv.Size(), pv.Size());
-        for (int j = 0; j < pv.Size(); ++j) {
-          for (int k = 0; k < pv.Size(); ++k) {
+        // Compute 1 / Ca Cy Ba^T (in VSize space)
+        int vsize = fespace.GetVSize();
+        SparseMatrix *CyBa = new SparseMatrix(vsize, vsize);
+        for (int j = 0; j < vsize; ++j) {
+          for (int k = 0; k < vsize; ++k) {
             if (Ba(j) * Cy(k) != 0.0) {
               CyBa->Set(j, k, Cy(j) * Ba(k) / Ca);
             }
@@ -626,19 +660,31 @@ void Solve(
         CyBa->Finalize();
 
         SparseMatrix *ByT = Transpose(By);
-        SparseMatrix *ScaleByT = Add(scale, *ByT, 0.0, *CyBa);  // Scales By^T by a scale factor defined ~20 lines up
-        SparseMatrix *ScaleBy = Transpose(*ScaleByT);  // Scales By by the same scale factor
+        SparseMatrix *ScaleByT = Add(scale, *ByT, 0.0, *CyBa);
+        SparseMatrix *ScaleBy = Transpose(*ScaleByT);
 
-        // Form BMat and BTMat
+        // Form BMat and BTMat (in VSize space)
         SparseMatrix *BMat = Add(scale, *ByT, -scale, *CyBa);
         SparseMatrix *BTMat = Transpose(*BMat);
 
-        // Build block linear system
+        // ============================================================================
+        // Convert all operators to true-DOF space for hanging node support
+        // A_true = P^T * A * P,  v_true = P^T * v
+        // ============================================================================
+        SparseMatrix *AMat_t   = ToTrueDofs(*AMat,     fespace);
+        SparseMatrix *BMat_t   = ToTrueDofs(*BMat,     fespace);
+        SparseMatrix *BTMat_t  = ToTrueDofs(*BTMat,    fespace);
+        SparseMatrix *CMat_t   = ToTrueDofs(*CMat,     fespace);
 
-        // Initialize block matrix and RHS
+        // Convert vectors used in preconditioner to true-DOF space
+        Vector Ba_t(tdof), Cy_t(tdof);
+        ToTrueDofs(Ba, Ba_t, fespace);
+        ToTrueDofs(Cy, Cy_t, fespace);
+
+        // Build block linear system (in true-DOF space)
         BlockOperator BlockSystem(row_offsets);
         BlockVector rhs(row_offsets);
-        
+
         int ind_x, ind_p;
 
         // If we have a non-symmetric block matrix
@@ -646,41 +692,46 @@ void Solve(
           ind_x = 0;
           ind_p = 1;
         }
-        
+
         // If we have a symmetric block matrix
         else {
           ind_x = 1;
           ind_p = 0;
         }
 
-        // Form block matrix
-        BlockSystem.SetBlock(0, ind_x, AMat);
-        BlockSystem.SetBlock(0, ind_p, BMat);
-        BlockSystem.SetBlock(1, ind_x, BTMat);
-        BlockSystem.SetBlock(1, ind_p, CMat);
+        // Form block matrix (true-DOF space)
+        BlockSystem.SetBlock(0, ind_x, AMat_t);
+        BlockSystem.SetBlock(0, ind_p, BMat_t);
+        BlockSystem.SetBlock(1, ind_x, BTMat_t);
+        BlockSystem.SetBlock(1, ind_p, CMat_t);
 
-        // Write contents of matrices to text files in CSR format using the WriteSparseMatrixToFile function
+        // Write contents of matrices to text files in CSR format
         FILE *fp_spy;
         char filename_spy[60];
         sprintf(filename_spy, "spys/spy_model%d_amr%d.txt", model->get_model_choice(), it_amr);
         fp_spy = fopen(filename_spy, "w");
         fprintf(fp_spy, "AMat\n");
-        WriteSparseMatrixToFile(fp_spy, AMat);
+        WriteSparseMatrixToFile(fp_spy, AMat_t);
         fprintf(fp_spy, "\nBMat\n");
-        WriteSparseMatrixToFile(fp_spy, BMat);
+        WriteSparseMatrixToFile(fp_spy, BMat_t);
         fprintf(fp_spy, "\nCMat\n");
-        WriteSparseMatrixToFile(fp_spy, CMat);
+        WriteSparseMatrixToFile(fp_spy, CMat_t);
 
         // Define RHS of the block linear system (equation 5.3 of paper)
-        // RHS = [c1, c2]
+        // Compute in VSize first, then convert to true-DOF
         // c1 = b1 - Cy b4 / Ca
         // c2 = b3 + mu F H^{-1} b_2 - Ba b5 / Ca
+        Vector rhs0_full(vsize), rhs1_full(vsize);
+        add(1.0, b1, -b4 / Ca, Cy, rhs0_full);  // c1 (VSize)
+        MuFinvH->Mult(b2, rhs1_full);  // c2 (VSize)
+        rhs1_full += b3;
+        add(1.0, rhs1_full, - b5 / Ca, Ba, rhs1_full);
+        rhs1_full *= scale;
+
+        // Convert RHS to true-DOF space
         rhs = 0;
-        add(1.0, b1, -b4 / Ca, Cy, rhs.GetBlock(0));  // c1
-        MuFinvH->Mult(b2, rhs.GetBlock(1));  // c2 (this line and subsequent lines)
-        rhs.GetBlock(1) += b3;
-        add(1.0, rhs.GetBlock(1), - b5 / Ca, Ba, rhs.GetBlock(1));
-        rhs.GetBlock(1) *= scale;
+        ToTrueDofs(rhs0_full, rhs.GetBlock(0), fespace);
+        ToTrueDofs(rhs1_full, rhs.GetBlock(1), fespace);
 
         // Configure the FGMRES solver
         FGMRESSolver solver;
@@ -691,14 +742,14 @@ void Solve(
         solver.SetKDim(kdim);
         solver.SetPrintLevel(-1);
 
-        // Initialize solution guess dx to zero
+        // Initialize solution guess dx to zero (true-DOF space)
         BlockVector dx(row_offsets);
         dx = 0.0;
 
         double dalpha, dlv;
 
         // ============================================================================
-        // Preconditioners
+        // Preconditioners (all in true-DOF space)
         // ============================================================================
 
         // Preconditioning: 0 = block diagonal PC, 5 = block upper triangular PC, 6 = block lower triangular PC
@@ -706,17 +757,19 @@ void Solve(
 
           Solver *inv_BT, *inv_B;
 
-          // Build AMG solvers for B_y and B_y^T using Hypre
-          HypreParMatrix *B_Hypre = ConvertToHypre(ScaleByT);
-          HypreParMatrix *BT_Hypre = ConvertToHypre(ScaleBy);
+          // Build AMG solvers for B_y and B_y^T using Hypre (true-DOF matrices)
+          SparseMatrix *ScaleByT_t = ToTrueDofs(*ScaleByT, fespace);
+          SparseMatrix *ScaleBy_t  = ToTrueDofs(*ScaleBy,  fespace);
+          HypreParMatrix *B_Hypre = ConvertToHypre(ScaleByT_t);
+          HypreParMatrix *BT_Hypre = ConvertToHypre(ScaleBy_t);
           HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
           HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
 
           // Configure AMG parameters for AMG(B_y)
           B_AMG->SetPrintLevel(0);
           B_AMG->SetCycleType(amg_cycle_type);  // choose V-cycle/W-cycle
-          B_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);  // number of relaxation sweeps: a--pre-smoothing, b--post-smoothing
-          B_AMG->SetMaxIter(amg_max_iter);  // number of AMG cycles
+          B_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
+          B_AMG->SetMaxIter(amg_max_iter);
 
           // Configure AMG parameters for AMG(B_y^T)
           BT_AMG->SetPrintLevel(0);
@@ -724,7 +777,6 @@ void Solve(
           BT_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
           BT_AMG->SetMaxIter(amg_max_iter);
 
-          // TODO: is this renaming necessary?
           inv_B = B_AMG;
           inv_BT = BT_AMG;
 
@@ -738,36 +790,18 @@ void Solve(
 
           // Block upper triangular preconditioner: equation 5.5 from paper
           else if (PC_option == 5) {
-            // SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 1);
-            // solver.SetPreconditioner(SCPC);
-
-            // These next two lines were added to make the solver work with quad mesh
-            SchurPC *SCPC = new SchurPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 1);
+            SchurPC *SCPC = new SchurPC(AMat_t, CMat_t, inv_B, inv_BT, &Ba_t, &Cy_t, Ca, 1);
             solver.SetPreconditioner(*SCPC);
           }
 
           // Block lower triangular preconditioner: equation 5.6 from paper
           else if (PC_option == 6) {
-            // SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 2);
-            // solver.SetPreconditioner(SCPC);
-
-            // These next two lines were added to make the solver work with quad mesh
-            SchurPC *SCPC = new SchurPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 2);
+            SchurPC *SCPC = new SchurPC(AMat_t, CMat_t, inv_B, inv_BT, &Ba_t, &Cy_t, Ca, 2);
             solver.SetPreconditioner(*SCPC);
           }
 
           // Solve the block system using FGMRES with preconditioning
-          cout << "Checking FGMRES solver for bugs." << endl;  // DEBUGGING
-          // std::cout << "rhs.Size(): " << rhs.Size() << ", dx.Size(): " << dx.Size() << std::endl;  // Is fine.
-          // std::cout << "solver height: " << solver.Height() << ", width: " << solver.Width() << std::endl;  // Is fine.
-
-          // MFEM_VERIFY(B_Hypre != nullptr, "B_Hypre is null");
-          // MFEM_VERIFY(BT_Hypre != nullptr, "BT_Hypre is null");
-          // MFEM_VERIFY(inv_B != nullptr, "inv_B is null");
-          // MFEM_VERIFY(inv_BT != nullptr, "inv_BT is null");
-
           solver.Mult(rhs, dx);
-          cout << "No bugs found." << endl;  // DEBUGGING
           fprintf(fp, "amr=%d newton=%d iters=%d\n", it_amr, i, solver.GetNumIterations());
         }
         
@@ -794,36 +828,43 @@ void Solve(
 
         ///////////////////////////////////////////////////////////////////////////////////
 
-        // get solution
-        x += dx.GetBlock(ind_x);
-        pv += dx.GetBlock(ind_p);
+        // Prolong solution increments from true-DOF space back to VSize
+        Vector dx_x_full(vsize), dx_p_full(vsize);
+        ToFullDofs(dx.GetBlock(ind_x), dx_x_full, fespace);
+        ToFullDofs(dx.GetBlock(ind_p), dx_p_full, fespace);
 
-        invHFT->AddMult(dx.GetBlock(ind_p), *uv);
+        // Update solution in VSize space
+        x += dx_x_full;
+        pv += dx_p_full;
+
+        // Update coil currents (invHFT and invH operate on coil-space vectors, not DOF vectors)
+        invHFT->AddMult(dx_p_full, *uv);
         invH->AddMult(b2, *uv);
 
-        dalpha = (b5 - (Cy * dx.GetBlock(ind_x))) / Ca;
-        dlv = (b4 - (Ba * dx.GetBlock(ind_p))) / Ca;
+        // Compute alpha and lambda increments using VSize vectors
+        dalpha = (b5 - (Cy * dx_x_full)) / Ca;
+        dlv = (b4 - (Ba * dx_p_full)) / Ca;
         alpha += dalpha;
         lv += dlv;
 
         // *** calculate residuals after solve *** //
-        // first block row
-        Vector res1(pv.Size());
+        // first block row (VSize space)
+        Vector res1(vsize);
         res1 = 0.0;
-        AMat->AddMult(dx.GetBlock(ind_x), res1);
-        ByT->AddMult(dx.GetBlock(ind_p), res1);
+        AMat->AddMult(dx_x_full, res1);
+        ByT->AddMult(dx_p_full, res1);
         add(res1, dlv, Cy, res1);
         add(res1, -1.0, b1, res1);
         printf("res1: %.2e\n", GetMaxError(res1));
 
-        // second block row
-        Vector res2(pv.Size());
+        // second block row (VSize space)
+        Vector res2(vsize);
         res2 = 0.0;
-        mMuFinvHFT->AddMult(dx.GetBlock(ind_p), res2);
+        mMuFinvHFT->AddMult(dx_p_full, res2);
         MuFinvH->Mult(b2, res2);
         res2 *= -1.0;
-        By.AddMult(dx.GetBlock(ind_x), res2);
-        mMuFinvHFT->AddMult(dx.GetBlock(ind_p), res2);
+        By.AddMult(dx_x_full, res2);
+        mMuFinvHFT->AddMult(dx_p_full, res2);
         add(res2, dalpha, Ba, res2);
         add(res2, -1.0, b3, res2);
         printf("res2: %.2e\n", GetMaxError(res2));
