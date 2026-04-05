@@ -416,12 +416,10 @@ void Solve(
       printf("AMR iteration %d\n", it_amr);
       printf("Number of unknowns: %d\n", cdofs);
 
-      // Save mesh
-      // TODO: POTENTIAL BUG: check why we are saving "meshes/mesh_refine.mesh" here. Wouldn't it make sense to save at the end of the AMR loop, since the mesh isn't yet refined?
+      // Save per-iteration mesh snapshot (matches the mesh used for this iteration's Newton solve)
       char name_mesh[60];
       sprintf(name_mesh, "gf/mesh_amr%d_model%d_pc%d_cyc%d_it%d.mesh", it_amr, model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
-      mesh->Save(name_mesh);  // Unique saved mesh for each iteration
-      mesh->Save("meshes/mesh_refine.mesh");  // Overwritten in each iteration
+      mesh->Save(name_mesh);
 
       // ============================================================================
       // Define and assemble PDE operator components
@@ -930,6 +928,9 @@ void Solve(
       
       printf("******* fespace.GetTrueVSize(): %d\n", fespace.GetTrueVSize());
     }
+
+    // Save final mesh (matches the mesh that x lives on after the AMR loop)
+    mesh->Save("meshes/mesh_refine.mesh");
 
     // Print elapsed time to convergence
     auto t_end = std::chrono::high_resolution_clock::now();
