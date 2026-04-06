@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
    int optimize_alpha = 1;
 
    int PC_option = 6;
-   int max_levels = 8;
+   int max_levels = 8;  // TODO: for clarity, this should be changed to max_amr_levels. You'll also need to change this in gs.cpp, ...
    int max_dofs = 100000;
    double light_tol = 1e-5;
 

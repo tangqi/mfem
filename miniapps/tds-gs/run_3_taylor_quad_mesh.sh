@@ -28,7 +28,7 @@ data_file="data/separated_file.data"
 refinement_factor=1
 amr_frac_in=0.08
 amr_frac_out=0.3
-max_levels=8
+max_levels=4  # TODO: for clarity, this should be changed to max_amr_levels
 max_dofs=100000
 
 do_test=0

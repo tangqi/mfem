@@ -311,7 +311,7 @@ void Solve(
   Vector *uv,  // External coil currents [I_1, I_2, ..., I_N]
   double &alpha,
   int &PC_option,
-  int &max_levels,
+  int &max_amr_levels,  // Renamed from max_levels
   int &max_dofs,
   double &light_tol,
   double &alpha_in,
@@ -409,7 +409,14 @@ void Solve(
     // the solver never converges, then it will run forever. Perhaps it is a good idea to add a max AMR loop feature.
     const int max_amr_iter = 2;
 
-    for (int it_amr = 0; it_amr < max_amr_iter; ++it_amr) {
+    // // Stopping condition: max AMR levels
+    // if (it_amr >= max_amr_levels) {
+    //   printf("Reached the number of refinement levels\n");
+    //   break;
+    // }
+
+    // for (int it_amr = 0; it_amr < max_amr_iter; ++it_amr) {
+    for (int it_amr = 0; it_amr <= max_amr_levels; ++it_amr) {
       int total_gmres = 0;
       int cdofs = fespace.GetTrueVSize();
 
@@ -831,19 +838,22 @@ void Solve(
         alpha += dalpha;
         lv += dlv;
 
-        ///////////////////////////////////////////////////////////////////////////////////
+        // ============================================================================
+        // Calculate residuals for the Newton system after solve
+        // ============================================================================
 
-        // *** calculate residuals after solve *** //
-        // first block row (VSize space)
+        // Residual = RHS of 2 x 2 block system (eq. 4.13 in paper)
+
+        // First block row in RHS (VSize space)
         Vector res1(vsize);
         res1 = 0.0;
         AMat->AddMult(dx_x_full, res1);
         ByT->AddMult(dx_p_full, res1);
         add(res1, dlv, Cy, res1);
         add(res1, -1.0, b1, res1);
-        printf("res1: %.2e\n", GetMaxError(res1));
+        printf("res_1: %.2e\n", GetMaxError(res1));
 
-        // second block row (VSize space)
+        // Second block row in RHS (VSize space)
         Vector res2(vsize);
         res2 = 0.0;
         mMuFinvHFT->AddMult(dx_p_full, res2);
@@ -853,27 +863,35 @@ void Solve(
         mMuFinvHFT->AddMult(dx_p_full, res2);
         add(res2, dalpha, Ba, res2);
         add(res2, -1.0, b3, res2);
-        printf("res2: %.2e\n", GetMaxError(res2));
+        printf("res_2: %.2e\n", GetMaxError(res2));
+
+        // ============================================================================
+        // Save/print/update parameters post-solve
+        // ============================================================================
 
         // Print currents
         printf("Currents: [");
-        for (int i = 0; i < uv->Size(); ++i) {
-          printf("%.3e ", (*uv)[i]);
-        }
+        for (int i = 0; i < uv->Size(); ++i) {printf("%.3e ", (*uv)[i]);}
         printf("]\n");
 
-        // Save grid function and magnetic field
+        // Save grid function
         char name_[60];
         sprintf(name_, "gf/xtmp_amr%d.gf", it_amr);
         x.Save(name_);
         char name[60];
         sprintf(name, "gf/xtmp_amr%d_i%d.gf", it_amr, i);
         x.Save(name);
+
+        // Save magnetic field components
         Br_field.Save("gf/Br.gf");
         Bp_field.Save("gf/Bp.gf");
         Bz_field.Save("gf/Bz.gf");
+
+        // Compute psi_r and psi_z
         x.GetDerivative(1, 0, psi_r);
         x.GetDerivative(1, 1, psi_z);
+
+        //
         Br_field.ProjectCoefficient(BrCoeff);
         Bp_field.ProjectCoefficient(BpCoeff);
         Bz_field.ProjectCoefficient(BzCoeff);
@@ -881,22 +899,30 @@ void Solve(
         visit_dc.Save();
       }
       
-      if (it_amr >= max_levels) {
-        printf("max number of refinement levels\n");
+      // Stopping condition: max AMR levels
+      if (it_amr >= max_amr_levels) {
+        printf("Reached the maximum number of refinement levels\n");
         break;
       }
-      if (cdofs > max_dofs)
-        {
-          cout << "Reached the maximum number of dofs. Stop." << endl;
-          break;
-        }
 
+      // Stopping condition: max number of DOFs
+      if (cdofs > max_dofs) {
+        cout << "Reached the maximum number of dofs. Stop." << endl;
+        break;
+      }
+
+      // Stopping condition:
+      // Logic is in amr.cpp: RegionalThresholdRefiner::ApplyRef. Stop conditions are:
+      // 1) number of elements exceeds max_elements, 2) total estimator norm below total_err_goal,
+      // 3) no elements marked for refinement
       f = op.get_f();
       refiner.ApplyRef(*mesh, 1000, amr_frac_in, amr_frac_out);
       if (refiner.Stop()) {
         cout << "Stopping criterion satisfied. Stop." << endl;
         break;
-      } else {
+      }
+      
+      else {
         printf("Refining mesh, AMR iteration %d\n", it_amr+1);
       }
 
@@ -925,17 +951,20 @@ void Solve(
     std::chrono::duration<double, std::milli> ms_double = t_end - t_init;
     printf("time elapsed: %f seconds\n", ms_double.count() / 1000.0);
 
+    // Compute f at X-point
     f_x = model->get_f_x();
 
-    // Write final value of psi_ma to a different file for GQDSK
-    system("mkdir -p ../gslib/GEQDSK"); 
-    ofstream file("../gslib/GEQDSK/GEQDSK_simagx_sibdry_cpasma.txt"); 
+    // Write final value of psi_ma to a different file for GEQDSK
+    system("mkdir -p ../gslib/GEQDSK");
+    ofstream file("../gslib/GEQDSK/GEQDSK_simagx_sibdry_cpasma.txt");
     file << scientific << setprecision(9)
       << setw(16) << psi_ma_vals.back() << "\n"
       << setw(16) << psi_x_vals.back() << "\n"
       << setw(16) << cpasma_vals.back() << "\n";
-      file.close();    
-  } 
+      file.close();
+  }
+
+  ///////////////////////////////////////////////////////////////////////////////////
   
   // do_control == 0
   else {
@@ -1080,7 +1109,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
           int do_control, int N_control, double & weight_solenoids, double & weight_coils,
           double & weight_obj, int obj_option, bool optimize_alpha,
           bool do_manufactured_solution, bool do_initial,
-          int & PC_option, int & max_levels, int & max_dofs, double & light_tol,
+          int & PC_option, int & max_amr_levels, int & max_dofs, double & light_tol,
           double & alpha_in, double & gamma_in,
           int amg_cycle_type, int amg_num_sweeps_a, int amg_num_sweeps_b, int amg_max_iter,
           double amr_frac_in, double amr_frac_out) {
@@ -1200,7 +1229,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
          weight_solenoids,
          &uv_currents,
          alpha,
-         PC_option, max_levels, max_dofs, light_tol,
+         PC_option, max_amr_levels, max_dofs, light_tol,
          alpha_in, gamma_in,
          amg_cycle_type, amg_num_sweeps_a, amg_num_sweeps_b, amg_max_iter,
          amr_frac_in, amr_frac_out);
