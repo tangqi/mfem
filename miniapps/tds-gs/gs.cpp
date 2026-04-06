@@ -405,17 +405,6 @@ void Solve(
     // Initialize vectors storing magnetic axis, X-point, and cpasma_vals (TODO: what is cpasma_vals? The plasma domain?)
     vector<double> psi_ma_vals, psi_x_vals, cpasma_vals;
 
-    // TODO: there doesn't appear to be any limit to the max number of AMR loops in case the solver doesn't converge. If
-    // the solver never converges, then it will run forever. Perhaps it is a good idea to add a max AMR loop feature.
-    const int max_amr_iter = 2;
-
-    // // Stopping condition: max AMR levels
-    // if (it_amr >= max_amr_levels) {
-    //   printf("Reached the number of refinement levels\n");
-    //   break;
-    // }
-
-    // for (int it_amr = 0; it_amr < max_amr_iter; ++it_amr) {
     for (int it_amr = 0; it_amr <= max_amr_levels; ++it_amr) {
       int total_gmres = 0;
       int cdofs = fespace.GetTrueVSize();
