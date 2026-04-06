@@ -407,14 +407,13 @@ void Solve(
 
     // TODO: there doesn't appear to be any limit to the max number of AMR loops in case the solver doesn't converge. If
     // the solver never converges, then it will run forever. Perhaps it is a good idea to add a max AMR loop feature.
+    const int max_amr_iter = 2;
 
-    for (int it_amr = 0; it_amr < 2; ++it_amr) {
-    // for (int it_amr = 0; ; ++it_amr) {
+    for (int it_amr = 0; it_amr < max_amr_iter; ++it_amr) {
       int total_gmres = 0;
       int cdofs = fespace.GetTrueVSize();
 
-      printf("AMR iteration %d\n", it_amr);
-      printf("Number of unknowns: %d\n", cdofs);
+      // printf("Number of unknowns: %d\n", cdofs);
 
       // Save per-iteration mesh snapshot (matches the mesh used for this iteration's Newton solve)
       char name_mesh[60];
@@ -443,12 +442,8 @@ void Solve(
       // Define objective function components
       // ============================================================================
 
-      cout << "\n Checking for bugs in quadrature point computations." << endl;  // DEBUGGING
-
       // Precompute quadrature point data for objective and constraints
       init_coeff->compute_QP(N_control, mesh, &fespace);  // TODO: where does init_coeff come from?
-
-      cout << "\n No bugs found in quadrature point computations." << endl;  // DEBUGGING
 
       // Compute gradient w.r.t. ψ
       Vector g_ = init_coeff->compute_g();
@@ -500,19 +495,14 @@ void Solve(
       double error_old;
       double error;
 
-      cout << "Debugging: Starting Newton loop. AMR iteration " << it_amr << endl;  // Debugging
-
       for (int i = 0; i <= max_newton_iter; ++i) {
 
         // Debugging
-        std::cout << "Entering NonlinearEquationRes with alpha = " << alpha << std::endl;
         MFEM_VERIFY(x.Size() > 0, "x vector is empty!");
         MFEM_VERIFY(uv->Size() > 0, "uv vector is empty!");
 
-        // compute matrices and vectors in problem
-        op.NonlinearEquationRes(x, uv, alpha);  // There is a bug here at AMR iteration 1
-
-        cout << "Debugging: Getting Newton loop operators. AMR iteration " << it_amr << endl;  // Debugging
+        // Compute vector and matrix components of the block Newton system
+        op.NonlinearEquationRes(x, uv, alpha);
 
         // Get operators
         SparseMatrix By = op.get_By();
@@ -522,8 +512,6 @@ void Solve(
         Vector Ba = op.get_Ba();
         SparseMatrix *AMat = op.compute_hess_obj(x);
         Vector g = op.compute_grad_obj(x);
-
-        cout << "Debugging: Got Newton loop operators. AMR iteration " << it_amr << endl;  // Debugging
 
         // Print plasma current
         printf("plasma_current = %10.8e\n", C / op.get_mu());
@@ -824,8 +812,6 @@ void Solve(
         }
         dx.GetBlock(ind_p) *= scale;
 
-        ///////////////////////////////////////////////////////////////////////////////////
-
         // Prolong solution increments from true-DOF space back to VSize
         Vector dx_x_full(vsize), dx_p_full(vsize);
         ToFullDofs(dx.GetBlock(ind_x), dx_x_full, fespace);
@@ -844,6 +830,8 @@ void Solve(
         dlv = (b4 - (Ba * dx_p_full)) / Ca;
         alpha += dalpha;
         lv += dlv;
+
+        ///////////////////////////////////////////////////////////////////////////////////
 
         // *** calculate residuals after solve *** //
         // first block row (VSize space)
@@ -909,7 +897,7 @@ void Solve(
         cout << "Stopping criterion satisfied. Stop." << endl;
         break;
       } else {
-        printf("Refining mesh, i=%d\n", it_amr+1);
+        printf("Refining mesh, AMR iteration %d\n", it_amr+1);
       }
 
       // update variables due to refinement
@@ -926,7 +914,7 @@ void Solve(
       b1.Update();
       b3.Update();
       
-      printf("******* fespace.GetTrueVSize(): %d\n", fespace.GetTrueVSize());
+      printf("Number of true DOFs: %d\n", fespace.GetTrueVSize());
     }
 
     // Save final mesh (matches the mesh that x lives on after the AMR loop)
@@ -1133,8 +1121,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
    const char *data_file_ = "data/fpol_pres_ffprim_pprime.data";
    PlasmaModelFile model(mu, data_file_, alpha, beta, gamma, model_choice);
 
-   // Define a finite element space on the mesh. Here we use H1 continuous
-   // high-order Lagrange finite elements of the given order.
+   // Define a finite element space on the mesh. Here we use H1 continuous high-order Lagrange finite elements of the given order.
    H1_FECollection fec(order, mesh.Dimension());
    FiniteElementSpace fespace(&mesh, &fec);
    cout << "Number of unknowns: " << fespace.GetTrueVSize() << endl;

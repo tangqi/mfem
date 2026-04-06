@@ -529,8 +529,6 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
     Mat_Prelim->EliminateRow((boundary_tdofs)[k], DIAG_ONE);
   }
 
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
   // Create a copy of Mat_Prelim to produce a symmetric B_y (no magnetic axis or X-point contributions). Used elsewhere for preconditioning
   By_symmetric = Add(1.0, *Mat_Prelim, 0.0, *Mat_Prelim);
 
