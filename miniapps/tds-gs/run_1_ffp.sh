@@ -100,8 +100,9 @@ cp ../gslib/interpolated.gf interpolated.gf
 
 initial_gf="interpolated.gf"
 
-./main \
+srun -n 1 ./main \
     -m $mesh_file \
+    --initial_gf $initial_gf \  # Should this be removed in this case?
     -o 1 \
     -d $data_file \
     -g $refinement_factor \
