@@ -1,6 +1,5 @@
 # coefficient of ff' term
 alpha=1.46579418e-01  # This is the tri-mesh solve value
-# alpha=-.2
 
 # coefficient of p' term
 beta=0.0
@@ -21,14 +20,13 @@ R0=2.4
 rho_gamma=16
 mu=12.5663706144e-7
 
-# mesh_file="meshes/iter_gen.msh"
 mesh_file="meshes/iter_gen_quad.msh"
 data_file="data/separated_file.data"
 
 refinement_factor=1
 amr_frac_in=0.08
 amr_frac_out=0.3
-max_levels=1  # TODO: for clarity, this should be changed to max_amr_levels
+max_levels=1  # TODO: for clarity, this parameter should be changed to max_amr_levels
 max_dofs=100000
 
 do_test=0
@@ -79,25 +77,18 @@ c3=1.824e+07
 c4=2.105e+07
 c5=-3.116e+06
 
-# # poloidal flux coils
-# c6=-4.552585e+06
-# c7=3.180596e+06
-# c8=5.678096e+06
-# c9=3.825538e+06
-# c10=1.066498e+07
-# c11=-2.094771e+07
-
-# # center solenoids
-# c1=1.143284e+03
-# c2=-2.478694e+04
-# c3=-3.022037e+04
-# c4=-2.205664e+04
-# c5=-2.848113e+03
-
 ur_coeff=1.0
 
 # Interpolate Taylor state triangular mesh final solution to quadrilateral mesh
-srun -n 1 ./../gslib/field-interp -m1 initial/final_tri_mesh_refine.mesh -m2 meshes/iter_gen_quad.msh -s1 initial/final_tri_model2_pc5_cyc1_it5.gf -no-vis
+srun -n 1 ./../gslib/field-interp \
+    -m1 initial/final_tri_mesh_refine.mesh \  # Need to add this as a param up above
+    -m2 $mesh_file \
+    -s1 initial/final_tri_model2_pc5_cyc1_it5.gf \  # Need to add this as a param up above
+    -r $refinement_factor \
+    -no-vis
+
+cp ../gslib/interpolated.gf interpolated.gf
+
 initial_gf="interpolated.gf"
 
 srun -n 1 ./main \

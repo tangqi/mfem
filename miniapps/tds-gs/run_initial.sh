@@ -37,13 +37,6 @@ krylov_tol=1e-9
 newton_tol=1e-12
 
 # poloidal flux coils
-# c6=4.552585e+06
-# c7=-3.180596e+06
-# c8=-5.678096e+06
-# c9=-3.825538e+06
-# c10=-1.066498e+07
-# c11=2.094771e+07
-
 c6=-4.552585e+06
 c7=3.180596e+06
 c8=5.678096e+06
@@ -58,21 +51,6 @@ c3=-3.022037e+04
 c4=-2.205664e+04
 c5=-2.848113e+03
 
-# # poloidal flux coils
-# c6=0.0
-# c7=0.0
-# c8=0.0
-# c9=0.0
-# c10=0.0
-# c11=0.0
-
-# # center solenoids
-# c1=-1.143284e+06
-# c2=2.478694e+07
-# c3=3.022037e+07
-# c4=2.205664e+07
-# c5=2.848113e+06
-
 ur_coeff=1.0
 
 # number of control points on plasma
@@ -82,8 +60,7 @@ do_control=0
 weight_coils=1e-16
 weight_solenoids=1e-16
 
-# lldb -- main.o \
-./main \
+srun -n 1 ./main \
     -m $mesh_file \
     -o 1 \
     -d $data_file \
@@ -119,7 +96,3 @@ weight_solenoids=1e-16
     --weight_coils $weight_coils \
     --weight_solenoids $weight_solenoids \
     --initial $do_initial
-
-
-
-

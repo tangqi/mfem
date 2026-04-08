@@ -59,12 +59,12 @@ amg_num_sweeps_b=1
 amg_max_iter=5
 
 # poloidal flux coils
-c6=-4.552585e+06
-c7=3.180596e+06
-c8=5.678096e+06
-c9=3.825538e+06
-c10=1.066498e+07
-c11=-2.094771e+07
+# c6=-4.552585e+06
+# c7=3.180596e+06
+# c8=5.678096e+06
+# c9=3.825538e+06
+# c10=1.066498e+07
+# c11=-2.094771e+07
 
 c6=-9.690e+05
 c7=3.101e+06
@@ -74,11 +74,11 @@ c10=1.109e+07
 c11=-1.883e+07
 
 # center solenoids
-c1=-1.143284e+03
-c2=2.478694e+04
-c3=3.022037e+04
-c4=2.205664e+04
-c5=2.848113e+03
+# c1=-1.143284e+03
+# c2=2.478694e+04
+# c3=3.022037e+04
+# c4=2.205664e+04
+# c5=2.848113e+03
 
 # center solenoids
 c1=8.807e+06
@@ -104,15 +104,19 @@ optimize_alpha=1
 # 2: sum_k (psi_k - psi_x) ^ 2
 obj_option=1
 
-./../gslib/field-interp -m1 initial/mesh_amr0_model1_pc0_cyc0_it1.mesh \
-                        -m2 $mesh_file \
-                        -s1 initial/final_model1_pc0_cyc0_it1.gf \
-                        -r $refinement_factor \
-                        -no-vis
+srun -n 1 ./../gslib/field-interp \
+    -m1 initial/mesh_amr0_model1_pc0_cyc0_it1.mesh \
+    -m2 $mesh_file \
+    -s1 initial/final_model1_pc0_cyc0_it1.gf \
+    -r $refinement_factor \
+    -no-vis
+
+cp ../gslib/interpolated.gf interpolated.gf
+
 initial_gf="interpolated.gf"
 
 
-srun main \
+srun -n 1 ./main \
     -m $mesh_file \
     --initial_gf $initial_gf \
     -o 1 \
@@ -164,10 +168,3 @@ srun main \
     --amg_max_iter $amg_max_iter \
     --amr_frac_in $amr_frac_in \
     --amr_frac_out $amr_frac_out
-
-    
-
-
-
-
-# ./../gslib/field-interp -m1 mesh.mesh -m2 meshes/geqdsk.msh -s1 final.gf -no-vis
