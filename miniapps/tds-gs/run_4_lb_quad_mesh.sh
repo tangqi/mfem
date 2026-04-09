@@ -1,7 +1,9 @@
 # coefficient of ff' term
 alpha=-4.2
+
 # coefficient of p' term
 beta=0.0
+
 # unused?
 gamma=0.0
 
@@ -14,17 +16,12 @@ model=4
 
 # plasma current
 Ip=1.5e+7
-# Ip=1.2e+7
 
 R0=2.4
 rho_gamma=16
 mu=12.5663706144e-7
-# mu=1.0
 
-mesh_file="meshes/iter_gen_fixed.mesh"
-# mesh_file="meshes/RegGSTriMeshVeryCoarse0beta.msh"
 data_file="data/separated_file.data"
-initial_gf="initial/initial.gf"
 
 refinement_factor=1
 amr_frac_in=0.08
@@ -90,9 +87,26 @@ c5=-7.914e+06
 
 ur_coeff=1.0
 
+tri_mesh_file="meshes/iter_gen_fixed.mesh"
+tri_initial_gf="initial/initial.gf"
+quad_mesh_file="meshes/iter_gen_quad.msh"
+
+# Interpolate initial mesh and solution to quad mesh
+srun -n 1 ./../gslib/field-interp \
+    -m1 $tri_mesh_file \
+    -m2 $quad_mesh_file \
+    -s1 $tri_initial_gf \
+    -no-vis
+    # -r $refinement_factor \
+    # -o 1 \
+
+# cp ../gslib/interpolated.gf interpolated.gf
+
+quad_initial_gf="interpolated.gf"
+
 srun -n 1 ./main \
-    -m $mesh_file \
-    --initial_gf $initial_gf \
+    -m $quad_mesh_file \
+    --initial_gf $quad_initial_gf \
     -o 1 \
     -d $data_file \
     -g $refinement_factor \
