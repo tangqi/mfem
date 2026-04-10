@@ -189,8 +189,9 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     // check to see if integration point is inside an element that is
     // part of the plasma region
     const int *v = T.mesh->GetElement(T.ElementNo)->GetVertices();
+    const int nv = T.mesh->GetElement(T.ElementNo)->GetNVertices();
     set<int>::iterator plasma_inds_it;
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < nv; ++i) {
       plasma_inds_it = plasma_inds.find(v[i]);
       if (plasma_inds_it == plasma_inds.end()) {
         return 0.0;
@@ -546,6 +547,8 @@ void compute_plasma_points(
         printf("Found saddle at (%9.6f, %9.6f), val=%9.6f\n", x0[0], x0[1], nval[iv]);
       }
 
+      cout << "Found saddle at (" << x0[0] << ", " << x0[1] << "), val=" << nval[iv] << endl;  // Debugging: remove later
+
       candidate_x_points.push_back(iv);
       ++saddle_pt_count;
     } 
@@ -565,6 +568,8 @@ void compute_plasma_points(
   const double* x_min = mesh.GetVertex(ind_min);
   const double* x_max = mesh.GetVertex(ind_max);
   const double* x_x = mesh.GetVertex(ind_x);
+
+  cout << "total saddles found: " << saddle_pt_count << endl;  // Debugging: remove later
 
   if (iprint) {
     printf("  min of %9.6f at (%9.6f, %9.6f), ind %d\n", min_val, x_min[0], x_min[1], ind_min);

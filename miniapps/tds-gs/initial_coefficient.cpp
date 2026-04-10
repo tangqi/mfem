@@ -14,8 +14,9 @@ double InitialCoefficient::Eval(ElementTransformation & T,
 
   if (mask_plasma) {
     const int *v = T.mesh->GetElement(T.ElementNo)->GetVertices();
+    const int nv = T.mesh->GetElement(T.ElementNo)->GetNVertices();
     set<int>::iterator plasma_inds_it;
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < nv; ++i) {
       plasma_inds_it = plasma_inds.find(v[i]);
       if (plasma_inds_it == plasma_inds.end()) {
         return 0.0;
