@@ -1,12 +1,9 @@
-// To Do:
-//        1. Append GEQDSK-q-generation.cpp
-//           NOTE: If not appended yet, need to run this file independently to generate the proper qpsi value for GEQDSK.txt   
-
 // File                  : GEQDSK-generation.cpp 
 // Purpose               : Generates the final GEQDSK plasma file for ITER tokamak by finding/generating the individual parameter files and appending them
 // Workflow              : The respective MFEM files generate "GEQDSK_[variable_names]" files that store the values of the needed variables. GEQDDSK-generation.cpp extracts the values from those files, generates other needed variables, and compiles the final GEQDSK.txt file. 
 // File run instructions : Run a triangular mesh file (Ex: sh run_3_taylor.sh)
 //                         Run 2D-cartesian-mesh.cpp (make 2d-cartesian-mesh && srun -n 1 ./2d-cartesian-mesh) 
+//                         Run GEQDSK-g-generation.cpp (make GEQDSK-q-generation && ./GEQDSK-q-generation)
 //                         Run GEQDSK-generation.cpp (make GEQDSK-generation && ./GEQDSK-generation) 
 // Reference             : https://github.com/Sruthifeb14/OSPO_VSIP_2025_MFEM_Internship                             
 

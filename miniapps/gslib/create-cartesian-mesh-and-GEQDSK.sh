@@ -1,5 +1,5 @@
 # File             : create-cartesian-mesh-and-GEQDSK.sh
-# Purpose          : Automatically run tds-gs/run_3_taylor.sh, 2d-cartesian-mesh.cpp, and GEQDSK-generation.cpp to generate a GEQDSK.txt file for a specified quadrilateral mesh.   
+# Purpose          : Automatically run tds-gs/run_3_taylor.sh, 2d-cartesian-mesh.cpp, GEQDSK-q-generation.cpp, and GEQDSK-generation.cpp to generate a GEQDSK.txt file for a specified quadrilateral mesh.   
 # Run Instructions : ./create-cartesian-mesh-and-GEQDSK.sh
 # Improvements     : Can add user input for nx, ny, and r and z dimensions for cartesian grid
 #                    Can add functionality to enable other run cases instead of run_3_taylor.sh
@@ -28,15 +28,15 @@ srun -n 1 ./2d-cartesian-mesh > /dev/null
 echo "Compiling GEQDSK-q-generation.cpp..."
 make GEQDSK-q-generation > /dev/null
 
-# Step 5: Run GEQDSK-q-generation
+# Step 4: Run GEQDSK-q-generation
 echo "Running GEQDSK-q-generation..."
 ./GEQDSK-q-generation
 
-# Step 4: Build GEQDSK-generation
+# Step 5: Build GEQDSK-generation
 echo "Compiling GEQDSK-generation.cpp..."
 make GEQDSK-generation > /dev/null
 
-# Step 5: Run GEQDSK-generation
+# Step 6: Run GEQDSK-generation
 echo "Running GEQDSK-generation..."
 ./GEQDSK-generation
 
