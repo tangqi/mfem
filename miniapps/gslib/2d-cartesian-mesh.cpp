@@ -26,8 +26,8 @@ double scalar_func(const Vector &x){
 
 int main (int argc, char *argv[]){
    // Compute rdim & zdim for GEQDSK   
-   int nx = 16; // # of cells in r direction
-   int ny = 16; // # of cells in z direction
+   int nx = 256; // # of cells in r direction
+   int ny = 512; // # of cells in z direction
 
    Vector p00(2); p00(0) = 0; p00(1) = 0; 
    Vector p11(2); p11(0) = 1; p11(1) = 1; 

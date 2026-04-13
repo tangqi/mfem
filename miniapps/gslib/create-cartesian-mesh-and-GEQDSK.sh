@@ -24,13 +24,22 @@ make 2d-cartesian-mesh > /dev/null
 echo "Running 2d-cartesian-mesh..."
 srun -n 1 ./2d-cartesian-mesh > /dev/null
 
-# Step 3: Build GEQDSK-generation
+# Step 3: Build GEQDSK-q-generation
+echo "Compiling GEQDSK-q-generation.cpp..."
+make GEQDSK-q-generation > /dev/null
+
+# Step 5: Run GEQDSK-q-generation
+echo "Running GEQDSK-q-generation..."
+./GEQDSK-q-generation
+
+# Step 4: Build GEQDSK-generation
 echo "Compiling GEQDSK-generation.cpp..."
 make GEQDSK-generation > /dev/null
 
-# Step 4: Run GEQDSK-generation
+# Step 5: Run GEQDSK-generation
 echo "Running GEQDSK-generation..."
 ./GEQDSK-generation
+
 
 end_time=$(date +%s)
 elapsed=$(( end_time - start_time ))

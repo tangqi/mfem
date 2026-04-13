@@ -125,10 +125,10 @@ int main() {
         return 1;
     }
 
-    // DEBUG: print psi level set values
-    std::cout << "psi: ";
-    for (double val : psi) std::cout << val << ' ';
-    std::cout << '\n';
+    // // DEBUG: print psi level set values
+    // std::cout << "psi: ";
+    // for (double val : psi) std::cout << val << ' ';
+    // std::cout << '\n';
 
     // Step 1): Choose the level set(s) to compute the line integral for.
 
@@ -203,13 +203,13 @@ int main() {
         qpsi.push_back(q);
     }
 
-    // DEBUG: print q(psi)
-    std::cout << '\n';
-    std::cout << "q(psi): ";
-    for(size_t j = 0; j < qpsi.size(); ++j) {
-        std::cout << qpsi[j] << ' ';
-    }
-    std::cout << '\n';
+    // // DEBUG: print q(psi)
+    // std::cout << '\n';
+    // std::cout << "q(psi): ";
+    // for(size_t j = 0; j < qpsi.size(); ++j) {
+    //     std::cout << qpsi[j] << ' ';
+    // }
+    // std::cout << '\n';
 
     // Save output as qpsi.txt, in Fortran format (5e16.9)
     std::ofstream outfile("./GEQDSK/GEQDSK_qpsi.txt");
