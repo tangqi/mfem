@@ -100,7 +100,7 @@ srun -n 1 ./../gslib/field-interp \
     -m2 $mesh_file \
     -s1 initial/initial_guess_g3.gf \
     -r 0 \
-    -o 1 \
+    -o 3 \
     -no-vis
 
 # cp ../gslib/interpolated.gf interpolated.gf
