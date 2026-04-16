@@ -88,11 +88,9 @@ c3=2.128e+07
 c4=3.737e+06
 c5=-7.914e+06
 
-
 ur_coeff=1.0
 
-# lldb -- main.o \
-./main \
+srun -n 1 ./main \
     -m $mesh_file \
     --initial_gf $initial_gf \
     -o 1 \
@@ -144,10 +142,3 @@ ur_coeff=1.0
     --amg_max_iter $amg_max_iter \
     --amr_frac_in $amr_frac_in \
     --amr_frac_out $amr_frac_out
-
-    
-
-
-
-
-# ./../gslib/field-interp -m1 mesh.mesh -m2 meshes/geqdsk.msh -s1 final.gf -no-vis

@@ -718,23 +718,28 @@ void Solve(
             BlockPrec.SetDiagonalBlock(0, inv_B);
             BlockPrec.SetDiagonalBlock(1, inv_BT);
             solver.SetPreconditioner(BlockPrec);
+
+            solver.Mult(rhs, dx);
+            fprintf(fp, "amr=%d newton=%d iters=%d\n", it_amr, i, solver.GetNumIterations());
           }
 
           // Block upper triangular preconditioner: equation 5.5 from paper
           else if (PC_option == 5) {
             SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 1);
             solver.SetPreconditioner(SCPC);
+
+            solver.Mult(rhs, dx);
+            fprintf(fp, "amr=%d newton=%d iters=%d\n", it_amr, i, solver.GetNumIterations());
           }
 
           // Block lower triangular preconditioner: equation 5.6 from paper
           else if (PC_option == 6) {
             SchurPC SCPC(AMat, CMat, inv_B, inv_BT, &Ba, &Cy, Ca, 2);
             solver.SetPreconditioner(SCPC);
+
+            solver.Mult(rhs, dx);
+            fprintf(fp, "amr=%d newton=%d iters=%d\n", it_amr, i, solver.GetNumIterations());
           }
-        
-          // Solve the block system using FGMRES with preconditioning
-          solver.Mult(rhs, dx);
-          fprintf(fp, "amr=%d newton=%d iters=%d\n", it_amr, i, solver.GetNumIterations());
         }
         
         // Terminate if preconditioner option is unsupported
