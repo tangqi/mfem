@@ -112,8 +112,6 @@ srun -n 1 ./../gslib/field-interp \
     -o 1 \
     -no-vis
 
-# cp ../gslib/interpolated.gf interpolated.gf
-
 initial_gf="interpolated.gf"
 
 
