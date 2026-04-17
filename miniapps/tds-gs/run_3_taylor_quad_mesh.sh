@@ -79,15 +79,21 @@ c5=-3.116e+06
 
 ur_coeff=1.0
 
-# Interpolate Taylor state triangular mesh final solution to quadrilateral mesh
-srun -n 1 ./../gslib/field-interp \
-    -m1 initial/final_tri_mesh_refine.mesh \  # Need to add this as a param up above
-    -m2 $mesh_file \
-    -s1 initial/final_tri_model2_pc5_cyc1_it5.gf \  # Need to add this as a param up above
-    -r $refinement_factor \
-    -no-vis
+# # Interpolate Taylor state triangular mesh final solution to quadrilateral mesh
+# srun -n 1 ./../gslib/field-interp \
+#     -m1 initial/final_tri_mesh_refine.mesh \  # Need to add this as a param up above
+#     -m2 $mesh_file \
+#     -s1 initial/final_tri_model2_pc5_cyc1_it5.gf \  # Need to add this as a param up above
+#     -r $refinement_factor \
+#     -no-vis
 
-cp ../gslib/interpolated.gf interpolated.gf
+srun -n 1 ./../gslib/field-interp \
+    -m1 initial/mesh_amr0_model1_pc0_cyc0_it1.mesh \
+    -m2 $mesh_file \
+    -s1 initial/final_model1_pc0_cyc0_it1.gf \
+    -r $refinement_factor \
+    -o 1 \
+    -no-vis
 
 initial_gf="interpolated.gf"
 

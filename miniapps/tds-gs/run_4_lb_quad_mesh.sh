@@ -21,6 +21,7 @@ R0=2.4
 rho_gamma=16
 mu=12.5663706144e-7
 
+mesh_file="meshes/iter_gen_quad.msh"
 data_file="data/separated_file.data"
 
 refinement_factor=1
@@ -87,26 +88,35 @@ c5=-7.914e+06
 
 ur_coeff=1.0
 
-tri_mesh_file="meshes/iter_gen_fixed.mesh"
-tri_initial_gf="initial/initial.gf"
-quad_mesh_file="meshes/iter_gen_quad.msh"
+# tri_mesh_file="meshes/iter_gen_fixed.mesh"
+# tri_initial_gf="initial/initial.gf"
+# quad_mesh_file="meshes/iter_gen_quad.msh"
 
-# Interpolate initial mesh and solution to quad mesh
+# # Interpolate initial mesh and solution to quad mesh
+# srun -n 1 ./../gslib/field-interp \
+#     -m1 $tri_mesh_file \
+#     -m2 $quad_mesh_file \
+#     -s1 $tri_initial_gf \
+#     -no-vis
+#     -r $refinement_factor \
+#     -o 1 \
+#     -no-vis
+
+# quad_initial_gf="interpolated.gf"
+
 srun -n 1 ./../gslib/field-interp \
-    -m1 $tri_mesh_file \
-    -m2 $quad_mesh_file \
-    -s1 $tri_initial_gf \
+    -m1 initial/mesh_amr0_model1_pc0_cyc0_it1.mesh \
+    -m2 $mesh_file \
+    -s1 initial/final_model1_pc0_cyc0_it1.gf \
+    -r $refinement_factor \
+    -o 1 \
     -no-vis
-    # -r $refinement_factor \
-    # -o 1 \
 
-# cp ../gslib/interpolated.gf interpolated.gf
-
-quad_initial_gf="interpolated.gf"
+initial_gf="interpolated.gf"
 
 srun -n 1 ./main \
-    -m $quad_mesh_file \
-    --initial_gf $quad_initial_gf \
+    -m $mesh_file \
+    --initial_gf $initial_gf \
     -o 1 \
     -d $data_file \
     -g $refinement_factor \

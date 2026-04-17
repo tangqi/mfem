@@ -109,9 +109,8 @@ srun -n 1 ./../gslib/field-interp \
     -m2 $mesh_file \
     -s1 initial/final_model1_pc0_cyc0_it1.gf \
     -r $refinement_factor \
+    -o 1 \
     -no-vis
-
-cp ../gslib/interpolated.gf interpolated.gf
 
 initial_gf="interpolated.gf"
 

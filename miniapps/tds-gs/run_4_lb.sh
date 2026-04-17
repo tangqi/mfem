@@ -24,7 +24,7 @@ mu=12.5663706144e-7
 mesh_file="meshes/iter_gen_fixed.mesh"
 # mesh_file="meshes/RegGSTriMeshVeryCoarse0beta.msh"
 data_file="data/separated_file.data"
-initial_gf="initial/initial.gf"
+# initial_gf="initial/initial.gf"
 
 refinement_factor=1
 amr_frac_in=0.08
@@ -89,6 +89,16 @@ c4=3.737e+06
 c5=-7.914e+06
 
 ur_coeff=1.0
+
+srun -n 1 ./../gslib/field-interp \
+    -m1 initial/mesh_amr0_model1_pc0_cyc0_it1.mesh \
+    -m2 $mesh_file \
+    -s1 initial/final_model1_pc0_cyc0_it1.gf \
+    -r $refinement_factor \
+    -o 1 \
+    -no-vis
+
+initial_gf="interpolated.gf"
 
 srun -n 1 ./main \
     -m $mesh_file \

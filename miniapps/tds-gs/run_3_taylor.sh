@@ -96,13 +96,12 @@ c5=-2.848113e+03
 ur_coeff=1.0
 
 srun -n 1 ./../gslib/field-interp \
-    -m1 initial/initial_mesh_g3.mesh \
+    -m1 initial/mesh_amr0_model1_pc0_cyc0_it1.mesh \
     -m2 $mesh_file \
-    -s1 initial/initial_guess_g3.gf \
+    -s1 initial/final_model1_pc0_cyc0_it1.gf \
     -r $refinement_factor \
+    -o 1 \
     -no-vis
-
-cp ../gslib/interpolated.gf interpolated.gf
 
 initial_gf="interpolated.gf"
 
