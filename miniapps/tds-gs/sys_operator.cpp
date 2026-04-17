@@ -462,13 +462,16 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   // Include contribution from currents to res -> This is F u
   F->AddMult(*currents, res, -model->get_mu());
 
-  // Enforce Dirichlet boundary conditions
+  // Enforce Dirichlet boundary conditions.
+  // psi, u_boundary and res are VSize-space (GridFunction) objects, so we must
+  // index them with VSize-space DOF indices. On non-conforming meshes (e.g.
+  // quad AMR) VSize > TrueVSize and true-DOF indices refer to the wrong rows.
   Vector u_b_exact, u_tmp, u_b;
-  psi.GetSubVector(boundary_tdofs, u_b);
+  psi.GetSubVector(boundary_vdofs, u_b);
   u_tmp = u_b;
-  u_boundary->GetSubVector(boundary_tdofs, u_b_exact);
+  u_boundary->GetSubVector(boundary_vdofs, u_b_exact);
   u_tmp -= u_b_exact;
-  res.SetSubVector(boundary_tdofs, u_tmp);
+  res.SetSubVector(boundary_vdofs, u_tmp);
 
   // Zero-out residual where we are interpolating from a guess
   res *= hat;
@@ -524,9 +527,11 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
     Mat_Prelim = Add(1.0, diff_operator_sp_mat, -1.0, psi_coeff_sp_mat);  // Jacobian is the diffusion operator minus the Gateaux semiderivative of the plasma source
   }
 
-  // Apply Dirichlet boundary conditions to the preliminary Jacobian
-  for (int k = 0; k < boundary_tdofs.Size(); ++k) {
-    Mat_Prelim->EliminateRow((boundary_tdofs)[k], DIAG_ONE);
+  // Apply Dirichlet boundary conditions to the preliminary Jacobian.
+  // Mat_Prelim is VSize x VSize (see the GetVSize() construction above), so
+  // the rows we eliminate must be VSize-space indices.
+  for (int k = 0; k < boundary_vdofs.Size(); ++k) {
+    Mat_Prelim->EliminateRow((boundary_vdofs)[k], DIAG_ONE);
   }
 
   // Create a copy of Mat_Prelim to produce a symmetric B_y (no magnetic axis or X-point contributions). Used elsewhere for preconditioning

@@ -113,7 +113,18 @@ public:
     int box_axis = 832;
     ess_bdr[box_axis-1] = 1;
     fespace->GetEssentialTrueDofs(ess_bdr, boundary_tdofs, 1);  // True DOFs that correspond to the Dirichlet boundary conditions
-    fespace->GetEssentialVDofs(ess_bdr, boundary_vdofs, 1);
+    // Build a VSize-space (local DOF) index list of the essential boundary DOFs.
+    // On non-conforming meshes (e.g. quad AMR) VSize > TrueVSize, so T-DOF
+    // indices cannot be used to address GridFunction / VSize-space SparseMatrix
+    // rows directly. NonlinearEquationRes does exactly that, so it needs this
+    // VSize-space list.
+    Array<int> ess_vdof_marker;
+    fespace->GetEssentialVDofs(ess_bdr, ess_vdof_marker, 1);
+    boundary_vdofs.SetSize(0);
+    for (int i = 0; i < ess_vdof_marker.Size(); ++i)
+    {
+      if (ess_vdof_marker[i]) { boundary_vdofs.Append(i); }
+    }
 
     Vector pw_vector(3000);
     pw_vector = 1.0;
