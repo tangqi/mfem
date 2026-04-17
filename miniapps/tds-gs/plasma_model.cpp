@@ -1,6 +1,5 @@
 #include "mfem.hpp"
 #include "plasma_model.hpp"
-
 #include <iostream>
 #include <set>
 #include <list>
@@ -9,8 +8,8 @@ using namespace std;
 
 // ***************************************************
 // These functions involve a simplified plasma model
-double PlasmaModel::S_p_prime(double & psi_N) const
-{
+double PlasmaModel::S_p_prime(double & psi_N) const {
+
   // return zero when derivative is singular
   if ((gamma < 1.0) && (psi_N == 1.0)) {
     return 0.0;
@@ -24,8 +23,10 @@ double PlasmaModel::S_p_prime(double & psi_N) const
   }
   return lambda * beta * pow(1.0 - pow(psi_N, alpha), gamma) / r0;
 }
-double PlasmaModel::S_prime_p_prime(double & psi_N) const
-{
+
+
+double PlasmaModel::S_prime_p_prime(double & psi_N) const {
+
   // return zero when derivative is singular
   if ((gamma < 1.0) && (psi_N == 1.0)) {
     return 0.0;
@@ -41,8 +42,10 @@ double PlasmaModel::S_prime_p_prime(double & psi_N) const
     * pow(1.0 - pow(psi_N, alpha), gamma - 1.0)
     * pow(psi_N, alpha - 1.0) / r0;
 }
-double PlasmaModel::S_ff_prime(double & psi_N) const
-{
+
+
+double PlasmaModel::S_ff_prime(double & psi_N) const {
+
   // return zero when derivative is singular
   if ((gamma < 1.0) && (psi_N == 1.0)) {
     return 0.0;
@@ -56,8 +59,10 @@ double PlasmaModel::S_ff_prime(double & psi_N) const
   }
   return lambda * (1.0 - beta) * mu0 * r0 * pow(1.0 - pow(psi_N, alpha), gamma);
 }
-double PlasmaModel::S_prime_ff_prime(double & psi_N) const
-{
+
+
+double PlasmaModel::S_prime_ff_prime(double & psi_N) const {
+
   // return zero when derivative is singular
   if ((gamma < 1.0) && (psi_N == 1.0)) {
     return 0.0;
@@ -76,7 +81,6 @@ double PlasmaModel::S_prime_ff_prime(double & psi_N) const
 }
 
 
-
 // ***************************************************
 // These functions involve a plasma model loaded from a file
 double PlasmaModelFile::S_p_prime(double & psi_N) const
@@ -90,8 +94,10 @@ double PlasmaModelFile::S_p_prime(double & psi_N) const
   
   return alpha * pprime_vector[index+1] + (1 - alpha) * pprime_vector[index];
 }
-double PlasmaModelFile::S_prime_p_prime(double & psi_N) const
-{
+
+
+double PlasmaModelFile::S_prime_p_prime(double & psi_N) const {
+
   // outside plasma, return 0
   if ((psi_N > 1.0) || (psi_N < 0.0)) {
     return 0.0;
@@ -101,8 +107,10 @@ double PlasmaModelFile::S_prime_p_prime(double & psi_N) const
   
   return (pprime_vector[index+1] - pprime_vector[index]) / dx;
 }
-double PlasmaModelFile::S_ff_prime(double & psi_N) const
-{
+
+
+double PlasmaModelFile::S_ff_prime(double & psi_N) const {
+
   // outside plasma, return 0
   if ((psi_N > 1.0) || (psi_N < 0.0)) {
     return 0.0;
@@ -112,20 +120,23 @@ double PlasmaModelFile::S_ff_prime(double & psi_N) const
   
   return alpha * ffprime_vector[index+1] + (1 - alpha) * ffprime_vector[index];
 }
-double PlasmaModelFile::S_prime_ff_prime(double & psi_N) const
-{
+
+
+double PlasmaModelFile::S_prime_ff_prime(double & psi_N) const {
+
   // outside plasma, return 0
   if ((psi_N > 1.0) || (psi_N < 0.0)) {
     return 0.0;
   }
 
   int index = (int) (psi_N / dx);
- 
 
   return (ffprime_vector[index+1] - ffprime_vector[index]) / dx;
 }
-double PlasmaModelFile::f_bar(double & psi_N) const
-{
+
+
+double PlasmaModelFile::f_bar(double & psi_N) const {
+
   // outside plasma, return 0
   if ((psi_N > 1.0) || (psi_N < 0.0)) {
     return 0.0;
@@ -136,171 +147,168 @@ double PlasmaModelFile::f_bar(double & psi_N) const
   
   return alpha * fpol_bar_vector[index+1] + (1 - alpha) * fpol_bar_vector[index];
 }
-double PlasmaModelFile::f_bar_prime(double & psi_N) const
-{
+
+
+double PlasmaModelFile::f_bar_prime(double & psi_N) const {
+
   // outside plasma, return 0
   if ((psi_N > 1.0) || (psi_N < 0.0)) {
     return 0.0;
   }
 
   int index = (int) (psi_N / dx);
- 
 
   return (fpol_bar_vector[index+1] - fpol_bar_vector[index]) / dx;
   // return alpha * fpol_bar_prime_vector[index+1] + (1 - alpha) * fpol_bar_prime_vector[index];
 }
-double PlasmaModelFile::f_bar_double_prime(double & psi_N) const
-{
+
+
+double PlasmaModelFile::f_bar_double_prime(double & psi_N) const {
+
   // outside plasma, return 0
   if ((psi_N > 1.0) || (psi_N < 0.0)) {
     return 0.0;
   }
-
-
-
 
   return 0.0;
   // return alpha * fpol_bar_double_prime_vector[index+1] + (1 - alpha) * fpol_bar_double_prime_vector[index];
 }
 
 
-
-
-
-//
 double normalized_psi(double & psi, double & psi_max, double & psi_bdp)
 {
-  if (false) {
+  if (false) {  // Dead code?
     return psi;
   }
   return (psi - psi_max) / (psi_bdp - psi_max);
 }
 
-double NonlinearGridCoefficient::Eval(ElementTransformation & T,
-                                      const IntegrationPoint & ip)
-{
 
-  if (true) {
-    // check that we are in the limiter region
-    if (T.Attribute != attr_lim) {
+// Pointwise evaluator for the nonlinear plasma source coefficient.
+// Whenever a DomainLFIntegrator or MassIntegrator needs the coefficient at a quadrature point, this function gets called.
+double NonlinearGridCoefficient::Eval(ElementTransformation & T, const IntegrationPoint & ip) {
+
+  double f_x = model->get_f_x();
+  double alpha_bar = model->get_alpha_bar();
+  double alpha = alpha_bar;  // alpha: multiplier in \bar{S}_{ff'} term
+  double beta = model->get_beta();  // beta: multiplier for S_{p'} term
+  double gamma = model->get_gamma();  // gamma: multiplier for S_{ff'} term
+  double mu = model->get_mu();
+  double coeff_u2 = model->get_coeff_u2();
+  double r0 = 6.2;
+  double alpha_0 = 2.0;
+  double beta_0 = 0.5978;
+  double gamma_0 = 1.395;
+
+  // Restrict to limiter region
+  if (T.Attribute != attr_lim) {
+    return 0.0;
+  }
+
+  // Restrict to plasma elements
+  const int *v = T.mesh->GetElement(T.ElementNo)->GetVertices();
+  const int nv = T.mesh->GetElement(T.ElementNo)->GetNVertices();
+  set<int>::iterator plasma_inds_it;
+  for (int i = 0; i < nv; ++i) {
+    plasma_inds_it = plasma_inds.find(v[i]);
+    if (plasma_inds_it == plasma_inds.end()) {
       return 0.0;
-    }
-
-    // check to see if integration point is inside an element that is
-    // part of the plasma region
-    const int *v = T.mesh->GetElement(T.ElementNo)->GetVertices();
-    const int nv = T.mesh->GetElement(T.ElementNo)->GetNVertices();
-    set<int>::iterator plasma_inds_it;
-    for (int i = 0; i < nv; ++i) {
-      plasma_inds_it = plasma_inds.find(v[i]);
-      if (plasma_inds_it == plasma_inds.end()) {
-        return 0.0;
-      }
     }
   }
 
+  // Transform from reference to physical coordinates
   double x_[3];
   Vector x(x_, 3);
   T.Transform(ip, x);
   double ri(x(0));
-  if (false) {
-    // check to see if we're inside the exact plasma region
-    double r0_ = 1.0;
-    double z0_ = 0.0;
-    double L_ = 0.35;
-    double zi(x(1));
-    if (abs(ri - r0_) + abs(zi - z0_) > L_) {
-      return 0.0;
-    }
-  }
 
-  // alpha: multiplier in \bar{S}_{ff'} term
-  // beta: multiplier for S_{p'} term
-  // gamma: multiplier for S_{ff'} term
-
-  double f_x = model->get_f_x();
-
-  double alpha_bar = model->get_alpha_bar();
-  double alpha = alpha_bar;
-  double beta = model->get_beta();
-  double gamma = model->get_gamma();
-
-  double psi_val;
-
+  // Get psi and normalized psi at quadrature point
   int Component = 0;
-
+  double psi_val;
   psi_val = psi->GetValue(T, ip, Component);
-  
   double psi_N = normalized_psi(psi_val, psi_max, psi_bdp);
-  double mu = model->get_mu();
-  double coeff_u2 = model->get_coeff_u2();
 
+  // Choose model  TODO: probably best to refactor all this switch block stuff to remove it
   int model_choice = model->get_model_choice();
   double switch_beta = 0.0;
   double switch_taylor = 1.0;
   double switch_ff = 0.0;
   double switch_lb = 0.0;
-  double r0 = 6.2;
-  double alpha_0 = 2.0;
-  double beta_0 = 0.5978;
-  double gamma_0 = 1.395;
+
+  // Luxon and Brown variant
   if (model_choice == 1) {
     switch_beta = 1.0;
     switch_taylor = 0.0;
     switch_ff = 0.0;
     switch_lb = 0.0;
-  } else if (model_choice == 2) {
+  }
+  
+  // Taylor state
+  else if (model_choice == 2) {
     switch_beta = 0.0;
     switch_taylor = - 1.0; // 8/31/22 DAS - sign error...
     switch_ff = 0.0;
     switch_lb = 0.0;
-  } else if (model_choice == 3) {
+  }
+  
+  // 15MA ITER baseline
+  else if (model_choice == 3) {
     switch_beta = 0.0;
     switch_taylor = 0.0;
     switch_ff = 1.0;
     switch_lb = 0.0;
-  } else if (model_choice == 4) {
+  }
+  
+  // Luxon and Brown
+  else if (model_choice == 4) {
     switch_beta = 0.0;
     switch_taylor = 0.0;
     switch_ff = 0.0;
     switch_lb = 1.0;
   }
 
+  // Return f(psi). This is the Taylor-state formula for f(psi)
   if (option == 0) {
-    // return "f"
     return f_x + alpha * (psi_bdp - psi_val);
     
-  } else if (option == 1) {
-    // integrand of
-    // int_{\Omega_p(\psi)} (  r S_{p'}(\psi_N)
-    //                       + S_{ff'}(\psi_N) / (\mu r)
-    //                       + \bar{S}_{ff'}(\psi)       ) v dr dz
+  }
+  
+  // Return the full plasma-source coefficient, depending on the model choice used (1, 2, 3, 4)
+  else if (option == 1) {  // POSSIBLE BUG HERE for Taylor state
+  
+    // Compute the integrand of:
+    // int_{\Omega_p(\psi)} (r S_{p'}(\psi_N) + S_{ff'}(\psi_N) / (\mu r) + \bar{S}_{ff'}(\psi)) v dr dz
 
-    double S_bar_ffprime =
-      + switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max)
+    double S_bar_ffprime = switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max)
       + switch_taylor * alpha * (- f_x + alpha * (psi_bdp - psi_val))
       + switch_ff * alpha * (model->S_ff_prime(psi_N))
       + (((psi_N > 0.0) & (psi_N < 1.0)) ? switch_lb * alpha * (1.0 - beta_0) * r0 * pow(1.0 - pow(psi_N, alpha_0), gamma_0) : 0.0);
 
     return
-      + beta * ri * (model->S_p_prime(psi_N)) * mu
+      beta * ri * (model->S_p_prime(psi_N)) * mu
       + gamma * (model->S_ff_prime(psi_N)) / (ri)
       + S_bar_ffprime / (ri)
       + coeff_u2 * pow(psi_val, 2.0)
       + (((psi_N > 0.0) & (psi_N < 1.0)) ? switch_lb * ri * mu * alpha * beta_0 / r0 * pow(1.0 - pow(psi_N, alpha_0), gamma_0) : 0.0);
-  } else if (option == 5) {
-    // derivative with respect to alpha
-      
+  }
+  
+  // Return the derivative of the plasma source coefficient w.r.t. alpha
+  else if (option == 5) {    
     return
-      + switch_beta * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max) / (ri)
+      switch_beta * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max) / (ri)
       + switch_beta * alpha * (model->f_bar(psi_N)) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max) / (ri)
       + switch_taylor * (- f_x + 2.0 * alpha * (psi_bdp - psi_val)) / (ri)
       + switch_ff * (model->S_ff_prime(psi_N)) / (ri)
       + (((psi_N > 0.0) & (psi_N < 1.0)) ? switch_lb * (1.0 - beta_0) * r0 * pow(1.0 - pow(psi_N, alpha_0), gamma_0) / ri : 0.0)
       + (((psi_N > 0.0) & (psi_N < 1.0)) ? switch_lb * ri * mu * beta_0 / r0 * pow(1.0 - pow(psi_N, alpha_0), gamma_0) : 0.0);
+  }
+  
+  // Jacobian contribution w.r.t. psi for the nonlinear plasma source. Includes contributions from O- and X-points.
+  // This is eq. 3.10 from the paper--the Gateaux semiderivative.
+  else {
+    double coeff;
 
-  } else {
-    // integrand of
+    // Compute the integrand of:
     // int_{\Omega_p(\psi)} ( (  r S_{p'}'(\psi_N)
     //                         + S_{ff'}'(\psi_N) / (\mu r) ) d_{\psi} \psi_N(\psi, \phi) v
     //                       + d_{\psi} \bar{S}_{ff'}'(\psi, \phi) v ) dr dz
@@ -310,12 +318,8 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     //                         + A                          ) d_{\psi} \psi_N(\psi, \phi) v
     //                       + B phi_x v
     //                       + C phi_ma v) dr dz
-    // 
-    
-    double coeff;
 
-    double psi_N_multiplier = \
-      + beta * ri * (model->S_prime_p_prime(psi_N)) * mu
+    double psi_N_multiplier = beta * ri * (model->S_prime_p_prime(psi_N)) * mu
       + gamma * (model->S_prime_ff_prime(psi_N)) / (ri)
       + switch_beta * alpha * alpha * pow(model->f_bar_prime(psi_N), 2.0) / (psi_bdp - psi_max) / (ri)
       + switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_double_prime(psi_N)) / (psi_bdp - psi_max) / (ri)
@@ -323,29 +327,29 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
       - (((psi_N > 0.0) & (psi_N < 1.0)) ? switch_lb * alpha * (1.0 - beta_0) * r0 * gamma_0 * pow(1.0 - pow(psi_N, alpha_0), gamma_0 - 1.0) * alpha_0 * pow(psi_N, alpha_0 - 1.0) / ri : 0.0)
       - (((psi_N > 0.0) & (psi_N < 1.0)) ? switch_lb * alpha * ri * mu * beta_0 / r0 * gamma_0 * pow(1.0 - pow(psi_N, alpha_0), gamma_0 - 1.0) * alpha_0 * pow(psi_N, alpha_0 - 1.0) : 0.0);
 
-    double other =
-      - switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N))
+    double other = - switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N))
       / (psi_bdp - psi_max) / (psi_bdp - psi_max) / (ri);
-    
-    // double other = 0.0;
-    if (option == 2) {
-      // coefficient for phi in d_psi psi_N
-      coeff = 1.0 / (psi_bdp - psi_max) * psi_N_multiplier
-        - switch_taylor * alpha * alpha / (ri);
-    } else if (option == 3) {
-      // coefficient for phi_ma in d_psi psi_N
-      coeff = - (1.0 - psi_N) / (psi_bdp - psi_max) * psi_N_multiplier
-        - other;
-    } else if (option == 4) {
-      // coefficient for phi_x in d_psi psi_N
-      coeff = - 1.0 * psi_N / (psi_bdp - psi_max) * psi_N_multiplier
-        + other
-        + switch_taylor * alpha * alpha / (ri);
-    } 
 
-    return
-      + coeff
-      + coeff_u2 * 2.0 * psi_val;
+    // Coefficient for phi in d_psi psi_N
+    if (option == 2) {
+      coeff = 1.0 / (psi_bdp - psi_max) * psi_N_multiplier - switch_taylor * alpha * alpha / (ri);
+    }
+    
+    // Coefficient for phi_ma in d_psi psi_N
+    else if (option == 3) {
+      coeff = - (1.0 - psi_N) / (psi_bdp - psi_max) * psi_N_multiplier - other;
+    }
+    
+    // Coefficient for phi_x in d_psi psi_N
+    else if (option == 4) {
+      coeff = - 1.0 * psi_N / (psi_bdp - psi_max) * psi_N_multiplier + other + switch_taylor * alpha * alpha / (ri);
+    }
+
+    else {
+      MFEM_ABORT("Invalid option in NonlinearGridCoefficient::Eval");
+    }
+
+    return coeff + coeff_u2 * 2.0 * psi_val;
   }
 }
 
