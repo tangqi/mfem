@@ -429,14 +429,13 @@ void Solve(
       // Define and assemble PDE operator components
       // ============================================================================
 
-      // RHS forcing term for the GS equation due to coil currents u
+      // Initialize the RHS forcing term for the GS equation due to coil currents u
       LinearForm coil_term(&fespace);
 
-      // Coefficient matrix F -- maps coil currents -> PDE forcing
+      // Initialize the coefficient matrix F -- maps coil currents -> PDE forcing
       SparseMatrix *F = new SparseMatrix(fespace.GetNDofs(), num_currents);
 
-
-      // Elliptic PDE operator (LHS of GS equation + plasma contributions + far-field BCs)
+      // Initialize the elliptic PDE operator (LHS of GS equation + plasma contributions + far-field BCs)
       BilinearForm diff_operator(&fespace);
 
       // Assemble PDE operators
@@ -465,13 +464,16 @@ void Solve(
       for (int i = 0; i < num_currents; ++i) {
         if (i < 5) {  // TODO: this is a hard-coded assumption that there are exactly 5 "coil" currents, and the rest are "solenoid" currents. This should be fixed.
           H->Set(i, i, weight_coils);
-        } else {
+        }
+        else {
           H->Set(i, i, weight_solenoids);
         }
       }
       H->Finalize();
 
+      // ============================================================================
       // SysOperator and KKT system
+      // ============================================================================
 
       // Define system operator
       SysOperator op(&diff_operator, &coil_term, model, &fespace, mesh, attr_lim, &x, F, uv, H, K_, &g_, alpha_coeffs, J_inds, &alpha, include_plasma);  // This is in sys_operator.cpp. TODO: does SysOperator clean up memory?
@@ -966,139 +968,157 @@ void Solve(
       << setw(16) << cpasma_vals.back() << "\n";
       file.close();
   }
-
-  ///////////////////////////////////////////////////////////////////////////////////
   
   // do_control == 0
+  // Given currents, solve the GS equation
   else {
-    // for given currents, solve the GS equations
-
     GridFunction dx(&fespace);
     dx = 0.0;
 
-    // *** prepare operators for solver *** //
-    // RHS forcing of equation
-    LinearForm coil_term(&fespace);
-    // coefficient matrix for currents
-    SparseMatrix *F;
-    F = new SparseMatrix(fespace.GetNDofs(), num_currents);
-    // elliptic operator
-    BilinearForm diff_operator(&fespace);
-    // Hessian matrix for objective function
-    SparseMatrix * K_;
-    // linear term in objective function
-    Vector g_;
-    // weights and locations of objective function coefficients
-    vector<Vector> *alpha_coeffs;
-    vector<Array<int>> *J_inds;
-    alpha_coeffs = new vector<Vector>;
-    J_inds = new vector<Array<int>>;
-    // regularization matrix
-    SparseMatrix * H;
-    H = new SparseMatrix(num_currents, num_currents);
+    // ============================================================================
+    // Define and assemble PDE operator components
+    // ============================================================================
 
-    // computations
+    // Initialize the RHS forcing term for the GS equation due to coil currents u
+    LinearForm coil_term(&fespace);
+
+    // Initialize the coefficient matrix F -- maps coil currents -> PDE forcing
+    SparseMatrix *F = new SparseMatrix(fespace.GetNDofs(), num_currents);
+
+    // Initialize the elliptic PDE operator (LHS of GS equation + plasma contributions + far-field BCs)
+    BilinearForm diff_operator(&fespace);
+
+    // Assemble PDE operators
     DefineRHS(*model, rho_gamma, *mesh, *exact_coefficient, *exact_forcing_coeff, coil_term, F);
     DefineLHS(*model, rho_gamma, diff_operator);
-    init_coeff->compute_QP(N_control, mesh, &fespace);
-    K_ = init_coeff->compute_K();
-    g_ = init_coeff->compute_g();
-    J_inds = init_coeff->get_J();
-    alpha_coeffs = init_coeff->get_alpha();
 
+    // ============================================================================
+    // Define objective function components
+    // ============================================================================
+
+    // Precompute quadrature point data for objective and constraints
+    init_coeff->compute_QP(N_control, mesh, &fespace);
+
+    // Compute gradient w.r.t. ψ
+    Vector g_ = init_coeff->compute_g();
+
+    // Compute Hessian w.r.t. ψ
+    SparseMatrix *K_ = init_coeff->compute_K();
+
+    // Quadrature point weighting coefficients and indices
+    std::vector<Vector>     *alpha_coeffs = init_coeff->get_alpha();
+    std::vector<Array<int>> *J_inds       = init_coeff->get_J();
+
+    // Regularization matrix H -- R(u) = 1/2 uᵀ H u (L2 regularization)
+    SparseMatrix *H = new SparseMatrix(num_currents, num_currents);
     for (int i = 0; i < num_currents; ++i) {
-      if (i < 5) {
+      if (i < 5) {  // TODO: this is a hard-coded assumption that there are exactly 5 "coil" currents, and the rest are "solenoid" currents. This should be fixed.
         H->Set(i, i, weight_coils);
-      } else {
+      }
+      else {
         H->Set(i, i, weight_solenoids);
       }
     }
     H->Finalize();
     
+    // ============================================================================
+    // SysOperator and KKT system
+    // ============================================================================
+
+    // Define system operator
     SysOperator op(&diff_operator, &coil_term, model, &fespace, mesh, attr_lim, &x, F, uv, H, K_, &g_, alpha_coeffs, J_inds, &alpha, include_plasma);
     op.set_i_option(obj_option);
     op.set_obj_weight(obj_weight);
 
-    GridFunction eq_res(&fespace);
+    // ============================================================================
+    // Newton loop
+    // ============================================================================
+
+    GridFunction eq_res(&fespace);   // Residual of the GS equation
     GridFunction b3(&fespace);
     b3 = 0.0;
-    
     LinearForm out_vec(&fespace);
+
     double error_old;
     double error;
     for (int i = 0; i < max_newton_iter; ++i) {
 
+      // Compute vector and matrix components of the block Newton system
       op.NonlinearEquationRes(x, uv, alpha);
 
+      // eq_res = B(y^n) - F u^n
       eq_res = op.get_res();
-      b3 = eq_res;  // b3 *= -1.0;
-      // F->AddMult(*uv, eq_res, -op.get_mu());
+      b3 = eq_res;
+      // b3 *= -1.0;  // TODO: is this supposed to be here?
 
+      // Track Newton error
       error = GetMaxError(eq_res);
-
-      // op.Mult(x, out_vec);
-      // error = GetMaxError(out_vec);
-      // cout << "eq_res" << "i" << i << endl;
-      // out_vec.Print();
-
-      printf("\n");
       if (i == 0) {
-        printf("i: %3d, max residual: %.3e\n", i, error);
-      } else {
-        printf("i: %3d, max residual: %.3e, ratio %.3e\n", i, error, error_old / error);
+        printf("\n i: %3d, max residual: %.3e\n", i, error);
+      }
+      else {
+        printf("\n i: %3d, max residual: %.3e, ratio %.3e\n", i, error, error_old / error);
       }
       error_old = error;
 
+      // Stop if Newton has converged
       if (error < newton_tol) {
         break;
       }
 
       dx = 0.0;
+
+      // Get operator
       SparseMatrix By = op.get_By();
-      // SparseMatrix *Mat = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
 
-      // cout << "By" << "i" << i << endl;
-      // Mat->WriteSparseMatrixToFile();
-
+      // Build a preconditioner for linear solve
       Solver *inv_B;
-      HypreParMatrix * B_Hypre = ConvertToHypre(&By);
+      HypreParMatrix *B_Hypre = ConvertToHypre(&By);
       HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
       B_AMG->SetPrintLevel(0);
       B_AMG->SetCycleType(1);
       B_AMG->SetCycleNumSweeps(1, 1);
       B_AMG->SetMaxIter(1);
       inv_B = B_AMG;
-      
-      // GSSmoother M(By);
-      // printf("iter: %d, tol: %e, kdim: %d\n", max_krylov_iter, krylov_tol, kdim);
+
+      // Solve Newton system with GMRES
       int gmres_iter = max_krylov_iter;
       double gmres_tol = krylov_tol;
       int gmres_kdim = kdim;
       GMRES(By, dx, b3, *inv_B, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
+
       printf("gmres iters: %d, gmres err: %e\n", gmres_iter, gmres_tol);
 
-      // add(dx, ur_coeff - 1.0, dx, dx);
+      // Newton update step
       x -= dx;
 
+      // Save current iteration
       x.Save("gf/xtmp.gf");
       GridFunction err(&fespace);
       err = out_vec;
       err.Save("gf/res.gf");
 
+      // ParaView
       visit_dc.Save();
     }
+
+    // Final residual check
     op.Mult(x, out_vec);
     error = GetMaxError(out_vec);
+
     printf("\n\n********************************\n");
     printf("final max residual: %.3e, ratio %.3e\n", error, error_old / error);
     printf("********************************\n\n");
   }
 
+  // Export to GEQDSK file
   system("mkdir -p ../gslib/GEQDSK"); 
   ofstream NewFile("../gslib/GEQDSK/GEQDSK_alpha_f_x_psi_x.txt");
   NewFile << alpha << "\n" << f_x << "\n" << psi_x << "\n"; 
   NewFile.close();
 }
+
+///////////////////////////////////////////////////////////////////////////////////
 
 
 double gs(const char * mesh_file, const char * initial_gf, const char * data_file, int order, int d_refine,
@@ -1240,7 +1260,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
    if (do_initial) {
      char name_gf_out[60];
      char name_mesh_out[60];
-     sprintf(name_gf_out, "initial/initial_guess_g%d.gf", d_refine);  // sprintf is like .format() in Python for strings--you can also use std::format with C++20 or newer
+     sprintf(name_gf_out, "initial/initial_guess_g%d.gf", d_refine);
      sprintf(name_mesh_out, "initial/initial_mesh_g%d.mesh", d_refine);
 
      x.Save(name_gf_out);
