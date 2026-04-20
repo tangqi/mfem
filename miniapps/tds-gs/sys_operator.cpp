@@ -356,6 +356,60 @@ SparseMatrix* SysOperator::compute_hess_obj(const GridFunction &psi) {
 }
 
 
+int SysOperator::snap_to_master(int iv, const Vector &nval, bool is_minimum) const {
+  // On non-conforming meshes, `compute_plasma_points` can return a vertex
+  // index that corresponds to a slave (hanging) DOF created by refinement.
+  // Writing the Jacobian column at a slave VSize-index gets diffused by
+  // P^T A P across the slave's masters, so Newton can no longer produce a
+  // sharp update for psi_ma / psi_x. Snap to the closest master reachable
+  // through `vertex_map`, picking the master with the most extreme nval in
+  // the first shell that contains any master.
+  const SparseMatrix *P = fespace->GetConformingProlongation();
+  if (P == nullptr) { return iv; }
+  auto is_slave = [&](int dof) -> bool {
+    const int *Ip = P->GetI();
+    const int *Jp = P->GetJ();
+    const double *Dp = P->GetData();
+    const int nnz = Ip[dof+1] - Ip[dof];
+    if (nnz != 1) { return true; }
+    return (Jp[Ip[dof]] != dof || Dp[Ip[dof]] != 1.0);
+  };
+  if (!is_slave(iv)) { return iv; }
+
+  std::vector<int> current_shell = {iv};
+  std::set<int> seen;
+  seen.insert(iv);
+  const int max_shells = 8;                    // safety bound
+  for (int shell = 0; shell < max_shells; ++shell) {
+    std::vector<int> next_shell;
+    int best = -1;
+    double best_val = is_minimum ?  std::numeric_limits<double>::infinity()
+                                 : -std::numeric_limits<double>::infinity();
+    for (int u : current_shell) {
+      auto it = vertex_map.find(u);
+      if (it == vertex_map.end()) { continue; }
+      for (int v : it->second) {
+        if (seen.count(v)) { continue; }
+        seen.insert(v);
+        if (!is_slave(v)) {
+          if (( is_minimum && nval[v] < best_val) ||
+              (!is_minimum && nval[v] > best_val)) {
+            best = v;
+            best_val = nval[v];
+          }
+        } else {
+          next_shell.push_back(v);
+        }
+      }
+    }
+    if (best != -1) { return best; }
+    if (next_shell.empty()) { break; }
+    current_shell.swap(next_shell);
+  }
+  return iv;                                   // fallback: no master reachable
+}
+
+
 double SysOperator::get_plasma_current(GridFunction &x, double &alpha) {
 
   model->set_alpha_bar(alpha);
@@ -364,9 +418,55 @@ double SysOperator::get_plasma_current(GridFunction &x, double &alpha) {
   int iprint = 0;
   set<int> plasma_inds_;
   compute_plasma_points(&x, *mesh, vertex_map, plasma_inds_, ind_ma, ind_x, val_ma, val_x, iprint);
+  plasma_inds = plasma_inds_;
+
+  // Phase A diagnostic: is ind_ma / ind_x a slave DOF on the current mesh?
+  {
+    const SparseMatrix *P = fespace->GetConformingProlongation();
+    auto is_slave = [&](int dof) -> int {
+      if (P == nullptr) { return 0; }
+      const int *Ip = P->GetI();
+      const int *Jp = P->GetJ();
+      const double *Dp = P->GetData();
+      const int nnz = Ip[dof+1] - Ip[dof];
+      if (nnz != 1) { return 1; }
+      return (Jp[Ip[dof]] != dof || Dp[Ip[dof]] != 1.0) ? 1 : 0;
+    };
+    std::cout << "[diag/compute_plasma_points] ind_ma=" << ind_ma
+              << " slave=" << is_slave(ind_ma)
+              << "  ind_x=" << ind_x
+              << " slave=" << is_slave(ind_x)
+              << "  VSize=" << fespace->GetVSize()
+              << " TrueVSize=" << fespace->GetTrueVSize() << std::endl;
+  }
+
+  // Phase B: if axis / saddle landed on a slave (hanging) DOF, snap each to
+  // the nearest master vertex so the Jacobian singular columns survive the
+  // conforming projection. Sign convention in `compute_plasma_points`:
+  // ind_ma is an argmin of nval; ind_x is the saddle with the smallest nval
+  // among candidates, so treat both as min-like when snapping. If the two
+  // snap targets collide, leave ind_x at its original (pre-snap) vertex —
+  // collapsing axis and saddle onto the same DOF produces a singular
+  // Jacobian column pair and segfaults downstream.
+  {
+    Vector nval;
+    x.GetNodalValues(nval);
+    const int ind_ma_raw = ind_ma;
+    const int ind_x_raw  = ind_x;
+    ind_ma = snap_to_master(ind_ma, nval, /*is_minimum=*/true);
+    ind_x  = snap_to_master(ind_x,  nval, /*is_minimum=*/true);
+    if (ind_ma == ind_x) { ind_x = ind_x_raw; }
+    val_ma = nval[ind_ma];
+    val_x  = nval[ind_x];
+    if (ind_ma != ind_ma_raw || ind_x != ind_x_raw) {
+      std::cout << "[snap/compute_plasma_points]"
+                << " ind_ma: " << ind_ma_raw << " -> " << ind_ma
+                << "  ind_x: " << ind_x_raw  << " -> " << ind_x
+                << std::endl;
+    }
+  }
   psi_x = val_x;
   psi_ma = val_ma;
-  plasma_inds = plasma_inds_;
 
   double* x_ma_ = mesh->GetVertex(ind_ma);
   double* x_x_ = mesh->GetVertex(ind_x);
@@ -406,9 +506,51 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   set<int> plasma_inds_;
   compute_plasma_points(&x, *mesh, vertex_map, plasma_inds_, ind_ma, ind_x, val_ma, val_x, iprint);
 
+  plasma_inds = plasma_inds_;
+
+  // DEBUGGING: check if ind_ma (O-point) and ind_x (X-point) are slave DOFs on the current mesh
+  {
+    const SparseMatrix *P = fespace->GetConformingProlongation();
+    auto is_slave = [&](int dof) -> int {
+      if (P == nullptr) { return 0; }
+      const int *Ip = P->GetI();
+      const int *Jp = P->GetJ();
+      const double *Dp = P->GetData();
+      const int nnz = Ip[dof+1] - Ip[dof];
+      if (nnz != 1) { return 1; }
+      return (Jp[Ip[dof]] != dof || Dp[Ip[dof]] != 1.0) ? 1 : 0;
+    };
+    std::cout << "[DEBUGGING: NonlinearEquationRes] ind_ma=" << ind_ma
+              << " slave=" << is_slave(ind_ma)
+              << "  ind_x=" << ind_x
+              << " slave=" << is_slave(ind_x)
+              << "  VSize=" << fespace->GetVSize()
+              << " TrueVSize=" << fespace->GetTrueVSize() << std::endl;
+  }
+
+  // Phase B: snap ind_ma / ind_x to nearest master DOF if they landed on a
+  // slave vertex after non-conforming refinement. If the two snap targets
+  // collide, leave ind_x at its original vertex to avoid a singular axis/
+  // saddle column pair.
+  {
+    Vector nval;
+    x.GetNodalValues(nval);
+    const int ind_ma_raw = ind_ma;
+    const int ind_x_raw  = ind_x;
+    ind_ma = snap_to_master(ind_ma, nval, /*is_minimum=*/true);
+    ind_x  = snap_to_master(ind_x,  nval, /*is_minimum=*/true);
+    if (ind_ma == ind_x) { ind_x = ind_x_raw; }
+    val_ma = nval[ind_ma];
+    val_x  = nval[ind_x];
+    if (ind_ma != ind_ma_raw || ind_x != ind_x_raw) {
+      std::cout << "[snap/NonlinearEquationRes]"
+                << " ind_ma: " << ind_ma_raw << " -> " << ind_ma
+                << "  ind_x: " << ind_x_raw  << " -> " << ind_x
+                << std::endl;
+    }
+  }
   psi_x = val_x;
   psi_ma = val_ma;
-  plasma_inds = plasma_inds_;
 
   // Get vertices associated with X-point and magnetic axis
   double* x_ma_ = mesh->GetVertex(ind_ma);

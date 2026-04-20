@@ -235,7 +235,13 @@ public:
 
   double get_plasma_current(GridFunction &x, double &alpha);
 
-  void NonlinearEquationRes(GridFunction &x, Vector *currents, double &alpha); 
+  void NonlinearEquationRes(GridFunction &x, Vector *currents, double &alpha);
+
+  // If `iv` is a slave (hanging-node) DOF on a non-conforming mesh, BFS
+  // outward along `vertex_map` and return the nearest master-DOF vertex whose
+  // nodal value preserves the extremum signature (min/max). On conforming
+  // meshes, or if `iv` is already a master, returns `iv` unchanged.
+  int snap_to_master(int iv, const Vector &nval, bool is_minimum) const;
 };
 
 

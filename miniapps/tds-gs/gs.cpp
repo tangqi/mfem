@@ -32,20 +32,29 @@ using namespace mfem;
 // Convert a VSize x VSize SparseMatrix to TrueVSize x TrueVSize
 // via A_true = R * A * P  (conforming projection, R = P^T)
 SparseMatrix* ToTrueDofs(const SparseMatrix &A, const FiniteElementSpace &fes) {
+    // Galerkin projection to true-DOF space: P^T A P.  MFEM's
+    // GetConformingRestriction() is a *picker* (one 1.0 per master row) and
+    // drops slave-row contributions, so we must use Transpose(P), not R.  See
+    // BilinearForm::ConformingAssemble (mfem/fem/bilinearform.cpp) which does
+    // the same thing.
     const SparseMatrix *P = fes.GetConformingProlongation();
     if (!P) return new SparseMatrix(A);  // no hanging nodes
-    const SparseMatrix *R = fes.GetConformingRestriction();
-    SparseMatrix *RA = mfem::Mult(*R, A);
-    SparseMatrix *result = mfem::Mult(*RA, *P);
-    delete RA;
+    SparseMatrix *PT = Transpose(*P);
+    SparseMatrix *PTA = mfem::Mult(*PT, A);
+    SparseMatrix *result = mfem::Mult(*PTA, *P);
+    delete PT;
+    delete PTA;
     return result;
 }
 
-// Convert a VSize Vector to TrueVSize Vector
+// Convert a VSize Vector (dual / RHS convention: e.g. LinearForm integrals)
+// to TrueVSize by v_true = P^T v_full.  Again: do NOT use ConformingRestriction
+// here — that picker matrix drops slave entries instead of accumulating them
+// into the master rows.
 void ToTrueDofs(const Vector &v_full, Vector &v_true, const FiniteElementSpace &fes) {
-    const SparseMatrix *R = fes.GetConformingRestriction();
-    if (!R) { v_true = v_full; return; }
-    R->Mult(v_full, v_true);
+    const SparseMatrix *P = fes.GetConformingProlongation();
+    if (!P) { v_true = v_full; return; }
+    P->MultTranspose(v_full, v_true);
 }
 
 // Prolong a TrueVSize Vector back to VSize
