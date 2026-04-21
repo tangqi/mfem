@@ -19,10 +19,10 @@ R0=2.4
 rho_gamma=16
 mu=12.5663706144e-7
 # mu=1.0
-mesh_file="meshes/iter_gen_fixed.mesh"
+mesh_file="meshes/iter_gen_quad.msh"
 # mesh_file="meshes/RegGSTriMeshVeryCoarse0beta.msh"
 data_file="data/separated_file.data"
-refinement_factor=2
+refinement_factor=1
 
 do_test=0
 do_manufactured_solution=0
@@ -46,7 +46,7 @@ gamma_in=1.0
 # 6: lower triangular
 # 7: block woodbury
 pc_option=5
-max_levels=0
+max_levels=1
 max_dofs=100000
 light_tol=1e-8
 amr_frac_in=0.08

@@ -22,7 +22,7 @@ mu=12.5663706144e-7
 mesh_file="meshes/iter_gen_fixed.mesh"
 # mesh_file="meshes/RegGSTriMeshVeryCoarse0beta.msh"
 data_file="data/separated_file.data"
-initial_gf="initial/initial_model2.gf"
+
 refinement_factor=2
 
 do_test=0
@@ -46,7 +46,7 @@ gamma_in=1.0
 # 5: upper triangular
 # 6: lower triangular
 # 7: block woodbury
-pc_option=0
+pc_option=5  # This is changed--replaced block AMG with upper triangular preconditioner
 max_levels=1
 max_dofs=100000
 light_tol=1e-8
