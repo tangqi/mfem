@@ -445,9 +445,9 @@ double SysOperator::get_plasma_current(GridFunction &x, double &alpha) {
   // conforming projection. Sign convention in `compute_plasma_points`:
   // ind_ma is an argmin of nval; ind_x is the saddle with the smallest nval
   // among candidates, so treat both as min-like when snapping. If the two
-  // snap targets collide, leave ind_x at its original (pre-snap) vertex —
-  // collapsing axis and saddle onto the same DOF produces a singular
-  // Jacobian column pair and segfaults downstream.
+  // snap targets collide, revert whichever snap caused the collision so we
+  // do not collapse the axis and saddle onto the same DOF (singular pair →
+  // segfault).
   {
     Vector nval;
     x.GetNodalValues(nval);
@@ -455,7 +455,10 @@ double SysOperator::get_plasma_current(GridFunction &x, double &alpha) {
     const int ind_x_raw  = ind_x;
     ind_ma = snap_to_master(ind_ma, nval, /*is_minimum=*/true);
     ind_x  = snap_to_master(ind_x,  nval, /*is_minimum=*/true);
-    if (ind_ma == ind_x) { ind_x = ind_x_raw; }
+    if (ind_ma == ind_x) {
+      if      (ind_ma != ind_ma_raw) { ind_ma = ind_ma_raw; }
+      else if (ind_x  != ind_x_raw ) { ind_x  = ind_x_raw;  }
+    }
     val_ma = nval[ind_ma];
     val_x  = nval[ind_x];
     if (ind_ma != ind_ma_raw || ind_x != ind_x_raw) {
@@ -530,8 +533,8 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
 
   // Phase B: snap ind_ma / ind_x to nearest master DOF if they landed on a
   // slave vertex after non-conforming refinement. If the two snap targets
-  // collide, leave ind_x at its original vertex to avoid a singular axis/
-  // saddle column pair.
+  // collide, revert whichever snap caused the collision to avoid collapsing
+  // axis and saddle onto the same DOF.
   {
     Vector nval;
     x.GetNodalValues(nval);
@@ -539,7 +542,10 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
     const int ind_x_raw  = ind_x;
     ind_ma = snap_to_master(ind_ma, nval, /*is_minimum=*/true);
     ind_x  = snap_to_master(ind_x,  nval, /*is_minimum=*/true);
-    if (ind_ma == ind_x) { ind_x = ind_x_raw; }
+    if (ind_ma == ind_x) {
+      if      (ind_ma != ind_ma_raw) { ind_ma = ind_ma_raw; }
+      else if (ind_x  != ind_x_raw ) { ind_x  = ind_x_raw;  }
+    }
     val_ma = nval[ind_ma];
     val_x  = nval[ind_x];
     if (ind_ma != ind_ma_raw || ind_x != ind_x_raw) {
