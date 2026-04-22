@@ -26,24 +26,25 @@ using namespace std;
 using namespace mfem;
 
 // ---------------------------------------------------------------------------
-// True-DOF conversion helpers for hanging node support (quad mesh AMR)
+// True-DOF conversion helpers for nonconforming mesh support
 // ---------------------------------------------------------------------------
 
 // Convert a VSize x VSize SparseMatrix to TrueVSize x TrueVSize
 // via A_true = R * A * P  (conforming projection, R = P^T)
 SparseMatrix* ToTrueDofs(const SparseMatrix &A, const FiniteElementSpace &fes) {
-    // Galerkin projection to true-DOF space: P^T A P.  MFEM's
-    // GetConformingRestriction() is a *picker* (one 1.0 per master row) and
-    // drops slave-row contributions, so we must use Transpose(P), not R.  See
-    // BilinearForm::ConformingAssemble (mfem/fem/bilinearform.cpp) which does
-    // the same thing.
+
+    // Galerkin projection to true-DOF space: P^T A P.
     const SparseMatrix *P = fes.GetConformingProlongation();
-    if (!P) return new SparseMatrix(A);  // no hanging nodes
+
+    if (!P) return new SparseMatrix(A);
+
     SparseMatrix *PT = Transpose(*P);
     SparseMatrix *PTA = mfem::Mult(*PT, A);
     SparseMatrix *result = mfem::Mult(*PTA, *P);
+
     delete PT;
     delete PTA;
+
     return result;
 }
 
@@ -102,11 +103,6 @@ void WriteSparseMatrixToFile(FILE *fp, SparseMatrix *Mat) {
 //   ) {
 //
 // This way it is clear where each object comes from (MFEM, user-defined, built-in C++ type, etc.)
-//
-// The PlasmaModelBase class is defined in plasma_model.cpp.
-// The ExactCoefficient and ExactForcingCoefficient classes are defined in exact.cpp.
-//
-// Replace the switch block with if/else if/else statements, to make the logic more clear.
 //
 // Consider removing manufactured solution components.
 

@@ -261,7 +261,9 @@ SparseMatrix* SysOperator::compute_hess_obj(const GridFunction &psi) {
   if (i_option == 0) {
     *K *= weight;
     return K;
-  } else if (i_option == 1) {
+  }
+  
+  else if (i_option == 1) {
   
     SparseMatrix * K_;
     K_ = new SparseMatrix(ndof, ndof);
@@ -314,7 +316,9 @@ SparseMatrix* SysOperator::compute_hess_obj(const GridFunction &psi) {
     K_->Finalize();
     *K_ *= weight;
     return K_;
-  } else {
+  }
+  
+  else {
     SparseMatrix * K_;
     K_ = new SparseMatrix(ndof, ndof);
     int dof = (*alpha_coeffs)[0].Size();
@@ -340,46 +344,55 @@ SparseMatrix* SysOperator::compute_hess_obj(const GridFunction &psi) {
             b = -1.0;
           }
           
-          K_->Add(i, j, a * b);
-          // K_->Add(i, j, (*alpha_coeffs)[k][m] * (*alpha_coeffs)[k][n]);
-          
+          K_->Add(i, j, a * b);        
         }
       }
-
     }
     
     K_->Finalize();
     *K_ *= weight;
     return K_;
   }
-  
 }
 
 
 int SysOperator::snap_to_master(int iv, const Vector &nval, bool is_minimum) const {
   // On non-conforming meshes, `compute_plasma_points` can return a vertex
-  // index that corresponds to a slave (hanging) DOF created by refinement.
+  // index that corresponds to a slave DOF created by adaptive mesh refinement.
   // Writing the Jacobian column at a slave VSize-index gets diffused by
   // P^T A P across the slave's masters, so Newton can no longer produce a
   // sharp update for psi_ma / psi_x. Snap to the closest master reachable
   // through `vertex_map`, picking the master with the most extreme nval in
   // the first shell that contains any master.
+
+  // Get prolongation matrix P that maps master DOFs to full DOFs
   const SparseMatrix *P = fespace->GetConformingProlongation();
-  if (P == nullptr) { return iv; }
+  if (P == nullptr) { return iv; }  // Case when mesh is conforming
+  
+  // Helper function: determine whether a DOF is a slave DOF or not
   auto is_slave = [&](int dof) -> bool {
     const int *Ip = P->GetI();
     const int *Jp = P->GetJ();
     const double *Dp = P->GetData();
+
+    // Number of nonzeros
     const int nnz = Ip[dof+1] - Ip[dof];
+
+    // If not exactly one entry -> is a slave DOF
     if (nnz != 1) { return true; }
+
+    // Return true (is a slave DOF) if relevant row in P is exactly 1 on the diagonal
     return (Jp[Ip[dof]] != dof || Dp[Ip[dof]] != 1.0);
   };
+
+  // If already a master DOF, nothing to do
   if (!is_slave(iv)) { return iv; }
 
+  // Perform BFS over vertex_map to find nearby master DOFs
   std::vector<int> current_shell = {iv};
   std::set<int> seen;
   seen.insert(iv);
-  const int max_shells = 8;                    // safety bound
+  const int max_shells = 8;  // Limit BFS search range to 8 shells (max 8 hops from node iv)
   for (int shell = 0; shell < max_shells; ++shell) {
     std::vector<int> next_shell;
     int best = -1;
@@ -391,22 +404,41 @@ int SysOperator::snap_to_master(int iv, const Vector &nval, bool is_minimum) con
       for (int v : it->second) {
         if (seen.count(v)) { continue; }
         seen.insert(v);
+
+        // Found a master DOF
         if (!is_slave(v)) {
+
+          // Select the most "extreme" master based on nval:
+          // minimum if is_minimum == true, maximum otherwise
           if (( is_minimum && nval[v] < best_val) ||
               (!is_minimum && nval[v] > best_val)) {
             best = v;
             best_val = nval[v];
           }
-        } else {
+        }
+
+        // Still a slave DOF--keep searching
+        else {
           next_shell.push_back(v);
         }
       }
     }
+
+    // If any master DOFs have been found in a shell, return the best one
+    // immediately, otherwise, move onto the next BFS shell
     if (best != -1) { return best; }
     if (next_shell.empty()) { break; }
     current_shell.swap(next_shell);
   }
-  return iv;                                   // fallback: no master reachable
+
+  // Fallback: no master reachable
+  if (is_slave(iv)) {
+    std::cerr << "Warning: SysOperator::snap_to_master could not find a master DOF "
+              << "for iv = " << iv << ". Returning slave DOF. O- and/or X-point columns "
+              << " in Jacobian may be incorrect--recommend verifying solution with "
+              << "a conforming mesh. \n";
+  }
+  return iv;
 }
 
 
@@ -420,7 +452,7 @@ double SysOperator::get_plasma_current(GridFunction &x, double &alpha) {
   compute_plasma_points(&x, *mesh, vertex_map, plasma_inds_, ind_ma, ind_x, val_ma, val_x, iprint);
   plasma_inds = plasma_inds_;
 
-  // Phase A diagnostic: is ind_ma / ind_x a slave DOF on the current mesh?
+  // DEBUGGING: is ind_ma / ind_x a slave DOF on the current mesh?
   {
     const SparseMatrix *P = fespace->GetConformingProlongation();
     auto is_slave = [&](int dof) -> int {
@@ -432,35 +464,37 @@ double SysOperator::get_plasma_current(GridFunction &x, double &alpha) {
       if (nnz != 1) { return 1; }
       return (Jp[Ip[dof]] != dof || Dp[Ip[dof]] != 1.0) ? 1 : 0;
     };
-    std::cout << "[diag/compute_plasma_points] ind_ma=" << ind_ma
+    std::cout << "[DEBUGGING: diag/compute_plasma_points] ind_ma=" << ind_ma
               << " slave=" << is_slave(ind_ma)
               << "  ind_x=" << ind_x
               << " slave=" << is_slave(ind_x)
               << "  VSize=" << fespace->GetVSize()
               << " TrueVSize=" << fespace->GetTrueVSize() << std::endl;
   }
-
-  // Phase B: if axis / saddle landed on a slave (hanging) DOF, snap each to
-  // the nearest master vertex so the Jacobian singular columns survive the
-  // conforming projection. Sign convention in `compute_plasma_points`:
-  // ind_ma is an argmin of nval; ind_x is the saddle with the smallest nval
-  // among candidates, so treat both as min-like when snapping. If the two
-  // snap targets collide, revert whichever snap caused the collision so we
-  // do not collapse the axis and saddle onto the same DOF (singular pair →
-  // segfault).
+  
+  // If O- and/or X-point is a slave DOF, snap to the nearest master vertex so
+  // that the corresponding columns in the Jacobian are computed correctly. Without
+  // this step the prolongation applied to the Jacobian post-construction will fail.
   {
     Vector nval;
     x.GetNodalValues(nval);
     const int ind_ma_raw = ind_ma;
     const int ind_x_raw  = ind_x;
+
+    // Snap each node index to nearest master DOF, if node is a slave DOF
     ind_ma = snap_to_master(ind_ma, nval, /*is_minimum=*/true);
     ind_x  = snap_to_master(ind_x,  nval, /*is_minimum=*/true);
+
+    // If a collision occurs between O- and X-point snaps, undo whichever snap caused it
     if (ind_ma == ind_x) {
       if      (ind_ma != ind_ma_raw) { ind_ma = ind_ma_raw; }
       else if (ind_x  != ind_x_raw ) { ind_x  = ind_x_raw;  }
     }
+
     val_ma = nval[ind_ma];
     val_x  = nval[ind_x];
+
+    // DEBUGGING: diagnostic
     if (ind_ma != ind_ma_raw || ind_x != ind_x_raw) {
       std::cout << "[snap/compute_plasma_points]"
                 << " ind_ma: " << ind_ma_raw << " -> " << ind_ma
@@ -471,8 +505,8 @@ double SysOperator::get_plasma_current(GridFunction &x, double &alpha) {
   psi_x = val_x;
   psi_ma = val_ma;
 
-  double* x_ma_ = mesh->GetVertex(ind_ma);
-  double* x_x_ = mesh->GetVertex(ind_x);
+  double *x_ma_ = mesh->GetVertex(ind_ma);
+  double *x_x_ = mesh->GetVertex(ind_x);
   x_ma = x_ma_;
   x_x = x_x_;
 
@@ -549,7 +583,7 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
     val_ma = nval[ind_ma];
     val_x  = nval[ind_x];
     if (ind_ma != ind_ma_raw || ind_x != ind_x_raw) {
-      std::cout << "[snap/NonlinearEquationRes]"
+      std::cout << "[DEBUGGING: snap/NonlinearEquationRes]"
                 << " ind_ma: " << ind_ma_raw << " -> " << ind_ma
                 << "  ind_x: " << ind_x_raw  << " -> " << ind_x
                 << std::endl;

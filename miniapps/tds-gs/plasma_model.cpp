@@ -159,7 +159,6 @@ double PlasmaModelFile::f_bar_prime(double & psi_N) const {
   int index = (int) (psi_N / dx);
 
   return (fpol_bar_vector[index+1] - fpol_bar_vector[index]) / dx;
-  // return alpha * fpol_bar_prime_vector[index+1] + (1 - alpha) * fpol_bar_prime_vector[index];
 }
 
 
@@ -171,7 +170,6 @@ double PlasmaModelFile::f_bar_double_prime(double & psi_N) const {
   }
 
   return 0.0;
-  // return alpha * fpol_bar_double_prime_vector[index+1] + (1 - alpha) * fpol_bar_double_prime_vector[index];
 }
 
 
@@ -558,16 +556,10 @@ void compute_plasma_points(
     } 
   }
 
-  // Determine which saddle point is the X-point. Reject candidates that
-  // coincide with the magnetic axis in value: in Grad-Shafranov the X-point
-  // value sits strictly between psi_ma and the plasma-boundary value, so a
-  // saddle whose nval is ~ min_val is a spurious axis-plateau detection
-  // (observed on quad + AMR + uniform-ref meshes where the `vertex_map`
-  // neighborhood around the axis contains enough diagonal / slave vertices
-  // to trip the 4-sign-change test).
+  // Determine which saddle point is the X-point
   int ind_x = ind_max;
   double x_val = max_val;
-  const double axis_tol = 1e-2 * std::max(1.0, std::abs(min_val));
+  const double axis_tol = 1e-2 * std::max(1.0, std::abs(min_val));  // Tolerance to avoid spurious candidates
   for (int i = 0; i < static_cast<int>(candidate_x_points.size()); ++i) {
     int iv = candidate_x_points[i];
     if (iv == ind_min)                               { continue; }
