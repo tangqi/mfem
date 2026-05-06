@@ -30,7 +30,7 @@ do_initial=0
 
 # linear solver parameters
 max_krylov_iter=200
-max_newton_iter=20
+max_newton_iter=40  # Changed from 20
 krylov_tol=1e-6
 newton_tol=1e-6
 
@@ -46,7 +46,7 @@ gamma_in=1.0
 # 6: lower triangular
 # 7: block woodbury
 pc_option=5
-max_levels=1
+max_levels=0
 max_dofs=100000
 light_tol=1e-8
 amr_frac_in=0.08

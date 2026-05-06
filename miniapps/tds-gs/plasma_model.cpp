@@ -465,7 +465,8 @@ void compute_plasma_points(
   int &ind_max,
   double &min_val,
   double &max_val,
-  int iprint
+  int iprint,
+  const mfem::SparseMatrix *cP
 ) {
   Vector nval;
   z->GetNodalValues(nval);
@@ -474,6 +475,22 @@ void compute_plasma_points(
   max_val = - numeric_limits<double>::infinity();
   ind_min = 0;
   ind_max = 0;
+
+  // Slave (hanging-node) DOFs are not independent degrees of freedom —
+  // their values are an affine combination of their masters — so the
+  // axis/X-point extremum search would pick near-equal slave vertices
+  // differently from iteration to iteration and stall Newton in a limit
+  // cycle. Exclude them from the argmin/argmax and saddle-candidate set.
+  // On a conforming mesh cP==nullptr and this reduces to the old behavior.
+  auto is_slave = [&](int iv) -> bool {
+    if (cP == nullptr) return false;
+    const int *I = cP->GetI();
+    const int *J = cP->GetJ();
+    const double *V = cP->GetData();
+    const int nnz = I[iv+1] - I[iv];
+    if (nnz != 1) return true;
+    return (J[I[iv]] != iv) || (V[I[iv]] != 1.0);
+  };
 
   vector<int> candidate_x_points;
   int saddle_pt_count = 0;
@@ -489,14 +506,18 @@ void compute_plasma_points(
       continue;
     }
 
+    const bool iv_is_slave = is_slave(iv);
+
     // Find global minimum and maximum values and indices of z
-    if (nval[iv] < min_val) {
-      min_val = nval[iv];
-      ind_min = iv;
-    }
-    if (nval[iv] > max_val) {
-      max_val = nval[iv];
-      ind_max = iv;
+    if (!iv_is_slave) {
+      if (nval[iv] < min_val) {
+        min_val = nval[iv];
+        ind_min = iv;
+      }
+      if (nval[iv] > max_val) {
+        max_val = nval[iv];
+        ind_max = iv;
+      }
     }
 
     // -----------------------------------------------------------------------
@@ -544,7 +565,9 @@ void compute_plasma_points(
     }
 
     // If 4 or more sign changes, save node iv as a saddle point.
-    if (sign_changes >= 4) {
+    // Skip slaves: their ψ value is an affine combination of masters and
+    // picking one as the X-point destabilizes Newton across iterations.
+    if (sign_changes >= 4 && !iv_is_slave) {
       if (iprint) {
         printf("Found saddle at (%9.6f, %9.6f), val=%9.6f\n", x0[0], x0[1], nval[iv]);
       }
@@ -553,7 +576,7 @@ void compute_plasma_points(
 
       candidate_x_points.push_back(iv);
       ++saddle_pt_count;
-    } 
+    }
   }
 
   // Determine which saddle point is the X-point

@@ -30,7 +30,7 @@ refinement_factor=1
 amr_frac_in=0.08
 # amr_frac_in=0.3
 amr_frac_out=0.3
-max_levels=3
+max_levels=2
 max_dofs=100000
 
 do_test=0

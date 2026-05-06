@@ -449,7 +449,8 @@ double SysOperator::get_plasma_current(GridFunction &x, double &alpha) {
   double val_ma, val_x;
   int iprint = 0;
   set<int> plasma_inds_;
-  compute_plasma_points(&x, *mesh, vertex_map, plasma_inds_, ind_ma, ind_x, val_ma, val_x, iprint);
+  compute_plasma_points(&x, *mesh, vertex_map, plasma_inds_, ind_ma, ind_x, val_ma, val_x, iprint,
+                        fespace->GetConformingProlongation());
   plasma_inds = plasma_inds_;
 
   // DEBUGGING: is ind_ma / ind_x a slave DOF on the current mesh?
@@ -541,7 +542,8 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   double val_ma, val_x;
   int iprint = 0;
   set<int> plasma_inds_;
-  compute_plasma_points(&x, *mesh, vertex_map, plasma_inds_, ind_ma, ind_x, val_ma, val_x, iprint);
+  compute_plasma_points(&x, *mesh, vertex_map, plasma_inds_, ind_ma, ind_x, val_ma, val_x, iprint,
+                        fespace->GetConformingProlongation());
 
   plasma_inds = plasma_inds_;
 
