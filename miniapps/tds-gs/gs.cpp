@@ -302,7 +302,6 @@ void Solve(
   double &Ip,
   int N_control,
   int do_control,
-  int add_alpha,
   int obj_option,
   double &obj_weight,
   double &rho_gamma,
@@ -1134,8 +1133,6 @@ void Solve(
   NewFile.close();
 }
 
-///////////////////////////////////////////////////////////////////////////////////
-
 
 double gs(const char *mesh_file, const char *initial_gf, const char *data_file, int order, int d_refine,
           int model_choice,
@@ -1146,7 +1143,7 @@ double gs(const char *mesh_file, const char *initial_gf, const char *data_file, 
           double & c8, double & c9, double & c10, double & c11,
           double & ur_coeff,
           int do_control, int N_control, double & weight_solenoids, double & weight_coils,
-          double & weight_obj, int obj_option, bool optimize_alpha,
+          double & weight_obj, int obj_option,
           bool do_manufactured_solution, bool do_initial,
           int & PC_option, int & max_amr_levels, int & max_dofs, double & light_tol,
           double & alpha_in, double & gamma_in,
@@ -1167,28 +1164,18 @@ double gs(const char *mesh_file, const char *initial_gf, const char *data_file, 
   uv_currents[9] = c10;
   uv_currents[10] = c11;
 
-  // Exact solution
-  double r0_ = 1.0;
-  double z0_ = 0.0;
-  double L_ = 0.35;
-
   // Solver options
   int kdim = 10000;
 
-  /* 
-    -------------------------------------------------------------------------------------------
-    Process Inputs
-    -------------------------------------------------------------------------------------------
-  */   
+  // ============================================================================
+  // Process inputs
+  // ============================================================================
 
   // Create a new Mesh object named mesh by reading in the mesh data from the filepath "mesh_file".
   Mesh mesh(mesh_file);
   
-  // save options in model
-  // alpha: multiplier in \bar{S}_{ff'} term
-  // beta: multiplier for S_{p'} term
-  // gamma: multiplier for S_{ff'} term
-  const char *data_file_ = "data/fpol_pres_ffprim_pprime.data";
+  // Save options in model: alpha: multiplier in \bar{S}_{ff'} term, beta: multiplier for S_{p'} term, gamma: multiplier for S_{ff'} term
+  const char *data_file_ = "data/fpol_pres_ffprim_pprime.data";  // TODO: what is the difference between this data_file_ versus data_file, which is an argument passed into main.cpp?
   PlasmaModelFile model(mu, data_file_, alpha, beta, gamma, model_choice);
 
   // Define a finite element space on the mesh. Here we use H1 continuous high-order Lagrange finite elements of the given order.
@@ -1196,27 +1183,31 @@ double gs(const char *mesh_file, const char *initial_gf, const char *data_file, 
   FiniteElementSpace fespace(&mesh, &fec);
   cout << "Number of unknowns: " << fespace.GetTrueVSize() << endl;
 
+  // Exact solution
+  double r0_ = 1.0;
+  double z0_ = 0.0;
+  double L_ = 0.35;
   double k_ = M_PI/(2.0*L_);
   ExactForcingCoefficient exact_forcing_coeff(r0_, z0_, k_, model, do_manufactured_solution);
   ExactCoefficient exact_coefficient(r0_, z0_, k_, do_manufactured_solution);
 
-  /* 
-    -------------------------------------------------------------------------------------------
-    Solve
-    -------------------------------------------------------------------------------------------
-  */
+  // ============================================================================
+  // Solve
+  // ============================================================================
 
+  // Remove control point optimization to solve fixed-boundary GS in order to get initial guesses for the free-boundary GS cases.
   if (do_initial) {
     do_control = false;
   }
   
   // Define the solution x as a finite element grid function in fespace. Set
   // the initial guess to zero, which also sets the boundary conditions.
-  GridFunction u(&fespace);  // Create a finite element function u in finite element space fespace, with storage allocated for all its degrees of freedom
+  GridFunction u(&fespace);
   
   InitialCoefficient init_coeff = read_data_file(data_file);  // data_file is the plasma data file--not sure what that is, but I assume it defines certain plasma parameters?
 
-  if (do_manufactured_solution) {  // I think that do_manufactured_solution == 1 is used for comparing the GS solver against a known analytical solution
+  // I think that do_manufactured_solution == 1 is used for comparing the GS solver against a known analytical solution
+  if (do_manufactured_solution) {
 
   // Project exact solution onto your finite element function u and save
     u.ProjectCoefficient(exact_coefficient);
@@ -1224,31 +1215,37 @@ double gs(const char *mesh_file, const char *initial_gf, const char *data_file, 
   }
    
   else {
-    if (!do_initial) {  // Load initial GridFunction from file
 
+    // If not solving for initial guess
+    if (!do_initial) {
+
+      // Load initial GridFunction from file
       ifstream ifs(initial_gf);
       GridFunction lgf(&mesh, ifs);
       lgf.SetSpace(&fespace);
       u = lgf;
     }
-    u.Save("gf/initial.gf");  // Save whatever the current intial GridFunction is (either loaded or otherwise)
+    u.Save("gf/initial.gf");
   }
 
-  // Read the mesh from the given mesh file, and refine "d_refine" times uniformly.
+  // Perform uniform mesh refinement and save mesh post-refinement
   for (int i = 0; i < d_refine; ++i) {
     mesh.UniformRefinement();
-    // Update the space and interpolate to a new solution
     fespace.Update();
     u.Update();
   }
   mesh.Save("meshes/mesh.mesh");
+
+  // Save initial solution mesh
   if (do_initial) {
-    mesh.Save("meshes/initial.mesh");  // Also save the mesh to initial.mesh if do_initial == 1
+    mesh.Save("meshes/initial.mesh");
   }
 
   GridFunction x(&fespace);
   x = u;
 
+  // The include_plasma parameter determines if the nonlinear plasma contribution term in the GS equation is included
+  // in the solve. When set to false, solver is solving just the diffusion operator + coil contributions.
   bool include_plasma = true;
   if (do_initial) {
     include_plasma = false;
@@ -1256,10 +1253,9 @@ double gs(const char *mesh_file, const char *initial_gf, const char *data_file, 
 
   cout << "Beginning GS Solve." << endl;
 
-  // TODO: remove optimize_alpha
-  Solve(fespace, &model, x, kdim, max_newton_iter, max_krylov_iter, newton_tol, krylov_tol, 
+  Solve(fespace, &model, x, kdim, max_newton_iter, max_krylov_iter, newton_tol, krylov_tol,
         Ip, N_control, do_control,
-        optimize_alpha, obj_option, weight_obj,
+        obj_option, weight_obj,
         rho_gamma,
         &mesh,
         &exact_forcing_coeff,
@@ -1274,7 +1270,8 @@ double gs(const char *mesh_file, const char *initial_gf, const char *data_file, 
         alpha_in, gamma_in,
         amg_cycle_type, amg_num_sweeps_a, amg_num_sweeps_b, amg_max_iter,
         amr_frac_in, amr_frac_out);
-   
+
+  // Save mesh and solution for initial solve
   if (do_initial) {
     char name_gf_out[60];
     char name_mesh_out[60];
@@ -1288,6 +1285,7 @@ double gs(const char *mesh_file, const char *initial_gf, const char *data_file, 
     printf("glvis -m %s -g %s\n", name_mesh_out, name_gf_out);
   }
    
+  // Save mesh and solution for free-boundary solve
   else {
     char name_gf_out[60];
     sprintf(name_gf_out, "gf/final_model%d_pc%d_cyc%d_it%d.gf", model.get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
@@ -1295,24 +1293,19 @@ double gs(const char *mesh_file, const char *initial_gf, const char *data_file, 
 
     printf("glvis -m meshes/mesh_refine.mesh -g %s\n", name_gf_out);
 
-    if(true){
-      ParaViewDataCollection paraview_dc("gs", &mesh);
-      paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(order);
-      paraview_dc.SetCycle(0);
-      paraview_dc.SetDataFormat(VTKFormat::BINARY);
-      paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("psi",&x);
-      paraview_dc.Save();
-    }
+    // Paraview
+    ParaViewDataCollection paraview_dc("gs", &mesh);
+    paraview_dc.SetPrefixPath("ParaView");
+    paraview_dc.SetLevelsOfDetail(order);
+    paraview_dc.SetCycle(0);
+    paraview_dc.SetDataFormat(VTKFormat::BINARY);
+    paraview_dc.SetHighOrderOutput(true);
+    paraview_dc.SetTime(0.0); // set the time
+    paraview_dc.RegisterField("psi",&x);
+    paraview_dc.Save();
   }
-  /* 
-    -------------------------------------------------------------------------------------------
-    Error
-    -------------------------------------------------------------------------------------------
-  */
 
+  // Exact solution test path
   if (do_manufactured_solution) {
     GridFunction diff(&fespace);
     add(x, -1.0, u, diff);
@@ -1320,7 +1313,7 @@ double gs(const char *mesh_file, const char *initial_gf, const char *data_file, 
     diff.Save("gf/error.gf");
     double L2_error = x.ComputeL2Error(exact_coefficient);
     printf("\n\n********************************\n");
-    printf("numerical error: %.3e\n", num_error);
+    printf("Numerical error: %.3e\n", num_error);
     printf("L2 error: %.3e\n", L2_error);
     printf("********************************\n\n");
 

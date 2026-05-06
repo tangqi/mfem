@@ -39,7 +39,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
           int do_control, int N_control,
           double & weight_solenoids,
           double & weight_coils,
-          double & weight_obj, int obj_option, bool optimize_alpha,
+          double & weight_obj, int obj_option,
           bool do_manufactured_solution,
           bool do_initial,
           int & PC_option, int & max_levels, int & max_dofs, double & light_tol,

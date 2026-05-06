@@ -82,7 +82,6 @@ do_control=1
 weight_coils=1e-14
 weight_solenoids=1e-14
 weight_obj=1.0
-optimize_alpha=1
 
 # objective function
 # 0: sum_k (psi_k - psi_0) ^ 2
@@ -141,7 +140,6 @@ do
                    --initial $do_initial \
                    --weight_obj $weight_obj \
                    --obj_option $obj_option \
-                   --optimize_alpha $optimize_alpha \
                    --pc_option $pc_option \
                    --max_levels $max_levels \
                    --max_dofs $max_dofs \

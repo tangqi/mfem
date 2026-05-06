@@ -116,7 +116,6 @@ int main(int argc, char *argv[])
    double weight_coils = 1e-5;
    double weight_obj = 1.0;
    int obj_option = 2;
-   int optimize_alpha = 1;
 
    int PC_option = 6;
    int max_levels = 8;  // TODO: for clarity, this should be changed to max_amr_levels. You'll also need to change this in gs.cpp, ...
@@ -175,7 +174,6 @@ int main(int argc, char *argv[])
    args.AddOption(&weight_coils, "-wc", "--weight_coils", "weight of regularization");
    args.AddOption(&weight_obj, "-wo", "--weight_obj", "weight of optimization");
    args.AddOption(&obj_option, "-oo", "--obj_option", "objective option (0, 1, 2)");
-   args.AddOption(&optimize_alpha, "-oa", "--optimize_alpha", "optimize alpha to specified plasma current");
 
    args.AddOption(&PC_option, "-pc", "--pc_option", "preconditioner option");
    args.AddOption(&max_levels, "-ml", "--max_levels", "max amr levels");
@@ -228,7 +226,7 @@ int main(int argc, char *argv[])
         c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
         ur_coeff,
         do_control, N_control, weight_solenoids, weight_coils,
-        weight_obj, obj_option, optimize_alpha,
+        weight_obj, obj_option,
         do_manufactured_solution,
         do_initial, PC_option, max_levels, max_dofs, light_tol,
         alpha_in, gamma_in, amg_cycle_type, amg_num_sweeps_a, amg_num_sweeps_b, amg_max_iter,
