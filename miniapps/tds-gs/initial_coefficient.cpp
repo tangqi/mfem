@@ -125,18 +125,18 @@ InitialCoefficient read_data_file(const char *data_file, bool do_initial) {
   }
 
   string line;
-  istringstream *iss;
-  
+
   while (getline(inFile, line)) {
     if (line.find("nw") != std::string::npos) {
       getline(inFile, line);
       break;
     }
   }
-  iss = new istringstream(line);
   int idum, nw, nh;
-  *iss >> idum >> nw >> nh;
-  // cout << nw << " " << nh << endl;
+  {
+    istringstream iss(line);
+    iss >> idum >> nw >> nh;
+  }
 
   while (getline(inFile, line)) {
     if (line.find("rdim") != std::string::npos) {
@@ -144,10 +144,11 @@ InitialCoefficient read_data_file(const char *data_file, bool do_initial) {
       break;
     }
   }
-  iss = new istringstream(line);
-  double rdim, zdim, rcentr, rleft, zmid;
-  *iss >> rdim >> zdim >> rcentr >> rleft >> zmid;
-  // cout << rdim << endl;
+  {
+    istringstream iss(line);
+    double rdim, zdim, rcentr, rleft, zmid;
+    iss >> rdim >> zdim >> rcentr >> rleft >> zmid;
+  }
 
   while (getline(inFile, line)) {
     if (line.find("sibry") != std::string::npos) {
@@ -155,30 +156,33 @@ InitialCoefficient read_data_file(const char *data_file, bool do_initial) {
       break;
     }
   }
-  iss = new istringstream(line);
-  double maxis, zmaxis, simag, psix, bcentr;
-  *iss >> maxis >> zmaxis >> simag >> psix >> bcentr;
-  
+  double psix;
+  {
+    istringstream iss(line);
+    double maxis, zmaxis, simag, bcentr;
+    iss >> maxis >> zmaxis >> simag >> psix >> bcentr;
+  }
+
   double r0, r1, z0, z1;
   // geometry based on iter
   r0 = 3.0; r1 = 10.0;
   z0 = -6.0; z1 = 6.0;
-  
+
   while (getline(inFile, line)) {
     if (line.find("psizr") != std::string::npos) {
       getline(inFile, line);
       break;
     }
   }
-  iss = new istringstream(line);
-  double **psizr;
-  // [nh][nw];
-  psizr = new double *[nh];
+  double **psizr = new double *[nh];
   int i, j;
-  for (i = 0; i < nh; ++i) {
-    psizr[i] = new double[nw];
-    for (j = 0; j < nw; ++j) {
-      *iss >> psizr[i][j];
+  {
+    istringstream iss(line);
+    for (i = 0; i < nh; ++i) {
+      psizr[i] = new double[nw];
+      for (j = 0; j < nw; ++j) {
+        iss >> psizr[i][j];
+      }
     }
   }
   while (getline(inFile, line)) {
@@ -187,22 +191,25 @@ InitialCoefficient read_data_file(const char *data_file, bool do_initial) {
       break;
     }
   }
-  iss = new istringstream(line);
-  int nbbbs, limitr;
-  *iss >> nbbbs >> limitr;
+  int nbbbs;
+  {
+    istringstream iss(line);
+    int limitr;
+    iss >> nbbbs >> limitr;
+  }
   while (getline(inFile, line)) {
     if (line.find("rbbbs") != std::string::npos) {
       getline(inFile, line);
       break;
     }
   }
-  double *rbbbs;
-  double *zbbbs;
-  rbbbs = new double[nbbbs];
-  zbbbs = new double[nbbbs];
-  iss = new istringstream(line);
-  for (i = 0; i < nbbbs; ++i) {
-    *iss >> rbbbs[i] >> zbbbs[i];
+  double *rbbbs = new double[nbbbs];
+  double *zbbbs = new double[nbbbs];
+  {
+    istringstream iss(line);
+    for (i = 0; i < nbbbs; ++i) {
+      iss >> rbbbs[i] >> zbbbs[i];
+    }
   }
 
   // nz=nh, nr=nw

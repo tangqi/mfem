@@ -1,5 +1,3 @@
-////////////////////////////////////////////////////////////////////////////////
-
 // TODO: General List:
 // 1) Review code and make any necessary style changes (function naming, formatting)
 // 2) Add function descriptions and comment liberally
@@ -8,9 +6,6 @@
 // 4) Consider removing the code sections related to do_control == 0 and manufactured
 //    solutions.
 // 5) Modularize code: move sections into other files to enhance readability.
-// 6) Address memory leakage: every time a "new" object is called, there is a risk of
-//    memory leaks (no "delete" to clean up memory).
-// 7) The makefile is forcing C++11--perhaps change this to a later C++ version?
 
 #include "mfem.hpp"
 #include "gs.hpp"
@@ -49,9 +44,7 @@ SparseMatrix* ToTrueDofs(const SparseMatrix &A, const FiniteElementSpace &fes) {
 }
 
 // Convert a VSize Vector (dual / RHS convention: e.g. LinearForm integrals)
-// to TrueVSize by v_true = P^T v_full.  Again: do NOT use ConformingRestriction
-// here — that picker matrix drops slave entries instead of accumulating them
-// into the master rows.
+// to TrueVSize by v_true = P^T v_full
 void ToTrueDofs(const Vector &v_full, Vector &v_true, const FiniteElementSpace &fes) {
     const SparseMatrix *P = fes.GetConformingProlongation();
     if (!P) { v_true = v_full; return; }
@@ -88,23 +81,6 @@ void WriteSparseMatrixToFile(FILE *fp, SparseMatrix *Mat) {
   }
 }
 
-
-// TODO: for each of the inputs to DefineRHS, consider adding namespaces to make
-// clear where each input type comes from. Example:
-//
-// void DefineRHS(
-//     double & rho_gamma,
-//     physics::PlasmaModelBase & model,
-//     mfem::Mesh & mesh, 
-//     physics::ExactCoefficient & exact_coefficient,
-//     physics::ExactForcingCoefficient & exact_forcing_coeff,
-//     mfem::LinearForm & coil_term,
-//     mfem::SparseMatrix * F
-//   ) {
-//
-// This way it is clear where each object comes from (MFEM, user-defined, built-in C++ type, etc.)
-//
-// Consider removing manufactured solution components.
 
 void DefineRHS(
     PlasmaModelBase &model,
@@ -154,7 +130,7 @@ void DefineRHS(
         break;
       case attr_lim:  // limiter domain
         break;
-      case 1100:  // What does this correspond to?
+      case 1100:  // TODO: what does this correspond to?
         break;
       default:
         
@@ -361,11 +337,11 @@ void Solve(
   // Solve the optimization problem of determining currents to fit the desired plasma shape
   if (do_control) {
 
-    // Initialize log for plasma current, alpha, X-point, and magnetic axis values per iteration in out_iter/ directory
-    FILE *fp;
+    // Initialize log for plasma current, alpha, X-point, and magnetic axis values per iteration in out_iter/ directory.
     char filename[60];
     sprintf(filename, "out_iter/iters_model%d_pc%d_cyc%d_it%d.txt", model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
-    fp = fopen(filename, "w");
+    std::unique_ptr<FILE, int(*)(FILE*)> log_guard(fopen(filename, "w"), &fclose);
+    FILE *fp = log_guard.get();
 
     // Print initial currents
     printf("Initial currents: [");
@@ -394,9 +370,8 @@ void Solve(
     // MFEM uses ErrorEstimator objects to determine where the mesh should be refined in AMR
     // The "x" parameter is the current finite element solution
     DiffusionIntegratorCoefficient diff_op_coeff(model);  // DiffusionIntegratorCoefficient is defined in diffusion_term.cpp
-    DiffusionIntegrator *integ = new DiffusionIntegrator(diff_op_coeff);
-    ErrorEstimator *estimator{nullptr};
-    estimator = new LSZienkiewiczZhuEstimator(*integ, x);  // Estimator: Zienkiewicz-Zhu error estimation
+    std::unique_ptr<DiffusionIntegrator> integ(new DiffusionIntegrator(diff_op_coeff));
+    std::unique_ptr<ErrorEstimator> estimator(new LSZienkiewiczZhuEstimator(*integ, x));  // Estimator: Zienkiewicz-Zhu error estimation
     RegionalThresholdRefiner refiner(*estimator);  // MFEM mesh refiner that uses the estimator to decide which elements to refine
 
     // Initialize time tracker
@@ -413,8 +388,6 @@ void Solve(
       int total_gmres = 0;
       int cdofs = fespace.GetTrueVSize();
 
-      // printf("Number of unknowns: %d\n", cdofs);
-
       // Save per-iteration mesh snapshot (matches the mesh used for this iteration's Newton solve)
       char name_mesh[60];
       sprintf(name_mesh, "gf/mesh_amr%d_model%d_pc%d_cyc%d_it%d.mesh", it_amr, model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
@@ -428,13 +401,13 @@ void Solve(
       LinearForm coil_term(&fespace);
 
       // Initialize the coefficient matrix F -- maps coil currents -> PDE forcing
-      SparseMatrix *F = new SparseMatrix(fespace.GetNDofs(), num_currents);
+      std::unique_ptr<SparseMatrix> F(new SparseMatrix(fespace.GetNDofs(), num_currents));
 
       // Initialize the elliptic PDE operator (LHS of GS equation + plasma contributions + far-field BCs)
       BilinearForm diff_operator(&fespace);
 
       // Assemble PDE operators
-      DefineRHS(*model, rho_gamma, *mesh, *exact_coefficient, *exact_forcing_coeff, coil_term, F);
+      DefineRHS(*model, rho_gamma, *mesh, *exact_coefficient, *exact_forcing_coeff, coil_term, F.get());
       DefineLHS(*model, rho_gamma, diff_operator);
 
       // ============================================================================
@@ -455,7 +428,7 @@ void Solve(
       std::vector<Array<int>> *J_inds       = init_coeff->get_J();
 
       // Regularization matrix H -- R(u) = 1/2 uᵀ H u (L2 regularization)
-      SparseMatrix *H = new SparseMatrix(num_currents, num_currents);
+      std::unique_ptr<SparseMatrix> H(new SparseMatrix(num_currents, num_currents));
       for (int i = 0; i < num_currents; ++i) {
         if (i < 5) {  // TODO: this is a hard-coded assumption that there are exactly 5 "coil" currents, and the rest are "solenoid" currents. This should be fixed.
           H->Set(i, i, weight_coils);
@@ -471,7 +444,7 @@ void Solve(
       // ============================================================================
 
       // Define system operator
-      SysOperator op(&diff_operator, &coil_term, model, &fespace, mesh, attr_lim, &x, F, uv, H, K_, &g_, alpha_coeffs, J_inds, &alpha, include_plasma);  // This is in sys_operator.cpp. TODO: does SysOperator clean up memory?
+      SysOperator op(&diff_operator, &coil_term, model, &fespace, mesh, attr_lim, &x, F.get(), uv, H.get(), K_, &g_, alpha_coeffs, J_inds, &alpha, include_plasma);
       op.set_i_option(obj_option);
       op.set_obj_weight(obj_weight);  
 
@@ -485,8 +458,6 @@ void Solve(
       // ============================================================================
       // Newton loop
       // ============================================================================
-
-      // TODO: memory leak potential in this Newton loop. Every time a "new" object is created, there is a memory leak risk if no "delete" is added afterwards. No "delete" lines are present in the code.
 
       // Inexact newton settings
       double eta_last = 0.0;
@@ -544,7 +515,6 @@ void Solve(
         fprintf(fp, "psi_x = %10.8e; r_x = %10.8e; z_x = %10.8e\n", psi_x, x_x[0], x_x[1]);
         fprintf(fp, "psi_ma = %10.8e; r_ma = %10.8e; z_ma = %10.8e\n", psi_ma, x_ma[0], x_ma[1]);
 
-
         // Compute RHS vector components (equation 4.11 from paper)
 
         // -b1 = Gy + By^T p + Cy lambda
@@ -582,8 +552,8 @@ void Solve(
         Vector eq_res_true(fespace.GetTrueVSize());
         ToTrueDofs(eq_res, eq_res_true, fespace);
         error = GetMaxError(eq_res_true);
-        printf("newton error (eq_res tdof): %.3e  (newton_tol=%.1e)\n",
-               error, newton_tol);
+        printf("newton error (eq_res tdof): %.3e  (newton_tol=%.1e)\n", error, newton_tol);
+
         // double max_opt_res = op.get_mu() * GetMaxError(opt_res);
         // double max_reg_res = GetMaxError(reg_res) / op.get_mu();
 
@@ -595,7 +565,7 @@ void Solve(
             eta = max(eta, sg_eta);
           }
           eta = min(eta, lin_rtol_max);
-          eta_last = eta;  // for the next iteration
+          eta_last = eta;
         }
 
         printf("inexact newton rtol: %.2e\n", eta);
@@ -616,7 +586,7 @@ void Solve(
 
         // invH is diagonal inverse of H (regularization on coil currents)
         const int nu = uv->Size();  // number of coil currents (control dofs)
-        mfem::SparseMatrix* invH = new mfem::SparseMatrix(nu, nu);
+        std::unique_ptr<SparseMatrix> invH(new SparseMatrix(nu, nu));
         for (int j = 0; j < nu; ++j) {
             const double hjj = (*H)(j, j);
             MFEM_VERIFY(hjj > 0.0, "H must be positive diagonal.");
@@ -625,23 +595,23 @@ void Solve(
         invH->Finalize();
 
         // Calculations to form CMat
-        SparseMatrix *FT = Transpose(*F);
-        SparseMatrix *mF = Add(-1.0, *F, 0.0, *F);  // This is just calculating -F
-        SparseMatrix *invHFT = Mult(*invH, *FT);
-        SparseMatrix *mFinvHFT = Mult(*mF, *invHFT);
-        SparseMatrix *FinvH = Mult(*F, *invH);
-        SparseMatrix *mMuFinvHFT = Add(op.get_mu(), *mFinvHFT, 0.0, *mFinvHFT);
-        SparseMatrix *MuFinvH = Add(op.get_mu(), *FinvH, 0.0, *FinvH);
+        std::unique_ptr<SparseMatrix> FT(Transpose(*F));
+        std::unique_ptr<SparseMatrix> mF(Add(-1.0, *F, 0.0, *F));  // This is just calculating -F
+        std::unique_ptr<SparseMatrix> invHFT(Mult(*invH, *FT));
+        std::unique_ptr<SparseMatrix> mFinvHFT(Mult(*mF, *invHFT));
+        std::unique_ptr<SparseMatrix> FinvH(Mult(*F, *invH));
+        std::unique_ptr<SparseMatrix> mMuFinvHFT(Add(op.get_mu(), *mFinvHFT, 0.0, *mFinvHFT));
+        std::unique_ptr<SparseMatrix> MuFinvH(Add(op.get_mu(), *FinvH, 0.0, *FinvH));
         double scale = 1.0 / sqrt(mMuFinvHFT->MaxNorm());
 
         // Form CMat
-        SparseMatrix *CMat = Add(scale * scale, *mMuFinvHFT, 0.0, *mMuFinvHFT);
+        std::unique_ptr<SparseMatrix> CMat(Add(scale * scale, *mMuFinvHFT, 0.0, *mMuFinvHFT));
 
         // Compute the B and B^T matrices in the block linear system: BMat and BTMat
 
         // Compute 1 / Ca Cy Ba^T (in VSize space)
         int vsize = fespace.GetVSize();
-        SparseMatrix *CyBa = new SparseMatrix(vsize, vsize);
+        std::unique_ptr<SparseMatrix> CyBa(new SparseMatrix(vsize, vsize));
         for (int j = 0; j < vsize; ++j) {
           for (int k = 0; k < vsize; ++k) {
             if (Ba(j) * Cy(k) != 0.0) {
@@ -651,22 +621,20 @@ void Solve(
         }
         CyBa->Finalize();
 
-        SparseMatrix *ByT = Transpose(By);
-        SparseMatrix *ScaleByT = Add(scale, *ByT, 0.0, *CyBa);
-        SparseMatrix *ScaleBy = Transpose(*ScaleByT);
+        std::unique_ptr<SparseMatrix> ByT(Transpose(By));
+        std::unique_ptr<SparseMatrix> ScaleByT(Add(scale, *ByT, 0.0, *CyBa));
+        std::unique_ptr<SparseMatrix> ScaleBy(Transpose(*ScaleByT));
 
         // Form BMat and BTMat (in VSize space)
-        SparseMatrix *BMat = Add(scale, *ByT, -scale, *CyBa);
-        SparseMatrix *BTMat = Transpose(*BMat);
+        std::unique_ptr<SparseMatrix> BMat(Add(scale, *ByT, -scale, *CyBa));
+        std::unique_ptr<SparseMatrix> BTMat(Transpose(*BMat));
 
-        // ============================================================================
         // Convert all operators to true-DOF space for hanging node support
         // A_true = P^T * A * P,  v_true = P^T * v
-        // ============================================================================
-        SparseMatrix *AMat_t   = ToTrueDofs(*AMat,     fespace);
-        SparseMatrix *BMat_t   = ToTrueDofs(*BMat,     fespace);
-        SparseMatrix *BTMat_t  = ToTrueDofs(*BTMat,    fespace);
-        SparseMatrix *CMat_t   = ToTrueDofs(*CMat,     fespace);
+        std::unique_ptr<SparseMatrix> AMat_t  (ToTrueDofs(*AMat,  fespace));
+        std::unique_ptr<SparseMatrix> BMat_t  (ToTrueDofs(*BMat,  fespace));
+        std::unique_ptr<SparseMatrix> BTMat_t (ToTrueDofs(*BTMat, fespace));
+        std::unique_ptr<SparseMatrix> CMat_t  (ToTrueDofs(*CMat,  fespace));
 
         // Convert vectors used in preconditioner to true-DOF space
         Vector Ba_t(tdof), Cy_t(tdof);
@@ -692,22 +660,22 @@ void Solve(
         }
 
         // Form block matrix (true-DOF space)
-        BlockSystem.SetBlock(0, ind_x, AMat_t);
-        BlockSystem.SetBlock(0, ind_p, BMat_t);
-        BlockSystem.SetBlock(1, ind_x, BTMat_t);
-        BlockSystem.SetBlock(1, ind_p, CMat_t);
+        BlockSystem.SetBlock(0, ind_x, AMat_t.get());
+        BlockSystem.SetBlock(0, ind_p, BMat_t.get());
+        BlockSystem.SetBlock(1, ind_x, BTMat_t.get());
+        BlockSystem.SetBlock(1, ind_p, CMat_t.get());
 
         // Write contents of matrices to text files in CSR format
-        FILE *fp_spy;
         char filename_spy[60];
         sprintf(filename_spy, "spys/spy_model%d_amr%d.txt", model->get_model_choice(), it_amr);
-        fp_spy = fopen(filename_spy, "w");
+        std::unique_ptr<FILE, int(*)(FILE*)> spy_guard(fopen(filename_spy, "w"), &fclose);
+        FILE *fp_spy = spy_guard.get();
         fprintf(fp_spy, "AMat\n");
-        WriteSparseMatrixToFile(fp_spy, AMat_t);
+        WriteSparseMatrixToFile(fp_spy, AMat_t.get());
         fprintf(fp_spy, "\nBMat\n");
-        WriteSparseMatrixToFile(fp_spy, BMat_t);
+        WriteSparseMatrixToFile(fp_spy, BMat_t.get());
         fprintf(fp_spy, "\nCMat\n");
-        WriteSparseMatrixToFile(fp_spy, CMat_t);
+        WriteSparseMatrixToFile(fp_spy, CMat_t.get());
 
         // Define RHS of the block linear system (equation 5.3 of paper)
         // Compute in VSize first, then convert to true-DOF
@@ -750,12 +718,12 @@ void Solve(
           Solver *inv_BT, *inv_B;
 
           // Build AMG solvers for B_y and B_y^T using Hypre (true-DOF matrices)
-          SparseMatrix *ScaleByT_t = ToTrueDofs(*ScaleByT, fespace);
-          SparseMatrix *ScaleBy_t  = ToTrueDofs(*ScaleBy,  fespace);
-          HypreParMatrix *B_Hypre = ConvertToHypre(ScaleByT_t);
-          HypreParMatrix *BT_Hypre = ConvertToHypre(ScaleBy_t);
-          HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
-          HypreBoomerAMG *BT_AMG = new HypreBoomerAMG(*BT_Hypre);
+          std::unique_ptr<SparseMatrix> ScaleByT_t(ToTrueDofs(*ScaleByT, fespace));
+          std::unique_ptr<SparseMatrix> ScaleBy_t (ToTrueDofs(*ScaleBy,  fespace));
+          std::unique_ptr<HypreParMatrix> B_Hypre (ConvertToHypre(ScaleByT_t.get()));
+          std::unique_ptr<HypreParMatrix> BT_Hypre(ConvertToHypre(ScaleBy_t.get()));
+          std::unique_ptr<HypreBoomerAMG> B_AMG (new HypreBoomerAMG(*B_Hypre));
+          std::unique_ptr<HypreBoomerAMG> BT_AMG(new HypreBoomerAMG(*BT_Hypre));
 
           // Configure AMG parameters for AMG(B_y)
           B_AMG->SetPrintLevel(0);
@@ -769,8 +737,8 @@ void Solve(
           BT_AMG->SetCycleNumSweeps(amg_num_sweeps_a, amg_num_sweeps_b);
           BT_AMG->SetMaxIter(amg_max_iter);
 
-          inv_B = B_AMG;
-          inv_BT = BT_AMG;
+          inv_B = B_AMG.get();
+          inv_BT = BT_AMG.get();
 
           // Block diagonal preconditioner: equation 5.4 from paper
           if (PC_option == 0) {
@@ -785,7 +753,7 @@ void Solve(
 
           // Block upper triangular preconditioner: equation 5.5 from paper
           else if (PC_option == 5) {
-            SchurPC *SCPC = new SchurPC(AMat_t, CMat_t, inv_B, inv_BT, &Ba_t, &Cy_t, Ca, 1);
+            std::unique_ptr<SchurPC> SCPC(new SchurPC(AMat_t.get(), CMat_t.get(), inv_B, inv_BT, &Ba_t, &Cy_t, Ca, 1));
             solver.SetPreconditioner(*SCPC);
 
             solver.Mult(rhs, dx);
@@ -794,7 +762,7 @@ void Solve(
 
           // Block lower triangular preconditioner: equation 5.6 from paper
           else if (PC_option == 6) {
-            SchurPC *SCPC = new SchurPC(AMat_t, CMat_t, inv_B, inv_BT, &Ba_t, &Cy_t, Ca, 2);
+            std::unique_ptr<SchurPC> SCPC(new SchurPC(AMat_t.get(), CMat_t.get(), inv_B, inv_BT, &Ba_t, &Cy_t, Ca, 2));
             solver.SetPreconditioner(*SCPC);
 
             solver.Mult(rhs, dx);
@@ -848,12 +816,7 @@ void Solve(
 
         // Residual = RHS of 2 x 2 block system (eq. 4.13 in paper)
 
-        // Residuals are assembled in VSize (to match the VSize operators and
-        // RHS) and then projected to true-DOF via P^T before norming. On a
-        // non-conforming mesh the VSize residual has non-zero slave-row
-        // entries that the true-DOF solve never had to zero; the raw VSize
-        // L-inf would misrepresent them as Newton non-convergence. On a
-        // conforming mesh P==nullptr and the projection is a no-op.
+        // Residuals are assembled in VSize and then projected to true-DOF via P^T before norming
         const int tvsize = fespace.GetTrueVSize();
 
         // First block row in RHS
@@ -979,9 +942,8 @@ void Solve(
       << setw(16) << cpasma_vals.back() << "\n";
       file.close();
   }
-  
-  // do_control == 0
-  // Given currents, solve the GS equation
+
+  // Given currents, solve the GS equation (do_control == 0)
   else {
     GridFunction dx(&fespace);
     dx = 0.0;
@@ -994,13 +956,13 @@ void Solve(
     LinearForm coil_term(&fespace);
 
     // Initialize the coefficient matrix F -- maps coil currents -> PDE forcing
-    SparseMatrix *F = new SparseMatrix(fespace.GetNDofs(), num_currents);
+    std::unique_ptr<SparseMatrix> F(new SparseMatrix(fespace.GetNDofs(), num_currents));
 
     // Initialize the elliptic PDE operator (LHS of GS equation + plasma contributions + far-field BCs)
     BilinearForm diff_operator(&fespace);
 
     // Assemble PDE operators
-    DefineRHS(*model, rho_gamma, *mesh, *exact_coefficient, *exact_forcing_coeff, coil_term, F);
+    DefineRHS(*model, rho_gamma, *mesh, *exact_coefficient, *exact_forcing_coeff, coil_term, F.get());
     DefineLHS(*model, rho_gamma, diff_operator);
 
     // ============================================================================
@@ -1021,7 +983,7 @@ void Solve(
     std::vector<Array<int>> *J_inds       = init_coeff->get_J();
 
     // Regularization matrix H -- R(u) = 1/2 uᵀ H u (L2 regularization)
-    SparseMatrix *H = new SparseMatrix(num_currents, num_currents);
+    std::unique_ptr<SparseMatrix> H(new SparseMatrix(num_currents, num_currents));
     for (int i = 0; i < num_currents; ++i) {
       if (i < 5) {  // TODO: this is a hard-coded assumption that there are exactly 5 "coil" currents, and the rest are "solenoid" currents. This should be fixed.
         H->Set(i, i, weight_coils);
@@ -1031,13 +993,13 @@ void Solve(
       }
     }
     H->Finalize();
-    
+
     // ============================================================================
     // SysOperator and KKT system
     // ============================================================================
 
     // Define system operator
-    SysOperator op(&diff_operator, &coil_term, model, &fespace, mesh, attr_lim, &x, F, uv, H, K_, &g_, alpha_coeffs, J_inds, &alpha, include_plasma);
+    SysOperator op(&diff_operator, &coil_term, model, &fespace, mesh, attr_lim, &x, F.get(), uv, H.get(), K_, &g_, alpha_coeffs, J_inds, &alpha, include_plasma);
     op.set_i_option(obj_option);
     op.set_obj_weight(obj_weight);
 
@@ -1085,14 +1047,13 @@ void Solve(
       SparseMatrix By = op.get_By();
 
       // Build a preconditioner for linear solve
-      Solver *inv_B;
-      HypreParMatrix *B_Hypre = ConvertToHypre(&By);
-      HypreBoomerAMG *B_AMG = new HypreBoomerAMG(*B_Hypre);
+      std::unique_ptr<HypreParMatrix> B_Hypre(ConvertToHypre(&By));
+      std::unique_ptr<HypreBoomerAMG> B_AMG(new HypreBoomerAMG(*B_Hypre));
       B_AMG->SetPrintLevel(0);
       B_AMG->SetCycleType(1);
       B_AMG->SetCycleNumSweeps(1, 1);
       B_AMG->SetMaxIter(1);
-      inv_B = B_AMG;
+      Solver *inv_B = B_AMG.get();
 
       // Solve Newton system with GMRES
       int gmres_iter = max_krylov_iter;

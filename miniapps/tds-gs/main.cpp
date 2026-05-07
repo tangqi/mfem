@@ -67,7 +67,6 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {  
    // Parse command line options.
-
    const char *mesh_file = "meshes/iter_gen.msh";
    const char *data_file = "separated_file.data";
    const char *initial_gf = "initial/interpolated.gf";
@@ -204,9 +203,8 @@ int main(int argc, char *argv[])
      mesh_file = "meshes/iter_gen_initial.msh";
    }
 
+   // unit tests
    if (do_test == 1) {
-     // unit tests
-
      cout << "" <<endl;
      cout << "Configured for testing only--performing unit tests." << endl;
      cout << "" <<endl;
@@ -216,8 +214,8 @@ int main(int argc, char *argv[])
      cout << "Testing complete--no issues detected." << endl;
    }
    
+   // Run Grad-Shafranov solver
    else {
-     // Run Grad-Shafranov solver
      gs(mesh_file, initial_gf, data_file, order, d_refine,
         model,
         alpha, beta, gamma, mu,
