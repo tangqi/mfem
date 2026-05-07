@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
    int obj_option = 2;
 
    int PC_option = 6;
-   int max_levels = 8;  // TODO: for clarity, this should be changed to max_amr_levels. You'll also need to change this in gs.cpp, ...
+   int max_amr_levels = 8;
    int max_dofs = 100000;
    double light_tol = 1e-5;
 
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
    args.AddOption(&obj_option, "-oo", "--obj_option", "objective option (0, 1, 2)");
 
    args.AddOption(&PC_option, "-pc", "--pc_option", "preconditioner option");
-   args.AddOption(&max_levels, "-ml", "--max_levels", "max amr levels");
+   args.AddOption(&max_amr_levels, "-ml", "--max_amr_levels", "max amr levels");
    args.AddOption(&max_dofs, "-md", "--max_dofs", "max amr dofs");
    args.AddOption(&light_tol, "-lt", "--light_tol", "light tolerance");
 
@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
         do_control, N_control, weight_solenoids, weight_coils,
         weight_obj, obj_option,
         do_manufactured_solution,
-        do_initial, PC_option, max_levels, max_dofs, light_tol,
+        do_initial, PC_option, max_amr_levels, max_dofs, light_tol,
         alpha_in, gamma_in, amg_cycle_type, amg_num_sweeps_a, amg_num_sweeps_b, amg_max_iter,
         amr_frac_in, amr_frac_out);
    }

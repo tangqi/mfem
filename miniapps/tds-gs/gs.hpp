@@ -42,7 +42,7 @@ double gs(const char * mesh_file, const char * initial_gf, const char * data_fil
           double & weight_obj, int obj_option,
           bool do_manufactured_solution,
           bool do_initial,
-          int & PC_option, int & max_levels, int & max_dofs, double & light_tol,
+          int & PC_option, int & max_amr_levels, int & max_dofs, double & light_tol,
           double & alpha_in, double & gamma_in,
           int cycle_type, int num_sweeps_a, int num_sweeps_b, int max_iter,
           double amr_frac_in, double amr_frac_out);

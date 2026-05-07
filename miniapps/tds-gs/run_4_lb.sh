@@ -30,7 +30,7 @@ refinement_factor=1
 amr_frac_in=0.08
 # amr_frac_in=0.3
 amr_frac_out=0.3
-max_levels=2
+max_amr_levels=2
 max_dofs=100000
 
 do_test=0
@@ -139,7 +139,7 @@ srun -n 1 ./main \
     --weight_obj $weight_obj \
     --obj_option $obj_option \
     --pc_option $pc_option \
-    --max_levels $max_levels \
+    --max_amr_levels $max_amr_levels \
     --max_dofs $max_dofs \
     --light_tol $light_tol \
     --alpha_in $alpha_in \

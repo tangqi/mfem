@@ -282,35 +282,10 @@ void InitialCoefficient::compute_QP(int N_control_, Mesh * mesh, FiniteElementSp
     // get finite element
     const FiniteElement * fe = fes->GetFE(elem_ids[i]);
     
-    // Vector shape;  // Original code
-    Vector shape(fe->GetDof());  // Replacement for quad mesh
-
-    // cout << "\n Looking for bug in initial_coeffiicent.cpp." << endl;  // DEBUGGING
-
-    // // DEBUGGING
-    // std::cout << "Mesh elements: " << mesh->GetNE() << std::endl;  // Looks to be the same as the # of FES elements
-    // std::cout << "FES elements: " << fes->GetNE() << std::endl;  // Looks to be the same as the # of mesh elements
-    // std::cout << "Element ID: " << elem_ids[i] << std::endl;  // Looks okay--returns 116
-    // std::cout << "IP: " << ips[i].x << ", " << ips[i].y << std::endl;  // Prints 0.262755, 0.52872
-    // std::cout << "FESpace Collection: " << fes->FEColl()->Name() << std::endl;  // Prints H1_2D_P1
-    // std::cout << "Element FE Type: " << typeid(*fe).name() << std::endl;  // Prints N4mfem23H1_QuadrilateralElementE
-    // std::cout << "Element geometry: " << mesh->GetElementGeometry(elem_ids[i]) << std::endl;  // Prints 3 (quadrilaterals)
-
-    // // DEBUGGING
-    // if (fe == nullptr) {
-    //     std::cerr << "Null FiniteElement pointer for element " << elem_ids[i] << std::endl;
-    //     continue;
-    // }
-
-    // // DEBUGGING
-    // if (i >= ips.Size()) {
-    //     std::cerr << "Invalid IntegrationPoint index: " << i << std::endl;
-    //     continue;
-    // }
+    Vector shape(fe->GetDof());
 
     fe->CalcShape(ips[i], shape);
     // shape is alpha_l^{(k)}
-    // cout << "\n No bug here." << endl;  // DEBUGGING
 
     Array<int> vdofs;
     fes->GetElementVDofs(elem_ids[i], vdofs);
@@ -392,14 +367,6 @@ SparseMatrix* InitialCoefficient::compute_K() {
 Vector InitialCoefficient::compute_g() {
   Vector g(cv.Size());
   g = 0.0;
-  
-  // double weight = 1;
-  // int ndof = (*alpha)[0].Size();
-  // for (int k = 0; k < N_control; ++k) {
-  //   for (int m = 0; m < ndof; ++m) {
-  //     g[(*J)[k][m]] += weight * 2.0 * (*alpha)[k][m] * psi_control[k];
-  //   }
-  // }
 
   return g;
 }

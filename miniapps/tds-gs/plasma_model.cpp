@@ -442,13 +442,13 @@ map<int, vector<int>> compute_vertex_map(Mesh &mesh, int with_attrib) {
 * @param[out] ind_min
 *      Index of the magnetic axis vertex (global minimum of ψ).
 *
-* @param[out] ind_max
+* @param[out] ind_x
 *      Index of the detected X-point vertex.
 *
 * @param[out] min_val
 *      Value of ψ at the magnetic axis.
 *
-* @param[out] max_val
+* @param[out] val_x
 *      Value of ψ at the X-point.
 *
 * @param[in]  iprint
@@ -462,19 +462,24 @@ void compute_plasma_points(
   vector<int>> &vertex_map,
   set<int> &plasma_inds,
   int &ind_min,
-  int &ind_max,
+  int &ind_x,
   double &min_val,
-  double &max_val,
+  double &val_x,
   int iprint,
   const mfem::SparseMatrix *cP
 ) {
   Vector nval;
   z->GetNodalValues(nval);
 
+  // Running min/max trackers for the vertex sweep below. The magnetic axis
+  // is the global minimum, so min_val / ind_min are the function's outputs
+  // for it directly. The running max is only used as the fallback when no
+  // saddle is detected; the final X-point output (val_x / ind_x) is set
+  // from the saddle search further down.
   min_val = + numeric_limits<double>::infinity();
-  max_val = - numeric_limits<double>::infinity();
   ind_min = 0;
-  ind_max = 0;
+  double running_max_val = - numeric_limits<double>::infinity();
+  int running_max_idx = 0;
 
   // Slave (hanging-node) DOFs are not independent degrees of freedom —
   // their values are an affine combination of their masters — so the
@@ -514,9 +519,9 @@ void compute_plasma_points(
         min_val = nval[iv];
         ind_min = iv;
       }
-      if (nval[iv] > max_val) {
-        max_val = nval[iv];
-        ind_max = iv;
+      if (nval[iv] > running_max_val) {
+        running_max_val = nval[iv];
+        running_max_idx = iv;
       }
     }
 
@@ -579,36 +584,32 @@ void compute_plasma_points(
     }
   }
 
-  // Determine which saddle point is the X-point
-  int ind_x = ind_max;
-  double x_val = max_val;
+  // Determine which saddle point is the X-point. Initial fallback is the
+  // running global max (used when no saddle survives the filter below).
+  ind_x = running_max_idx;
+  val_x = running_max_val;
   const double axis_tol = 1e-2 * std::max(1.0, std::abs(min_val));  // Tolerance to avoid spurious candidates
   for (int i = 0; i < static_cast<int>(candidate_x_points.size()); ++i) {
     int iv = candidate_x_points[i];
     if (iv == ind_min)                               { continue; }
     if (std::abs(nval[iv] - min_val) < axis_tol)     { continue; }
-    if (nval[iv] < x_val) {
-      x_val = nval[iv];
+    if (nval[iv] < val_x) {
+      val_x = nval[iv];
       ind_x = iv;
     }
   }
 
   const double* x_min = mesh.GetVertex(ind_min);
-  const double* x_max = mesh.GetVertex(ind_max);
+  const double* x_max = mesh.GetVertex(running_max_idx);
   const double* x_x = mesh.GetVertex(ind_x);
 
   cout << "total saddles found: " << saddle_pt_count << endl;  // Debugging: remove later
 
   if (iprint) {
     printf("  min of %9.6f at (%9.6f, %9.6f), ind %d\n", min_val, x_min[0], x_min[1], ind_min);
-    printf("  max of %9.6f at (%9.6f, %9.6f), ind %d\n", max_val, x_max[0], x_max[1], ind_max);
-    printf("x_val of %9.6f at (%9.6f, %9.6f), ind %d\n", x_val, x_x[0], x_x[1], ind_x);
+    printf("  max of %9.6f at (%9.6f, %9.6f), ind %d\n", running_max_val, x_max[0], x_max[1], running_max_idx);
+    printf("x_val of %9.6f at (%9.6f, %9.6f), ind %d\n", val_x, x_x[0], x_x[1], ind_x);
   }
-
-  // DAS: we need to return the x_val, not the max_val.
-  // TODO, refactor to make less confusing...
-  max_val = x_val;  // max_val used to be the maximum z value, now it is the X-point value
-  ind_max = ind_x;  // ind_max used to be the node index with maximum z, now it is the index of the X-point node
 
   // ---------------------------------------------------------------------------
   // Plasma region identification
@@ -645,7 +646,7 @@ void compute_plasma_points(
       if (plasma_inds_it == plasma_inds.end()) {
 
         // If the value at this vertex is between min and X-point vals, then add to plasma region
-        if ((val >= min_val) && (val <= x_val)) {
+        if ((val >= min_val) && (val <= val_x)) {
           queue.push_back(adjacent[i]);
           plasma_inds.insert(adjacent[i]);
         }

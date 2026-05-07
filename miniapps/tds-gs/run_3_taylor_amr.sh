@@ -28,7 +28,7 @@ refinement_factor=1
 amr_frac_in=0.08
 # amr_frac_in=0.3
 amr_frac_out=0.3
-max_levels=4
+max_amr_levels=4
 max_dofs=100000
 
 do_test=0
@@ -142,7 +142,7 @@ srun -n 1 ./main \
     --obj_option $obj_option \
     --optimize_alpha $optimize_alpha \
     --pc_option $pc_option \
-    --max_levels $max_levels \
+    --max_amr_levels $max_amr_levels \
     --max_dofs $max_dofs \
     --light_tol $light_tol \
     --alpha_in $alpha_in \

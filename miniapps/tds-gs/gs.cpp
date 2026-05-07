@@ -315,7 +315,7 @@ void Solve(
   Vector *uv,  // External coil currents [I_1, I_2, ..., I_N]
   double &alpha,
   int &PC_option,
-  int &max_amr_levels,  // Renamed from max_levels
+  int &max_amr_levels,
   int &max_dofs,
   double &light_tol,
   double &alpha_in,
@@ -406,7 +406,7 @@ void Solve(
     // AMR loop
     // ============================================================================
 
-    // Initialize vectors storing magnetic axis, X-point, and cpasma_vals (TODO: what is cpasma_vals? The plasma domain?)
+    // Histories of psi at the magnetic axis, psi at the X-point, and total plasma current per Newton iteration
     vector<double> psi_ma_vals, psi_x_vals, cpasma_vals;
 
     for (int it_amr = 0; it_amr <= max_amr_levels; ++it_amr) {
@@ -442,7 +442,7 @@ void Solve(
       // ============================================================================
 
       // Precompute quadrature point data for objective and constraints
-      init_coeff->compute_QP(N_control, mesh, &fespace);  // TODO: where does init_coeff come from?
+      init_coeff->compute_QP(N_control, mesh, &fespace);
 
       // Compute gradient w.r.t. ψ
       Vector g_ = init_coeff->compute_g();

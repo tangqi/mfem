@@ -47,7 +47,7 @@ gamma_in=1.0
 # 6: lower triangular
 # 7: block woodbury
 pc_option=0
-max_levels=0
+max_amr_levels=0
 max_dofs=100000
 light_tol=1e-8
 amr_frac_in=0.08
@@ -141,7 +141,7 @@ do
                    --weight_obj $weight_obj \
                    --obj_option $obj_option \
                    --pc_option $pc_option \
-                   --max_levels $max_levels \
+                   --max_amr_levels $max_amr_levels \
                    --max_dofs $max_dofs \
                    --light_tol $light_tol \
                    --alpha_in $alpha_in \
