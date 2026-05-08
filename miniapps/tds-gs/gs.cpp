@@ -121,38 +121,36 @@ void DefineRHS(
   for (int i = 0; i < attribs.Size(); ++i) {
     int attrib = attribs[i];
 
-    // TODO: consider rewriting this switch block as if/else if/else statements
-    // If cases are true, skip. Otherwise, run default code block
-    switch(attrib) {
-      case attr_ext:
-        break;
-      case attr_vv:  // exterior domain
-        break;
-      case attr_lim:  // limiter domain
-        break;
-      case 1100:  // TODO: what does this correspond to?
-        break;
-      default:
-        
-        // Create a piecewise constant coefficient that is 1 on the current region (attrib) and 0 everywhere else
-        Vector pw_vector(attribs.Max());
-        pw_vector = 0.0;
-        pw_vector(attrib - 1) = 1.0;  // index starts from 1, so attrib - 1 gets us the correct attribute
-        PWConstCoefficient pw_coeff(pw_vector);  // TODO: what is the namespace for PWConstCoefficient?
+    if (
+      attrib == attr_ext ||
+      attrib == attr_vv  ||  // exterior domain
+      attrib == attr_lim ||  // limiter domain
+      attrib == 1100         // TODO: what does attrib == 1100 correspond to?
+    ) {
+      // do nothing
+    }
 
-        // Assemble the linear form
-        LinearForm lf(fespace);
-        lf.AddDomainIntegrator(new DomainLFIntegrator(pw_coeff));
-        lf.Assemble();
+    else {
+      
+      // Create a piecewise constant coefficient that is 1 on the current region (attrib) and 0 everywhere else
+      Vector pw_vector(attribs.Max());
+      pw_vector = 0.0;
+      pw_vector(attrib - 1) = 1.0;  // index starts from 1, so attrib - 1 gets us the correct attribute
+      PWConstCoefficient pw_coeff(pw_vector);  // TODO: what is the namespace for PWConstCoefficient?
 
-        // Normalize and insert into F
-        double area = lf(ones);
-        for (int j = 0; j < ndof; ++j) {
-          if (lf[j] != 0) {
-            F->Set(j, counter, lf[j] / area);
-          }
-        } 
-        ++counter;
+      // Assemble the linear form
+      LinearForm lf(fespace);
+      lf.AddDomainIntegrator(new DomainLFIntegrator(pw_coeff));
+      lf.Assemble();
+
+      // Normalize and insert into F
+      double area = lf(ones);
+      for (int j = 0; j < ndof; ++j) {
+        if (lf[j] != 0) {
+          F->Set(j, counter, lf[j] / area);
+        }
+      }
+      ++counter;
     }
   }
   F->Finalize();

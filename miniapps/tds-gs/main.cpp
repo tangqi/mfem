@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
    int do_manufactured_solution = 0;
    
    // model
-   int model = 1; // Model options: 1: ff' defined from fpol data, 2: Taylor state equilibrium, 3: ff' defined from ff' data
+   int model = 1; // Model options: 1: ff' defined from fpol data, 2: Taylor state equilibrium, 3: ff' defined from ff' data, 4: Luxon and Brown
 
    int N_control = 10;
    int max_krylov_iter = 1000;
