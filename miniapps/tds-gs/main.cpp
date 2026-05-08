@@ -65,170 +65,107 @@ using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
-{  
-   // Parse command line options.
-   const char *mesh_file = "meshes/iter_gen.msh";
-   const char *data_file = "separated_file.data";
-   const char *initial_gf = "initial/interpolated.gf";
-   int order = 1;
-   int d_refine = 0;
-   int do_test = 0;
-   int do_initial = 0;
-
-   // constants associated with plasma model
-   double alpha = 1.0;
-   double beta = 2.0;
-   double gamma = 0.9;
-   double Ip = 1.5e+7;
-   double mu = 1.0;
-   double r0 = 1.0;
-
-   // boundary of far-field
-   double rho_gamma = 2.5;
-   int do_manufactured_solution = 0;
-   
-   // model
-   int model = 1; // Model options: 1: ff' defined from fpol data, 2: Taylor state equilibrium, 3: ff' defined from ff' data, 4: Luxon and Brown
-
-   int N_control = 10;
-   int max_krylov_iter = 1000;
-   int max_newton_iter = 5;
-   double krylov_tol = 1e-12;
-   double newton_tol = 1e-12;
-
-   double c1 = 0.0;
-   double c2 = 3.0;
-   double c3 = 1.0;
-   double c4 = 1.0;
-   double c5 = 1.0;
-   double c6 = 1.0;
-   double c7 = 1.0;
-   double c8 = 1.0;
-   double c9 = 1.0;
-   double c10 = 1.0;
-   double c11 = 1.0;
-
-   double ur_coeff = 1.0;
-
-   int do_control = 1;
-   double weight_solenoids = 1e-5;
-   double weight_coils = 1e-5;
-   double weight_obj = 1.0;
-   int obj_option = 2;
-
-   int PC_option = 6;
-   int max_amr_levels = 8;
-   int max_dofs = 100000;
-   double light_tol = 1e-5;
-
-   double alpha_in = 0.5 * (1.0 + sqrt(5.0));
-   double gamma_in = 1.0;
-
-   int amg_cycle_type = 1;
-   int amg_num_sweeps_a = 1;
-   int amg_num_sweeps_b = 1;
-   int amg_max_iter = 1;
-
-   double amr_frac_in = 0.01;
-   double amr_frac_out = 0.3;
-
+{
+   // All CLI-driven defaults are set by GSProblemConfig's in-class member
+   // initializers. AddOption below points each flag at the matching field.
+   GSProblemConfig cfg;
+   int do_test = 0;  // not part of cfg; gates the unit-test path below
 
    OptionsParser args(argc, argv);
 
-   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
-   args.AddOption(&initial_gf, "-igf", "--initial_gf", "initial grid function.");
-   args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
-   args.AddOption(&data_file, "-d", "--data_file", "Plasma data file");
-   args.AddOption(&d_refine, "-g", "--refinement_factor", "Number of grid refinements");
-   args.AddOption(&do_test, "-t", "--test", "Perform tests only");
-   args.AddOption(&do_initial, "-i", "--initial", "solve for initial guess");
-   args.AddOption(&model, "-mo", "--model", "model (1: ff', 2: Taylor equilibrium)");
-   args.AddOption(&alpha, "-al", "--alpha", "alpha");
-   args.AddOption(&beta, "-be", "--beta", "beta");
-   args.AddOption(&gamma, "-ga", "--gamma", "gamma");
-   args.AddOption(&Ip, "-Ip", "--plasma_current", "Ip");
-   args.AddOption(&N_control, "-Nc", "--N_control", "N_control");
-   args.AddOption(&mu, "-mu", "--mu", "mu");
-   args.AddOption(&r0, "-rz", "--r_zero", "r0");
-   args.AddOption(&rho_gamma, "-rg", "--rho_gamma", "rho_gamma");
-   args.AddOption(&do_manufactured_solution, "-dm", "--do_manufactured_solution", "do manufactured solution");
-   args.AddOption(&max_krylov_iter, "-mk", "--max_krylov_iter", "maximum krylov iterations");
-   args.AddOption(&max_newton_iter, "-mn", "--max_newton_iter", "maximum newton iterations");
-   args.AddOption(&krylov_tol, "-kt", "--krylov_tol", "krylov tolerance");
-   args.AddOption(&newton_tol, "-nt", "--newton_tol", "newton tolerance");
-   args.AddOption(&c1, "-c1", "--c1", "coil 1 (PF)");
-   args.AddOption(&c2, "-c2", "--c2", "coil 2 (PF)");
-   args.AddOption(&c3, "-c3", "--c3", "coil 3 (PF)");
-   args.AddOption(&c4, "-c4", "--c4", "coil 4 (PF)");
-   args.AddOption(&c5, "-c5", "--c5", "coil 5 (PF)");
-   args.AddOption(&c6, "-c6", "--c6", "coil 6 (CS)");
-   args.AddOption(&c7, "-c7", "--c7", "coil 7 (CS)");
-   args.AddOption(&c8, "-c8", "--c8", "coil 8 (CS)");
-   args.AddOption(&c9, "-c9", "--c9", "coil 9 (CS)");
-   args.AddOption(&c10, "-c10", "--c10", "coil 10 (CS)");
-   args.AddOption(&c11, "-c11", "--c11", "coil 11 (CS)");
-   args.AddOption(&ur_coeff, "-ur", "--ur_coeff", "under relaxation coefficient");
-   args.AddOption(&do_control, "-dc", "--do_control", "solve the control problem");
-   args.AddOption(&weight_solenoids, "-ws", "--weight_solenoids", "weight of regularization");
-   args.AddOption(&weight_coils, "-wc", "--weight_coils", "weight of regularization");
-   args.AddOption(&weight_obj, "-wo", "--weight_obj", "weight of optimization");
-   args.AddOption(&obj_option, "-oo", "--obj_option", "objective option (0, 1, 2)");
+   // Files & discretization
+   args.AddOption(&cfg.mesh_file,    "-m",   "--mesh",              "Mesh file to use.");
+   args.AddOption(&cfg.initial_gf,   "-igf", "--initial_gf",        "initial grid function.");
+   args.AddOption(&cfg.data_file,    "-d",   "--data_file",         "Plasma data file");
+   args.AddOption(&cfg.order,        "-o",   "--order",             "Finite element polynomial degree");
+   args.AddOption(&cfg.d_refine,     "-g",   "--refinement_factor", "Number of grid refinements");
 
-   args.AddOption(&PC_option, "-pc", "--pc_option", "preconditioner option");
-   args.AddOption(&max_amr_levels, "-ml", "--max_amr_levels", "max amr levels");
-   args.AddOption(&max_dofs, "-md", "--max_dofs", "max amr dofs");
-   args.AddOption(&light_tol, "-lt", "--light_tol", "light tolerance");
+   // Plasma model parameters
+   args.AddOption(&cfg.model_choice, "-mo",  "--model",          "model (1: ff', 2: Taylor equilibrium)");
+   args.AddOption(&cfg.alpha,        "-al",  "--alpha",          "alpha");
+   args.AddOption(&cfg.beta,         "-be",  "--beta",           "beta");
+   args.AddOption(&cfg.gamma,        "-ga",  "--gamma",          "gamma");
+   args.AddOption(&cfg.mu,           "-mu",  "--mu",             "mu");
+   args.AddOption(&cfg.r0,           "-rz",  "--r_zero",         "r0");
+   args.AddOption(&cfg.Ip,           "-Ip",  "--plasma_current", "Ip");
+   args.AddOption(&cfg.rho_gamma,    "-rg",  "--rho_gamma",      "rho_gamma");
 
-   args.AddOption(&alpha_in, "-ai", "--alpha_in", "inexact newton param alpha");
-   args.AddOption(&gamma_in, "-gi", "--gamma_in", "inexact newton param gamma");
+   // External coil currents (5 poloidal field + 6 central solenoid)
+   args.AddOption(&cfg.c1,  "-c1",  "--c1",  "coil 1 (PF)");
+   args.AddOption(&cfg.c2,  "-c2",  "--c2",  "coil 2 (PF)");
+   args.AddOption(&cfg.c3,  "-c3",  "--c3",  "coil 3 (PF)");
+   args.AddOption(&cfg.c4,  "-c4",  "--c4",  "coil 4 (PF)");
+   args.AddOption(&cfg.c5,  "-c5",  "--c5",  "coil 5 (PF)");
+   args.AddOption(&cfg.c6,  "-c6",  "--c6",  "coil 6 (CS)");
+   args.AddOption(&cfg.c7,  "-c7",  "--c7",  "coil 7 (CS)");
+   args.AddOption(&cfg.c8,  "-c8",  "--c8",  "coil 8 (CS)");
+   args.AddOption(&cfg.c9,  "-c9",  "--c9",  "coil 9 (CS)");
+   args.AddOption(&cfg.c10, "-c10", "--c10", "coil 10 (CS)");
+   args.AddOption(&cfg.c11, "-c11", "--c11", "coil 11 (CS)");
 
-   args.AddOption(&amg_cycle_type, "-ct", "--amg_cycle_type", "AMG cycle type (1: v, 2: w)");
-   args.AddOption(&amg_num_sweeps_a, "-nsa", "--amg_num_sweeps_a", "AMG num sweeps a");
-   args.AddOption(&amg_num_sweeps_b, "-nsb", "--amg_num_sweeps_b", "AMG num sweeps b");
-   args.AddOption(&amg_max_iter, "-mi", "--amg_max_iter", "AMG max iterations");
+   // Mode flags
+   args.AddOption(&do_test,                      "-t",  "--test",                     "Perform tests only");
+   args.AddOption(&cfg.do_initial,               "-i",  "--initial",                  "solve for initial guess");
+   args.AddOption(&cfg.do_control,               "-dc", "--do_control",               "solve the control problem");
+   args.AddOption(&cfg.do_manufactured_solution, "-dm", "--do_manufactured_solution", "do manufactured solution");
 
-   args.AddOption(&amr_frac_in, "-afi", "--amr_frac_in", "AMR fraction for limiter");
-   args.AddOption(&amr_frac_out, "-afo", "--amr_frac_out", "AMR fraction for outside limiter");
-   
+   // Misc tuning
+   args.AddOption(&cfg.PC_option, "-pc", "--pc_option", "preconditioner option");
+   args.AddOption(&cfg.ur_coeff,  "-ur", "--ur_coeff",  "under relaxation coefficient");
+
+   // Newton / FGMRES solver tuning (SolverParams)
+   args.AddOption(&cfg.solver.max_newton_iter, "-mn", "--max_newton_iter", "maximum newton iterations");
+   args.AddOption(&cfg.solver.max_krylov_iter, "-mk", "--max_krylov_iter", "maximum krylov iterations");
+   args.AddOption(&cfg.solver.newton_tol,      "-nt", "--newton_tol",      "newton tolerance");
+   args.AddOption(&cfg.solver.krylov_tol,      "-kt", "--krylov_tol",      "krylov tolerance");
+
+   // Hypre BoomerAMG tuning (AMGParams)
+   args.AddOption(&cfg.amg.amg_cycle_type,   "-ct",  "--amg_cycle_type",   "AMG cycle type (1: v, 2: w)");
+   args.AddOption(&cfg.amg.amg_num_sweeps_a, "-nsa", "--amg_num_sweeps_a", "AMG num sweeps a");
+   args.AddOption(&cfg.amg.amg_num_sweeps_b, "-nsb", "--amg_num_sweeps_b", "AMG num sweeps b");
+   args.AddOption(&cfg.amg.amg_max_iter,     "-mi",  "--amg_max_iter",     "AMG max iterations");
+
+   // Adaptive mesh refinement (AMROptions)
+   args.AddOption(&cfg.amr.max_amr_levels, "-ml",  "--max_amr_levels", "max amr levels");
+   args.AddOption(&cfg.amr.max_dofs,       "-md",  "--max_dofs",       "max amr dofs");
+   args.AddOption(&cfg.amr.light_tol,      "-lt",  "--light_tol",      "light tolerance");
+   args.AddOption(&cfg.amr.amr_frac_in,    "-afi", "--amr_frac_in",    "AMR fraction for limiter");
+   args.AddOption(&cfg.amr.amr_frac_out,   "-afo", "--amr_frac_out",   "AMR fraction for outside limiter");
+
+   // Objective / regularization tuning (ObjectiveParams)
+   args.AddOption(&cfg.objective.N_control,        "-Nc", "--N_control",        "N_control");
+   args.AddOption(&cfg.objective.obj_option,       "-oo", "--obj_option",       "objective option (0, 1, 2)");
+   args.AddOption(&cfg.objective.obj_weight,       "-wo", "--weight_obj",       "weight of optimization");
+   args.AddOption(&cfg.objective.weight_coils,     "-wc", "--weight_coils",     "weight of regularization");
+   args.AddOption(&cfg.objective.weight_solenoids, "-ws", "--weight_solenoids", "weight of regularization");
+
+   // Inexact-Newton tuning (InexactNewtonParams)
+   args.AddOption(&cfg.inexact_newton.alpha_in, "-ai", "--alpha_in", "inexact newton param alpha");
+   args.AddOption(&cfg.inexact_newton.gamma_in, "-gi", "--gamma_in", "inexact newton param gamma");
+
    args.ParseCheck();
 
-   // TODO: is this code block necessary to incorporate in this file, or is it better moved to gs.cpp?
-   // When do_initial == 1, then the following occurs:
-   //     - The arguments do_initial == 1 and mesh_file = "meshes/iter_gen_initial.msh" are passed onto the gs executable.
-   //     - The mesh_file argument is used to create a new Mesh object named mesh around line 1495 in gs.cpp.
-   //     - When do_initial == 1 is passed to gs.cpp, the control problem (determining coil currents needed for a given equilibrium) is not solved.
-   //     - Also, when do_initial == 1 is passed to gs.cpp, an initial GridFunction and Mesh are saved.
-   if (do_initial == 1) {
-     cout << "solving for initial guess" << endl;
-     mesh_file = "meshes/iter_gen_initial.msh";
+   // When do_initial == 1, override the mesh file and skip the control
+   // problem so we generate an initial guess for the free-boundary GS.
+   if (cfg.do_initial == 1) {
+     cout << "Solving for initial guess" << endl;
+     cfg.mesh_file = "meshes/iter_gen_initial.msh";
    }
 
-   // unit tests
+   // Unit tests
    if (do_test == 1) {
-     cout << "" <<endl;
+     cout << "" << endl;
      cout << "Configured for testing only--performing unit tests." << endl;
-     cout << "" <<endl;
+     cout << "" << endl;
 
      test();
 
      cout << "Testing complete--no issues detected." << endl;
    }
-   
+
    // Run Grad-Shafranov solver
    else {
-     gs(mesh_file, initial_gf, data_file, order, d_refine,
-        model,
-        alpha, beta, gamma, mu,
-        Ip, r0, rho_gamma, max_krylov_iter, max_newton_iter,
-        krylov_tol, newton_tol,
-        c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
-        ur_coeff,
-        do_control, N_control, weight_solenoids, weight_coils,
-        weight_obj, obj_option,
-        do_manufactured_solution,
-        do_initial, PC_option, max_amr_levels, max_dofs, light_tol,
-        alpha_in, gamma_in, amg_cycle_type, amg_num_sweeps_a, amg_num_sweeps_b, amg_max_iter,
-        amr_frac_in, amr_frac_out);
+     gs(cfg);
    }
 
    return 0;
