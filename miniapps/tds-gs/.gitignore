@@ -1,0 +1,15 @@
+*.dat
+*.gf
+*.mesh
+meshes/semicirc*
+meshes/test_old*
+*.png
+*.txt
+*backup*
+*#*
+points/*
+gs_000*
+*000*
+*__pycache__*
+*bogus*
+*annotated.data*
