@@ -707,18 +707,20 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
    // do integration over the area for integral over interface
    if (element_int && !interior)
    {
+      // Element-local level-set projection. The original code projected the
+      // coefficient over a whole-mesh FiniteElementSpace here, which is
+      // O(mesh-size) per cut element and dominates runtime when the level set
+      // is GridFunction-backed. Projecting onto the current element only is
+      // numerically identical and O(1).
       H1_FECollection fec(lsOrder, 2);
-      FiniteElementSpace fes(const_cast<Mesh*>(Tr.mesh), &fec);
-      GridFunction LevelSet(&fes);
-      LevelSet.ProjectCoefficient(*LvlSet);
       mesh->GetElementTransformation(elem, &Trafo);
+      const FiniteElement* fe = fec.FiniteElementForGeometry(Tr.GetGeometryType());
+      Vector LevelSet(fe->GetDof());
+      fe->Project(*LvlSet, Trafo, LevelSet);
 
-      const FiniteElement* fe = fes.GetFE(elem);
       Vector normal(Trafo.GetDimension());
       Vector gradi(Trafo.GetDimension());
       DenseMatrix dshape(fe->GetDof(), Trafo.GetDimension());
-      Array<int> dofs;
-      fes.GetElementDofs(elem, dofs);
 
       for (int ip = 0; ip < ir.GetNPoints(); ip++)
       {
@@ -729,7 +731,7 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
          for (int dof = 0; dof < fe->GetDof(); dof++)
          {
             dshape.GetRow(dof, gradi);
-            gradi *= LevelSet(dofs[dof]);
+            gradi *= LevelSet(dof);
             normal += gradi;
          }
          normal *= (-1. / normal.Norml2());
@@ -956,18 +958,18 @@ void MomentFittingIntRules::ComputeVolumeWeights2D(ElementTransformation& Tr,
    // solve the linear system for the weights.
    if (element_int && !interior)
    {
+      // Element-local level-set projection (see ComputeSurfaceWeights2D for
+      // the rationale -- the original whole-mesh ProjectCoefficient is
+      // O(mesh-size) per cut element).
       H1_FECollection fec(lsOrder, 2);
-      FiniteElementSpace fes(const_cast<Mesh*>(Tr.mesh), &fec);
-      GridFunction LevelSet(&fes);
-      LevelSet.ProjectCoefficient(*LvlSet);
       mesh->GetElementTransformation(elem, &Trafo);
+      const FiniteElement* fe = fec.FiniteElementForGeometry(Tr.GetGeometryType());
+      Vector LevelSet(fe->GetDof());
+      fe->Project(*LvlSet, Trafo, LevelSet);
 
-      const FiniteElement* fe = fes.GetFE(elem);
       Vector normal(Trafo.GetDimension());
       Vector gradi(Trafo.GetDimension());
       DenseMatrix dshape(fe->GetDof(), Trafo.GetDimension());
-      Array<int> dofs;
-      fes.GetElementDofs(elem, dofs);
 
       for (int ip = 0; ip < sir->GetNPoints(); ip++)
       {
@@ -978,7 +980,7 @@ void MomentFittingIntRules::ComputeVolumeWeights2D(ElementTransformation& Tr,
          for (int dof = 0; dof < fe->GetDof(); dof++)
          {
             dshape.GetRow(dof, gradi);
-            gradi *= LevelSet(dofs[dof]);
+            gradi *= LevelSet(dof);
             normal += gradi;
          }
          normal *= (-1. / normal.Norml2());

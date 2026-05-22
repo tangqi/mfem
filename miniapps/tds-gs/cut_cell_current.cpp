@@ -142,7 +142,11 @@ double compute_plasma_current_cutcell(const GridFunction &psi,
 
    if (int_order < 0)
    {
-      int_order = 2 * fespace->GetMaxElementOrder() + 4;  // TODO: why this rule?
+      // Moment-fitting cost scales steeply with this order; ~3 is ample for
+      // validating a smooth source integral (ex38 uses 2). Raising it is
+      // expensive until the OrthoBasis2D recomputation in intrules_cut.cpp is
+      // fixed (see the plan's "Performance, round 3 / phase 2").
+      int_order = 3;
    }
 
    // Level set phi and integrand g
