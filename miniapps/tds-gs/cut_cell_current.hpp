@@ -38,7 +38,7 @@ using namespace mfem;
 //   attr_lim     : element attribute of the limiter region
 //   plasma_inds  : BFS vertex set, used as the connectivity filter
 //   ok           : output success flag
-//   int_order    : moment-fitting quadrature order (-1 -> 2*max_order + 4)
+//   int_order    : moment-fitting quadrature order (-1 -> default of 3)
 //   ls_order     : polynomial order for the per-element level-set fit
 // ---------------------------------------------------------------------------
 double compute_plasma_current_cutcell(const GridFunction &psi,

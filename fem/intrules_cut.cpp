@@ -13,6 +13,9 @@
 
 #include "fem.hpp"
 #include <cmath>
+#include <map>
+#include <vector>
+#include <utility>
 
 using namespace std;
 
@@ -1452,31 +1455,95 @@ void MomentFittingIntRules::DivFreeBasis2D(const IntegrationPoint& ip,
 void MomentFittingIntRules::OrthoBasis2D(const IntegrationPoint& ip,
                                          DenseMatrix& shape)
 {
-   const IntegrationRule *ir_ = &IntRules.Get(Geometry::SQUARE, 2*Order+1);
-
    shape.SetSize(nBasis, 2);
 
-   // evaluate basis in the point
-   DenseMatrix preshape(nBasis, 2);
-   DivFreeBasis2D(ip, shape);
+   // The modified Gram-Schmidt orthonormalisation of the divergence-free basis
+   // depends only on (Order, nBasis) and the fixed reference square -- not on
+   // the integration point or the element. The original code recomputed it on
+   // every call (once per quadrature point of every cut element), which
+   // dominated the runtime. Here the Gram-Schmidt coefficients are computed
+   // once per (Order, nBasis) and cached; each call only evaluates the raw
+   // basis and replays the cached row operations. The result is numerically
+   // identical to the original per-point recomputation.
+   // (Cache is process-wide; not thread-safe -- callers here are serial.)
+   static std::map<std::pair<int,int>, std::vector<real_t> > gs_cache;
+   const std::pair<int,int> key(Order, nBasis);
+   std::map<std::pair<int,int>, std::vector<real_t> >::iterator it
+      = gs_cache.find(key);
 
-   // evaluate basis for quadrature points
-   DenseTensor shapeMFN(nBasis, 2, ir_->GetNPoints());
-   for (int p = 0; p < ir_->GetNPoints(); p++)
+   if (it == gs_cache.end())
    {
-      DenseMatrix shapeN(nBasis, 2);
-      DivFreeBasis2D(ir_->IntPoint(p), shapeN);
-      for (int i = 0; i < nBasis; i++)
-         for (int j = 0; j < 2; j++)
+      const IntegrationRule *ir_ = &IntRules.Get(Geometry::SQUARE, 2*Order+1);
+
+      // evaluate basis for quadrature points
+      DenseTensor shapeMFN(nBasis, 2, ir_->GetNPoints());
+      for (int p = 0; p < ir_->GetNPoints(); p++)
+      {
+         DenseMatrix shapeN(nBasis, 2);
+         DivFreeBasis2D(ir_->IntPoint(p), shapeN);
+         for (int i = 0; i < nBasis; i++)
+            for (int j = 0; j < 2; j++)
+            {
+               shapeMFN(i, j, p) = shapeN(i, j);
+            }
+      }
+
+      // do the modified Gram-Schmidt orthogonalization once, recording the
+      // coefficients (same nested loops / arithmetic as the original
+      // OrthoBasis2D + mGSStep, with the per-point `shape` update factored out).
+      std::vector<real_t> coeffs;
+      coeffs.reserve(nBasis * (nBasis - 1) / 2);
+      for (int step = 1; step < nBasis; step++)
+      {
+         for (int count = step; count < nBasis; count++)
          {
-            shapeMFN(i, j, p) = shapeN(i, j);
+            real_t den = 0.;
+            real_t num = 0.;
+            for (int p = 0; p < ir_->GetNPoints(); p++)
+            {
+               Vector u(2);
+               Vector v(2);
+               shapeMFN(p).GetRow(count, u);
+               shapeMFN(p).GetRow(step - 1, v);
+               den += v * v * ir_->IntPoint(p).weight;
+               num += u * v * ir_->IntPoint(p).weight;
+            }
+            real_t coeff = num / den;
+            coeffs.push_back(coeff);
+            for (int p = 0; p < ir_->GetNPoints(); p++)
+            {
+               Vector s(2);
+               Vector t(2);
+               shapeMFN(p).GetRow(step - 1, s);
+               shapeMFN(p).GetRow(count, t);
+               s *= coeff;
+               t += s;
+               shapeMFN(p).SetRow(count, t);
+            }
          }
+      }
+      it = gs_cache.insert(std::make_pair(key, coeffs)).first;
    }
 
-   // do modified Gram-Schmidt orthogonalization
-   for (int count = 1; count < nBasis; count++)
+   // raw divergence-free basis at the query point
+   DivFreeBasis2D(ip, shape);
+
+   // replay the cached modified Gram-Schmidt row operations on `shape`
+   const std::vector<real_t> &coeffs = it->second;
+   int idx = 0;
+   for (int step = 1; step < nBasis; step++)
    {
-      mGSStep(shape, shapeMFN, count);
+      for (int count = step; count < nBasis; count++)
+      {
+         const real_t coeff = coeffs[idx++];
+         Vector s(2);
+         Vector t(2);
+         shape.GetRow(step - 1, s);
+         shape.GetRow(count, t);
+         s *= coeff;
+         t += s;
+         shape.SetRow(count, t);
+      }
    }
 }
 
