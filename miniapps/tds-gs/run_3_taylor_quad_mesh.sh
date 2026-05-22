@@ -23,10 +23,10 @@ mu=12.5663706144e-7
 mesh_file="meshes/iter_gen_quad.msh"
 data_file="data/separated_file.data"
 
-refinement_factor=1
+refinement_factor=0
 amr_frac_in=0.08
 amr_frac_out=0.3
-max_amr_levels=1
+max_amr_levels=0
 max_dofs=100000
 
 do_test=0

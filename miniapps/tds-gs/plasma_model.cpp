@@ -272,6 +272,11 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T, const Integrati
   }
   
   // Return the full plasma-source coefficient, depending on the model choice used (1, 2, 3, 4)
+  //
+  // WARNING: the option==1 formula below (together with the model_choice switch
+  // block above) is DUPLICATED in cut_cell_current.cpp, class
+  // PlasmaSourceIntegrand, which is used by the cut-cell I_p validation module.
+  // If you change the plasma source model here, mirror the change there too.
   else if (option == 1) {  // POSSIBLE BUG HERE for Taylor state
   
     // Compute the integrand of:

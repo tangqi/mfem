@@ -1,5 +1,7 @@
 #include "mfem.hpp"
 #include "sys_operator.hpp"
+#include "cut_cell_current.hpp"
+#include <cmath>
 using namespace mfem;
 using namespace std;
 
@@ -744,7 +746,28 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   // Compute plasma current I_p
   plasma_current = plasma_term(ones);
   plasma_current *= -1.0;
-  
+
+  // --- Cut-cell (moment-fitting) plasma current, validation only ---
+  // Recompute I_p with MFEM's cut-cell integration rules and print it next to
+  // the BFS whole-element value. This is purely diagnostic: the solver still
+  // uses the BFS-computed plasma_current.
+  {
+    bool cc_ok = false;
+    double Ip_cutcell = compute_plasma_current_cutcell(
+        x, val_x, val_ma, model, fespace, attr_lim, plasma_inds_, cc_ok);
+    cout << "[I_p comparison] BFS whole-element : " << plasma_current << endl;
+    if (cc_ok) {
+      double aPC = fabs(plasma_current);
+      double denom = (aPC > 1.0) ? aPC : 1.0;
+      double rel = fabs(Ip_cutcell - plasma_current) / denom;
+      cout << "[I_p comparison] cut-cell moment   : " << Ip_cutcell << endl;
+      cout << "[I_p comparison] relative diff     : " << rel << endl;
+    } else {
+      cout << "[I_p comparison] cut-cell skipped (non-quad mesh or no LAPACK)"
+           << endl;
+    }
+  }
+
   // Compute C_y (derivative of I_p w.r.t. y)
   Vector Plasma_Vec_(m);
   Mat_Plasma->MultTranspose(ones, Plasma_Vec_);
