@@ -752,17 +752,22 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   // the BFS whole-element value. This is purely diagnostic: the solver still
   // uses the BFS-computed plasma_current.
   {
-    bool cc_ok = false;
+    bool cc_ok = false;  // Flag for whether cut-cell computed or not
     double Ip_cutcell = compute_plasma_current_cutcell(
         x, val_x, val_ma, model, fespace, attr_lim, plasma_inds_, cc_ok);
-    cout << "[I_p comparison] BFS whole-element : " << plasma_current << endl;
+
+    cout << "[I_p comparison] BFS whole-element : " << plasma_current / op.get_mu() << endl;
+
     if (cc_ok) {
-      double aPC = fabs(plasma_current);
-      double denom = (aPC > 1.0) ? aPC : 1.0;
+      double aPC = fabs(plasma_current);  // fabs: floating-point absolute value
+      double denom = (aPC > 1.0) ? aPC : 1.0;  // Denominator for normalization
       double rel = fabs(Ip_cutcell - plasma_current) / denom;
-      cout << "[I_p comparison] cut-cell moment   : " << Ip_cutcell << endl;
+
+      cout << "[I_p comparison] cut-cell moment   : " << Ip_cutcell / op.get_mu() << endl;
       cout << "[I_p comparison] relative diff     : " << rel << endl;
-    } else {
+    }
+    
+    else {
       cout << "[I_p comparison] cut-cell skipped (non-quad mesh or no LAPACK)"
            << endl;
     }

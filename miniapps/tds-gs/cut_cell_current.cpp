@@ -19,11 +19,11 @@ public:
       : psi(psi_), psi_x(psi_x_) { }
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
-      return psi_x - psi.GetValue(T, ip, 0);
+      return psi_x - psi.GetValue(T, ip, 0);  // psi.Getvalue: evaluates psi at integration point ip under element transformation T
    }
 };
 
-// Gate-free port of the option==1 plasma-source integrand.
+// Gate-free port of the option==1 plasma-source integrand (GS RHS).
 //
 // IMPORTANT: this duplicates the physics of NonlinearGridCoefficient::Eval
 // option==1 in plasma_model.cpp -- the model_choice switch block and the
@@ -106,7 +106,8 @@ public:
 
 
 double compute_plasma_current_cutcell(const GridFunction &psi,
-                                      double psi_x, double psi_ma,
+                                      double psi_x,
+                                      double psi_ma,
                                       PlasmaModelBase *model,
                                       FiniteElementSpace *fespace,
                                       int attr_lim,
@@ -141,19 +142,23 @@ double compute_plasma_current_cutcell(const GridFunction &psi,
 
    if (int_order < 0)
    {
-      int_order = 2 * fespace->GetMaxElementOrder() + 4;
+      int_order = 2 * fespace->GetMaxElementOrder() + 4;  // TODO: why this rule?
    }
 
+   // Level set phi and integrand g
    PsiLevelSetCoefficient phi(psi, psi_x);
    PlasmaSourceIntegrand  g(model, psi, psi_ma, psi_x);
 
+   // LAPACK moment fitting rules
    MomentFittingIntRules mf_ir(int_order, phi, ls_order);
 
    double Ip = 0.0;
-   IntegrationRule vir;
+   IntegrationRule vir;  // cut-volume integration rule
 
+   // Loop over elements
    for (int e = 0; e < mesh->GetNE(); ++e)
    {
+      // Skip if element is not within limiter region
       if (mesh->GetAttribute(e) != attr_lim) { continue; }
 
       // Hybrid connectivity filter: keep only limiter elements that touch the
@@ -180,6 +185,7 @@ double compute_plasma_current_cutcell(const GridFunction &psi,
       {
          const IntegrationPoint &ip = vir.IntPoint(q);
          T.SetIntPoint(&ip);
+
          // Weight convention follows ex38's SubdomainLFIntegrator:
          // reference-space rule weight * mapping Jacobian * integrand.
          Ip += ip.weight * T.Weight() * g.Eval(T, ip);
