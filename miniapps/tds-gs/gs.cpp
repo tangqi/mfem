@@ -5,6 +5,7 @@
 #include "amr.hpp"
 #include "field.hpp"
 #include "double_integrals.hpp"
+#include "io_utils.hpp"
 #include <stdio.h>
 #include <chrono>
 
@@ -826,7 +827,8 @@ static void SolveControlProblem(
       char name_mesh[60];
       sprintf(name_mesh, "gf/mesh_amr%d_model%d_pc%d_cyc%d_it%d.mesh", it_amr,
               model->get_model_choice(), PC_option, amg_cycle_type, amg_max_iter);
-      if (debug_output) { mesh->Save(name_mesh); }
+      // if (debug_output) { mesh->Save(name_mesh); }
+      if (debug_output) { SaveMeshLegacyFormat(*mesh, name_mesh); }
 
       // ============================================================================
       // Define and assemble PDE operator components
@@ -1131,7 +1133,8 @@ static void SolveControlProblem(
     }
 
     // Save final mesh (matches the mesh that x lives on after the AMR loop)
-    mesh->Save("meshes/mesh_refine.mesh");
+    // mesh->Save("meshes/mesh_refine.mesh");
+    SaveMeshLegacyFormat(*mesh, "meshes/mesh_refine.mesh");
 
     // Print elapsed time to convergence
     auto t_end = std::chrono::high_resolution_clock::now();
@@ -1439,11 +1442,13 @@ double gs(GSProblemConfig cfg) {
     fespace.Update();
     u.Update();
   }
-  mesh.Save("meshes/mesh.mesh");
+  // mesh.Save("meshes/mesh.mesh");
+  SaveMeshLegacyFormat(mesh, "meshes/mesh.mesh");
 
   // Save initial solution mesh
   if (do_initial) {
-    mesh.Save("meshes/initial.mesh");
+    // mesh.Save("meshes/initial.mesh");
+    SaveMeshLegacyFormat(mesh, "meshes/initial.mesh");
   }
 
   GridFunction x(&fespace);
@@ -1495,7 +1500,8 @@ double gs(GSProblemConfig cfg) {
     sprintf(name_mesh_out, "initial/initial_mesh_g%d.mesh", d_refine);
 
     x.Save(name_gf_out);
-    mesh.Save(name_mesh_out);
+    // mesh.Save(name_mesh_out);
+    SaveMeshLegacyFormat(mesh, name_mesh_out);
     printf("Saved solution to %s\n", name_gf_out);
     printf("Saved mesh to %s\n", name_mesh_out);
     printf("glvis -m %s -g %s\n", name_mesh_out, name_gf_out);
