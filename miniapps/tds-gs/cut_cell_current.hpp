@@ -26,9 +26,8 @@ using namespace mfem;
 // This is a print-only validation helper: it does not affect the solver state.
 //
 // Returns the cut-cell I_p (sign matches the existing Plasma_Current). On
-// failure -- MFEM built without LAPACK, or the limiter contains non-quad
-// elements (moment-fitting 2D supports quadrilaterals only) -- sets ok=false
-// and returns NAN.
+// failure -- MFEM built without LAPACK, or the limiter contains 2D elements
+// other than SQUARE / TRIANGLE -- sets ok=false and returns NAN.
 //
 //   psi          : poloidal flux GridFunction
 //   psi_x        : flux value at the X-point / separatrix

@@ -127,15 +127,18 @@ double compute_plasma_current_cutcell(const GridFunction &psi,
 #else
    Mesh *mesh = fespace->GetMesh();
 
-   // Moment-fitting 2D rules support quadrilaterals only. Verify every limiter
-   // element we would integrate over is a quad; otherwise skip cleanly.
+   // Moment-fitting 2D rules support quadrilaterals and triangles (the latter
+   // via the local patches to fem/intrules_cut.cpp). Reject anything else
+   // cleanly so the rest of the solver isn't blocked.
    for (int e = 0; e < mesh->GetNE(); ++e)
    {
       if (mesh->GetAttribute(e) != attr_lim) { continue; }
-      if (mesh->GetElementBaseGeometry(e) != Geometry::SQUARE)
+      const Geometry::Type g = mesh->GetElementBaseGeometry(e);
+      if (g != Geometry::SQUARE && g != Geometry::TRIANGLE)
       {
-         cout << "[cut-cell] limiter contains non-quad elements; "
-                 "cut-cell I_p skipped (triangle support not yet implemented).\n";
+         cout << "[cut-cell] limiter contains 2D element geometry " << g
+              << " which the moment-fitting path does not support; "
+                 "cut-cell I_p skipped.\n";
          return NAN;
       }
    }

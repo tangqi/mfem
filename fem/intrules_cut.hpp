@@ -8,6 +8,11 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+//
+// LOCAL MODIFICATIONS: 
+// added the `Geometry::Type elem_geom` member to `MomentFittingIntRules` (set
+// in InitSurface) to support triangular elements in the 2D moment-fitting path.
+// See intrules_cut.cpp for the corresponding implementation changes.
 
 #ifndef MFEM_CUTINTRULES
 #define MFEM_CUTINTRULES
@@ -486,6 +491,10 @@ class MomentFittingIntRules : public CutIntegrationRules
 protected:
    /// @brief Space Dimension of the element
    int dim;
+   /// @brief Geometry::Type of the element (e.g. SQUARE or TRIANGLE in 2D).
+   /// Set by InitSurface; used by the 2D moment-fitting path to pick the
+   /// reference-element quadrature and reference-edge geometry.
+   Geometry::Type elem_geom;
    /// @brief Number of divergence-free basis functions for surface integration
    int nBasis;
    /// @brief Number of basis functions for volume integration
@@ -650,7 +659,8 @@ public:
                           compute gradients and normals. */
    MomentFittingIntRules(int order, Coefficient& lvlset, int lsO)
       : CutIntegrationRules(order, lvlset, lsO),
-        dim(-1), nBasis(-1), nBasisVolume(-1), VolumeSVD(nullptr)
+        dim(-1), elem_geom(Geometry::INVALID),
+        nBasis(-1), nBasisVolume(-1), VolumeSVD(nullptr)
    { FaceWeights.SetSize(1); FaceWeightsComp.SetSize(1); }
 
    /// Change the order of the constructed IntegrationRule.

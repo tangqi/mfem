@@ -10,12 +10,29 @@
 // CONTRIBUTING.md for details.
 
 // Implementation of Surface and Cutcell IntegrationRule(s) classes
+//
+// LOCAL MODIFICATIONS
+//   * Patch A -- ComputeSurfaceWeights2D / ComputeVolumeWeights2D: replaced
+//     whole-mesh ProjectCoefficient of the level set with an element-local
+//     FiniteElement::Project (numerically identical, removes O(mesh-size) cost
+//     per cut element).
+//   * Patch B -- OrthoBasis2D: rewritten to compute the modified Gram-Schmidt
+//     orthonormalisation once per (Order, nBasis, elem_geom) and cache it; per
+//     call only replays the cached row operations.  mGSStep is now unused but
+//     kept in place for reversal.
+//   * Triangle support -- added `elem_geom` member to MomentFittingIntRules
+//     (set in InitSurface) and parameterised the 2D moment-fitting path by it:
+//     OrthoBasis2D's reference quadrature, and the reference-edge outward
+//     normal + reference-edge length used by the edge-RHS blocks in
+//     ComputeSurfaceWeights2D and ComputeVolumeWeights2D, are now selected
+//     from elem_geom. SQUARE behaviour is unchanged.
 
 #include "fem.hpp"
 #include <cmath>
 #include <map>
 #include <vector>
 #include <utility>
+#include <tuple>
 
 using namespace std;
 
@@ -207,6 +224,7 @@ void MomentFittingIntRules::InitSurface(int order, Coefficient& levelset,
 {
    Init(order, levelset, lsO);
    dim = Tr.GetDimension();
+   elem_geom = Tr.GetGeometryType();
    if (Tr.GetDimension() == 1)
    {
       nBasis = -1;
@@ -664,19 +682,47 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
          const IntegrationRule *ir2 = &IntRules.Get(Geometry::SEGMENT,
                                                     2*Order+1);
 
+         // Reference-element outward unit normal and reference-edge length
+         // for the moment-fitting RHS edge integral. SQUARE keeps the
+         // original 4-edge hardcoded layout (all reference edges have length
+         // 1, so the explicit `edge_ref_length` factor is a no-op). TRIANGLE
+         // adds the three reference-triangle edges: (0,0)-(1,0), (1,0)-(0,1),
+         // (0,1)-(0,0); the hypotenuse has reference length sqrt(2).
          Vector normal(Trafo.GetDimension());
          normal = 0.;
-         if (edge == 0 || edge == 2)
+         real_t edge_ref_length = 1.;
+         if (elem_geom == Geometry::TRIANGLE)
          {
-            normal(1) = 1.;
+            if (edge == 0)
+            {
+               normal(1) = -1.;
+            }
+            else if (edge == 1)
+            {
+               const real_t v = 1. / std::sqrt(2.);
+               normal(0) = v;
+               normal(1) = v;
+               edge_ref_length = std::sqrt(2.);
+            }
+            else // edge == 2
+            {
+               normal(0) = -1.;
+            }
          }
-         if (edge == 1 || edge == 3)
+         else // Geometry::SQUARE
          {
-            normal(0) = 1.;
-         }
-         if (edge == 0 || edge == 3)
-         {
-            normal *= -1.;
+            if (edge == 0 || edge == 2)
+            {
+               normal(1) = 1.;
+            }
+            if (edge == 1 || edge == 3)
+            {
+               normal(0) = 1.;
+            }
+            if (edge == 0 || edge == 3)
+            {
+               normal *= -1.;
+            }
          }
 
          for (int ip = 0; ip < ir2->GetNPoints(); ip++)
@@ -701,7 +747,7 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
             {
                shapes.GetRow(dof, grad);
                RHS(dof) -= (grad * normal) * ir2->IntPoint(ip).weight
-                           * dist.Norml2() / edgelength(edge);
+                           * dist.Norml2() / edgelength(edge) * edge_ref_length;
             }
          }
       }
@@ -915,19 +961,45 @@ void MomentFittingIntRules::ComputeVolumeWeights2D(ElementTransformation& Tr,
 
          const IntegrationRule *ir2 = &IntRules.Get(Geometry::SEGMENT,
                                                     2*Order+1);
+         // Reference-element outward unit normal and reference-edge length
+         // (see the analogous block in ComputeSurfaceWeights2D for the
+         // rationale). SQUARE behaviour is unchanged; TRIANGLE adds the three
+         // reference-triangle edges with the hypotenuse picking up sqrt(2).
          Vector normal(Trafo.GetDimension());
          normal = 0.;
-         if (edge == 0 || edge == 2)
+         real_t edge_ref_length = 1.;
+         if (elem_geom == Geometry::TRIANGLE)
          {
-            normal(1) = 1.;
+            if (edge == 0)
+            {
+               normal(1) = -1.;
+            }
+            else if (edge == 1)
+            {
+               const real_t v = 1. / std::sqrt(2.);
+               normal(0) = v;
+               normal(1) = v;
+               edge_ref_length = std::sqrt(2.);
+            }
+            else // edge == 2
+            {
+               normal(0) = -1.;
+            }
          }
-         if (edge == 1 || edge == 3)
+         else // Geometry::SQUARE
          {
-            normal(0) = 1.;
-         }
-         if (edge == 0 || edge == 3)
-         {
-            normal *= -1.;
+            if (edge == 0 || edge == 2)
+            {
+               normal(1) = 1.;
+            }
+            if (edge == 1 || edge == 3)
+            {
+               normal(0) = 1.;
+            }
+            if (edge == 0 || edge == 3)
+            {
+               normal *= -1.;
+            }
          }
 
          for (int ip = 0; ip < ir2->GetNPoints(); ip++)
@@ -951,7 +1023,7 @@ void MomentFittingIntRules::ComputeVolumeWeights2D(ElementTransformation& Tr,
             {
                shapes.GetRow(dof, adiv);
                RHS(dof) += (adiv * normal) * ir2->IntPoint(ip).weight
-                           * dist.Norml2() / edgelength(edge);
+                           * dist.Norml2() / edgelength(edge) * edge_ref_length;
             }
          }
       }
@@ -1458,22 +1530,23 @@ void MomentFittingIntRules::OrthoBasis2D(const IntegrationPoint& ip,
    shape.SetSize(nBasis, 2);
 
    // The modified Gram-Schmidt orthonormalisation of the divergence-free basis
-   // depends only on (Order, nBasis) and the fixed reference square -- not on
-   // the integration point or the element. The original code recomputed it on
-   // every call (once per quadrature point of every cut element), which
-   // dominated the runtime. Here the Gram-Schmidt coefficients are computed
-   // once per (Order, nBasis) and cached; each call only evaluates the raw
-   // basis and replays the cached row operations. The result is numerically
-   // identical to the original per-point recomputation.
-   // (Cache is process-wide; not thread-safe -- callers here are serial.)
-   static std::map<std::pair<int,int>, std::vector<real_t> > gs_cache;
-   const std::pair<int,int> key(Order, nBasis);
-   std::map<std::pair<int,int>, std::vector<real_t> >::iterator it
-      = gs_cache.find(key);
+   // depends only on (Order, nBasis, elem_geom) and the fixed reference
+   // element -- not on the integration point or the (instance of) element.
+   // The original code recomputed it on every call (once per quadrature point
+   // of every cut element), which dominated the runtime. Here the Gram-Schmidt
+   // coefficients are computed once per (Order, nBasis, elem_geom) and cached;
+   // each call only evaluates the raw basis and replays the cached row
+   // operations. The result is numerically identical to the original per-point
+   // recomputation. (Cache is process-wide; not thread-safe -- callers here
+   // are serial.)
+   typedef std::tuple<int,int,int> GSKey;
+   static std::map<GSKey, std::vector<real_t> > gs_cache;
+   const GSKey key(Order, nBasis, static_cast<int>(elem_geom));
+   std::map<GSKey, std::vector<real_t> >::iterator it = gs_cache.find(key);
 
    if (it == gs_cache.end())
    {
-      const IntegrationRule *ir_ = &IntRules.Get(Geometry::SQUARE, 2*Order+1);
+      const IntegrationRule *ir_ = &IntRules.Get(elem_geom, 2*Order+1);
 
       // evaluate basis for quadrature points
       DenseTensor shapeMFN(nBasis, 2, ir_->GetNPoints());
