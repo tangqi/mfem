@@ -1,7 +1,9 @@
-// Fixed Boundary Grad-Shafranov Solver With Discontinuous Galerkin (SIPG)
+// Fixed Boundary Grad-Shafranov Solver With Discontinuous Galerkin
 // Coordinate convention:
 // x(0) = R
 // x(1) = Z
+// NOTEL With any chosen mesh, R should be > 0 for all coordinates along the
+// mesh. Otherwise, the diffusion term can blow up due to a 1 / R dependency.
 
 // TODO: need analytical solution to compare against
 
@@ -14,6 +16,7 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   
    // Initialize MPI and HYPRE
    Mpi::Init(argc, argv);
    Hypre::Init();
@@ -21,43 +24,70 @@ int main(int argc, char *argv[])
    /**************************************************************/
    // Parse command line options
    /**************************************************************/
+   
+   const char *mesh_file = "meshes/ITER.msh";
 
-   // TODO: these are the default ex14p.cpp command line options. Tailor for this problem
+   std::string output_mesh = "./solutions/solution_mesh.mesh";
+   std::string output_gf = "./solutions/solution_gf.mesh";
 
-   const char *mesh_file = "../data/star.mesh";  // TODO: need different default mesh
    int ser_ref_levels = 1;
    int par_ref_levels = 2;
    int order = 1;
+
    real_t sigma = -1.0;
    real_t kappa = -1.0;
-   real_t eta = 0.0;
+   // real_t eta = 0.0;
+
    bool pa = false;
    bool visualization = 1;
-   const char *device_config = "cpu";
+   // const char *device_config = "cpu";
+   bool save_as_one = false;
 
    OptionsParser args(argc, argv);
+
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+
+   args.AddOption(&output_mesh, "-om", "--output-mesh",
+                  "Base path for the output parallel mesh.");
+
+   args.AddOption(&output_gf, "-og", "--output-gridfunction",
+                  "Base path for the output solution grid function.");
+
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+
    args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly in parallel.");
+
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) >= 0.");
+
    args.AddOption(&sigma, "-s", "--sigma",
-                  "One of the three DG penalty parameters, typically +1/-1."
+                  "DG penalty parameter, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
+
    args.AddOption(&kappa, "-k", "--kappa",
-                  "One of the three DG penalty parameters, should be positive."
+                  "DG penalty parameterm should be positive."
                   " Negative values are replaced with (order+1)^2.");
-   args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
+
+   // args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
+
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
+
+   // args.AddOption(&device_config, "-d", "--device",
+   //                "Device configuration string, see Device::Configure().");
+
+   args.AddOption(&save_as_one, "-one", "--save-as-one", "-sep",
+                  "--save-separately",
+                  "Save parallel solution mesh and grid function as one file "
+                  "or as separate files for each MPI rank.");
+
    args.Parse();
 
    // Print error/help text for invalid command line arguments
@@ -77,9 +107,9 @@ int main(int argc, char *argv[])
    // Print command line options
    if (Mpi::Root()) { args.PrintOptions(cout); }
 
-   // Set up and print device used
-   Device device(device_config);
-   if (Mpi::Root()) { device.Print(); }
+   // // Set up and print device used
+   // Device device(device_config);
+   // if (Mpi::Root()) { device.Print(); }
 
    /**************************************************************/
    // Mesh and Finite Element Space
@@ -133,7 +163,8 @@ int main(int argc, char *argv[])
    FunctionCoefficient invR([](const Vector &x)
       {
          const real_t R = x(0);
-         return 1.0 / R;  // Potential issue: R = 0
+         MFEM_VERIFY(R > 0.0, "Grad-Shafranov mesh must lie entirely in R > 0 to prevent blow-up.");
+         return 1.0 / R;
       }
    );
 
@@ -211,6 +242,9 @@ int main(int argc, char *argv[])
       // Build Algebraic Multigrid preconditioner from A
       amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
    }
+
+   MPI_Barrier(MPI_COMM_WORLD);
+   double solve_start = MPI_Wtime();
    
    // Depending on the symmetry of A, define and apply a parallel PCG or
    // GMRES solver for AX=B using the BoomerAMG preconditioner from hypre.
@@ -239,26 +273,50 @@ int main(int argc, char *argv[])
       gmres.Mult(b, x);
    }
 
+   // Track solve time
+   double local_solve_time = MPI_Wtime() - solve_start;
+   double solve_time = 0.0;
+   MPI_Reduce(&local_solve_time, &solve_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
    // TODO: Add nonlinear solve e.g. Newton iteration: residual, delta_x, Newton Loop, JFNK, preconditioner
 
    /**************************************************************/
    // Output and visualization
    /**************************************************************/
    
-   // Save the refined mesh and the solution in parallel
-   // View in GLVis with: "glvis -np <np> -m mesh -g sol"  // TODO: confirm if this is the case
+   // Save the refined parallel mesh and the solution
+   // If input is --save-as-one, then the entire mesh and solution are saved as one file. Else,
+   // if input is --save-separately, then separate mesh and solution files are saved for each
+   // MPI rank.
+   if (save_as_one)
    {
-      ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << Mpi::WorldRank();
-      sol_name << "sol." << setfill('0') << setw(6) << Mpi::WorldRank();
+      pmesh.SaveAsOne(output_mesh);
+      x.SaveAsOne(output_gf.c_str());
+   }
+   else
+   {
+      ostringstream mesh_name, gf_name;
+
+      if (Mpi::WorldSize() == 1)
+      {
+         mesh_name << output_mesh;
+         gf_name   << output_gf;
+      }
+      else
+      {
+         mesh_name << output_mesh << "." << Mpi::WorldRank();
+         gf_name   << output_gf   << "." << Mpi::WorldRank();
+      }
 
       ofstream mesh_ofs(mesh_name.str().c_str());
+      MFEM_VERIFY(mesh_ofs.good(), "Could not open mesh output file: " << mesh_name.str());
       mesh_ofs.precision(8);
       pmesh.Print(mesh_ofs);
 
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
+      ofstream gf_ofs(gf_name.str());
+      MFEM_VERIFY(gf_ofs.good(), "Could not open grid-function output file: " << gf_name.str());
+      gf_ofs.precision(8);
+      x.Save(gf_ofs);
    }
    
    // Send the solution by socket to a GLVis server.
@@ -272,6 +330,12 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << pmesh << x << flush;
    }
 
+   // Print time to solve
+   if (Mpi::Root()) 
+   {
+      cout << '\n';
+      cout << "Linear solve time: " << solve_time << " seconds" << endl;
+   }
+
    return 0;
 }
-
