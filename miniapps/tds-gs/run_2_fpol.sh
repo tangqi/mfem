@@ -23,7 +23,7 @@ mesh_file="meshes/iter_gen_fixed.mesh"
 # mesh_file="meshes/RegGSTriMeshVeryCoarse0beta.msh"
 data_file="data/separated_file.data"
 
-refinement_factor=2
+refinement_factor=1
 
 do_test=0
 do_manufactured_solution=0

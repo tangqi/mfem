@@ -46,7 +46,7 @@ gamma_in=1.0
 # 6: lower triangular
 # 7: block woodbury
 pc_option=5
-max_amr_levels=0
+max_amr_levels=1
 max_dofs=100000
 light_tol=1e-8
 amr_frac_in=0.08

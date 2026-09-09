@@ -1,6 +1,7 @@
 #include "mfem.hpp"
 #include "sys_operator.hpp"
 #include "cut_cell_current.hpp"
+#include "gateaux_cutcell.hpp"
 #include <cmath>
 using namespace mfem;
 using namespace std;
@@ -731,7 +732,35 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   else {
     By = Add(*Mat_Prelim, *psi_x_psi_ma_coeff_sp_mat);
   }
-  
+
+  // --- Cut-cell (moment-fitting) Gateaux Jacobian comparison, diagnostic only ---
+  // Build a cut-cell counterpart of the plasma-source contribution to B_y and
+  // print Frobenius / max-abs diffs against the BFS pieces above. The "vol"
+  // diff omits the new Eq. 3.10 cut-surface (boundary-motion) term; the
+  // "vol+s" diff includes it. Comparing the two isolates how much work the
+  // surface-Gateaux term is doing on this run. Solver state is unchanged.
+  if (include_plasma) {
+    bool gx_ok = false;
+    double fro_vol = 0.0, fro_full = 0.0, maxabs_full = 0.0, fro_bfs = 0.0;
+    compute_jacobian_diff_cutcell(x, val_x, val_ma, ind_ma, ind_x,
+                                  model, fespace, attr_lim, plasma_inds_,
+                                  psi_coeff_sp_mat,
+                                  diff_plasma_term_3, diff_plasma_term_4,
+                                  fro_vol, fro_full, maxabs_full,
+                                  fro_bfs, gx_ok);
+    if (gx_ok) {
+      const double denom = (fro_bfs > 1e-30) ? fro_bfs : 1.0;
+      cout << "[B_y comparison] BFS plasma-source Fro : " << fro_bfs << endl;
+      cout << "[B_y comparison] cut-cell diff (vol)   : " << fro_vol
+           << "  (relative " << fro_vol / denom << ")" << endl;
+      cout << "[B_y comparison] cut-cell diff (vol+s) : " << fro_full
+           << "  (relative " << fro_full / denom << ")" << endl;
+      cout << "[B_y comparison] cut-cell max-abs diff : " << maxabs_full << endl;
+    } else {
+      cout << "[B_y comparison] skipped (no LAPACK or unsupported geometry)" << endl;
+    }
+  }
+
   // Compute B_alpha
   NonlinearGridCoefficient nlgcoeff_5(model, 5, &x, psi_ma, psi_x, plasma_inds, attr_lim);
   LinearForm diff_plasma_term_5(fespace);

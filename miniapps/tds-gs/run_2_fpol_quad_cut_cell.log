@@ -1,0 +1,854 @@
+---------------------------------------
+Begin Slurm Prolog: May-27-2026 14:55:49
+Job ID:    9203824
+User ID:   amagalhaes7
+Account:   gts-qtang30
+Job name:  sys/dashboard/sys/bc_desktop_rh9
+Partition: cpu-small
+QOS:       embers
+---------------------------------------
+Options used:
+   --mesh1 initial/mesh_amr0_model1_pc0_cyc0_it1.mesh
+   --mesh2 meshes/iter_gen_quad.msh
+   --solution1 initial/final_model1_pc0_cyc0_it1.gf
+   --field-type-src 0
+   --ncomp 1
+   --gfo 0
+   --refine 1
+   --field-type -1
+   --order 1
+   --no-visualization
+   --send-port 19916
+Boundary elements with wrong orientation: 104 / 168 (fixed)
+Source mesh curvature: H1_2D_P1
+Target mesh curvature: H1_2D_P1
+Source FE collection: H1_2D_P1
+Target FE collection: H1_2D_P1
+---------------------------------------
+Begin Slurm Prolog: May-27-2026 14:55:51
+Job ID:    9203824
+User ID:   amagalhaes7
+Account:   gts-qtang30
+Job name:  sys/dashboard/sys/bc_desktop_rh9
+Partition: cpu-small
+QOS:       embers
+---------------------------------------
+Options used:
+   --mesh meshes/iter_gen_quad.msh
+   --initial_gf interpolated.gf
+   --data_file data/separated_file.data
+   --order 1
+   --refinement_factor 1
+   --model 1
+   --alpha -1.4
+   --beta 1
+   --gamma 0
+   --mu 1.25664e-06
+   --r_zero 2.4
+   --plasma_current 1.5e+07
+   --rho_gamma 16
+   --c1 8.807e+06
+   --c2 1.851e+07
+   --c3 4.156e+07
+   --c4 1.663e+07
+   --c5 1.024e+07
+   --c6 -969000
+   --c7 3.101e+06
+   --c8 5.328e+06
+   --c9 3.549e+06
+   --c10 1.109e+07
+   --c11 -1.883e+07
+   --test 0
+   --initial 0
+   --do_control 1
+   --do_manufactured_solution 0
+   --debug_output 0
+   --pc_option 5
+   --ur_coeff 1
+   --max_newton_iter 20
+   --max_krylov_iter 200
+   --newton_tol 1e-06
+   --krylov_tol 1e-06
+   --amg_cycle_type 0
+   --amg_num_sweeps_a 1
+   --amg_num_sweeps_b 1
+   --amg_max_iter 5
+   --max_amr_levels 1
+   --max_dofs 100000
+   --light_tol 1e-08
+   --amr_frac_in 0.08
+   --amr_frac_out 0.3
+   --N_control 100
+   --obj_option 1
+   --weight_obj 1
+   --weight_coils 1e-14
+   --weight_solenoids 1e-14
+   --alpha_in 1.61803
+   --gamma_in 1
+Boundary elements with wrong orientation: 104 / 168 (fixed)
+Number of unknowns: 1523
+f_x = -32.86000000
+f_ma = -34.37930000
+Beginning GS Solve.
+Initial currents: [8.807e+06 1.851e+07 4.156e+07 1.663e+07 1.024e+07 -9.690e+05 3.101e+06 5.328e+06 3.549e+06 1.109e+07 -1.883e+07 ]
+
+stride: 9.270000
+nbbbs:  927
+Nc:     100
+size: 100
+Found saddle at (4.93299, -3.38556), val=6.64953
+Found saddle at (4.98997, -3.44179), val=6.64432
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=371 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.50731e+07
+[I_p comparison] cut-cell moment   : 1.48938e+07
+[I_p comparison] relative diff     : 0.0118945
+plasma_current = 1.50730674e+07
+alpha = -1.40000000e+00
+psi_x = 6.64431700e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -5.16675660e+00; r_ma = 6.20021187e+00; z_ma = 9.06698007e-01
+newton error (eq_res tdof): 7.907e+00  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 41 iterations with a residual norm of 2.367474e-08
+res_1: 2.22e-09
+res_2: 1.36e-06
+Currents: [2.912e+07 4.197e+07 8.226e+07 3.617e+07 4.006e+07 1.100e+07 3.564e+06 5.516e+06 4.597e+06 9.035e+06 -2.796e+06 ]
+Found saddle at (4.93299, -3.38556), val=28.4966
+total saddles found: 1
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=1763 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.47432e+07
+[I_p comparison] cut-cell moment   : 1.45823e+07
+[I_p comparison] relative diff     : 0.0109195
+plasma_current = 1.47432435e+07
+alpha = -1.34188836e+00
+psi_x = 2.84966429e+01; r_x = 4.93298624e+00; z_x = -3.38555710e+00
+psi_ma = 1.66467218e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 4.894e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 40 iterations with a residual norm of 5.329315e-09
+res_1: 8.52e-10
+res_2: 2.77e-07
+Currents: [9.575e+06 2.038e+07 4.442e+07 1.823e+07 1.185e+07 -4.600e+04 3.076e+06 5.737e+06 2.940e+06 1.160e+07 -1.811e+07 ]
+Found saddle at (5.0652, -3.41377), val=8.07701
+Found saddle at (4.98997, -3.44179), val=8.0665
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.49975e+07
+[I_p comparison] cut-cell moment   : 1.48039e+07
+[I_p comparison] relative diff     : 0.0129128
+plasma_current = 1.49975235e+07
+alpha = -1.40183543e+00
+psi_x = 8.06649661e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -3.91226035e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 5.123e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 34 iterations with a residual norm of 3.955351e-09
+res_1: 1.75e-06
+res_2: 3.51e-02
+Currents: [9.822e+06 1.853e+07 4.798e+07 1.797e+07 1.079e+07 -1.276e+06 3.301e+06 6.339e+06 3.744e+06 1.201e+07 -2.068e+07 ]
+Found saddle at (5.00326, -3.34612), val=7.14808
+Found saddle at (5.0652, -3.41377), val=7.14492
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=1605 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.49478e+07
+[I_p comparison] cut-cell moment   : 1.47297e+07
+[I_p comparison] relative diff     : 0.0145965
+plasma_current = 1.49478417e+07
+alpha = -1.61815517e+00
+psi_x = 7.14492005e+00; r_x = 5.06519975e+00; z_x = -3.41377215e+00
+psi_ma = -6.79863939e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 3.511e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 40 iterations with a residual norm of 3.906859e-09
+res_1: 6.92e-10
+res_2: 2.39e-07
+Currents: [1.069e+07 1.907e+07 4.375e+07 1.794e+07 1.085e+07 3.828e+04 2.934e+06 5.644e+06 3.356e+06 1.116e+07 -1.848e+07 ]
+Found saddle at (5.00326, -3.34612), val=7.66345
+Found saddle at (5.0652, -3.41377), val=7.66623
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=383 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.5091e+07
+[I_p comparison] cut-cell moment   : 1.48136e+07
+[I_p comparison] relative diff     : 0.0183826
+plasma_current = 1.50910398e+07
+alpha = -1.40689614e+00
+psi_x = 7.66345281e+00; r_x = 5.00326258e+00; z_x = -3.34612029e+00
+psi_ma = -4.31540742e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.574e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 36 iterations with a residual norm of 2.873520e-09
+res_1: 3.82e-10
+res_2: 1.96e-07
+Currents: [5.209e+06 2.138e+07 4.315e+07 1.778e+07 1.174e+07 -6.544e+05 3.281e+06 5.275e+06 3.886e+06 9.940e+06 -1.534e+07 ]
+Found saddle at (4.93299, -3.38556), val=7.70214
+Found saddle at (4.98997, -3.44179), val=7.69356
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.50358e+07
+[I_p comparison] cut-cell moment   : 1.47555e+07
+[I_p comparison] relative diff     : 0.0186439
+plasma_current = 1.50357766e+07
+alpha = -1.38092457e+00
+psi_x = 7.69355920e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -4.22207715e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 4.591e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 41 iterations with a residual norm of 1.758402e-09
+res_1: 1.79e-10
+res_2: 1.02e-07
+Currents: [1.042e+07 2.302e+07 4.780e+07 1.982e+07 1.550e+07 5.123e+05 3.386e+06 5.300e+06 3.817e+06 1.039e+07 -1.523e+07 ]
+Found saddle at (5.0652, -3.41377), val=10.156
+Found saddle at (4.98997, -3.44179), val=10.1476
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.49953e+07
+[I_p comparison] cut-cell moment   : 1.47154e+07
+[I_p comparison] relative diff     : 0.0186672
+plasma_current = 1.49953425e+07
+alpha = -1.37012794e+00
+psi_x = 1.01476489e+01; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.72899719e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.959e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 34 iterations with a residual norm of 3.194003e-10
+res_1: 1.18e-07
+res_2: 1.28e-03
+Currents: [9.833e+06 2.308e+07 4.795e+07 1.973e+07 1.551e+07 4.004e+05 3.423e+06 5.305e+06 3.862e+06 1.031e+07 -1.502e+07 ]
+Found saddle at (5.0652, -3.41377), val=10.1028
+Found saddle at (4.98997, -3.44179), val=10.0936
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.49945e+07
+[I_p comparison] cut-cell moment   : 1.47187e+07
+[I_p comparison] relative diff     : 0.0183932
+plasma_current = 1.49944576e+07
+alpha = -1.37943389e+00
+psi_x = 1.00936373e+01; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.86045864e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.800e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 37 iterations with a residual norm of 7.305088e-11
+res_1: 1.40e-07
+res_2: 1.25e-03
+Currents: [9.893e+06 2.300e+07 4.780e+07 1.972e+07 1.540e+07 3.685e+05 3.424e+06 5.304e+06 3.857e+06 1.033e+07 -1.512e+07 ]
+Found saddle at (5.0652, -3.41377), val=10.0463
+Found saddle at (4.98997, -3.44179), val=10.0374
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.50023e+07
+[I_p comparison] cut-cell moment   : 1.4723e+07
+[I_p comparison] relative diff     : 0.0186165
+plasma_current = 1.50023389e+07
+alpha = -1.38065165e+00
+psi_x = 1.00373599e+01; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.91973318e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 2.055e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 2.248692e-11
+res_1: 1.05e-07
+res_2: 1.39e-03
+Currents: [9.857e+06 2.289e+07 4.777e+07 1.963e+07 1.536e+07 3.257e+05 3.426e+06 5.304e+06 3.858e+06 1.033e+07 -1.515e+07 ]
+Found saddle at (5.0652, -3.41377), val=9.98777
+Found saddle at (4.98997, -3.44179), val=9.97888
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.49973e+07
+[I_p comparison] cut-cell moment   : 1.47204e+07
+[I_p comparison] relative diff     : 0.0184644
+plasma_current = 1.49973412e+07
+alpha = -1.38073980e+00
+psi_x = 9.97888363e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.98332109e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.801e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 2.171183e-11
+res_1: 1.26e-07
+res_2: 1.31e-03
+Currents: [9.701e+06 2.291e+07 4.758e+07 1.963e+07 1.523e+07 3.060e+05 3.423e+06 5.303e+06 3.857e+06 1.032e+07 -1.516e+07 ]
+Found saddle at (5.0652, -3.41377), val=9.92985
+Found saddle at (4.98997, -3.44179), val=9.92093
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.50025e+07
+[I_p comparison] cut-cell moment   : 1.47233e+07
+[I_p comparison] relative diff     : 0.0186062
+plasma_current = 1.50024762e+07
+alpha = -1.38106027e+00
+psi_x = 9.92093147e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -2.03927367e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 2.058e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 2.157686e-11
+res_1: 8.04e-08
+res_2: 1.46e-03
+Currents: [9.674e+06 2.280e+07 4.755e+07 1.954e+07 1.518e+07 2.644e+05 3.423e+06 5.304e+06 3.857e+06 1.032e+07 -1.521e+07 ]
+Found saddle at (5.0652, -3.41377), val=9.8687
+Found saddle at (4.98997, -3.44179), val=9.85981
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.49978e+07
+[I_p comparison] cut-cell moment   : 1.47206e+07
+[I_p comparison] relative diff     : 0.0184823
+plasma_current = 1.49977620e+07
+alpha = -1.38118256e+00
+psi_x = 9.85980803e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -2.10587138e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.798e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 2.200465e-11
+res_1: 9.57e-08
+res_2: 1.37e-03
+Currents: [9.508e+06 2.282e+07 4.736e+07 1.954e+07 1.505e+07 2.443e+05 3.420e+06 5.302e+06 3.856e+06 1.032e+07 -1.521e+07 ]
+Found saddle at (5.0652, -3.41377), val=9.80793
+Found saddle at (4.98997, -3.44179), val=9.79901
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.50025e+07
+[I_p comparison] cut-cell moment   : 1.4723e+07
+[I_p comparison] relative diff     : 0.0186306
+plasma_current = 1.50025323e+07
+alpha = -1.38142686e+00
+psi_x = 9.79900974e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -2.16470850e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 2.059e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 2.228834e-11
+res_1: 4.90e-08
+res_2: 1.51e-03
+Currents: [9.477e+06 2.270e+07 4.731e+07 1.944e+07 1.500e+07 2.022e+05 3.420e+06 5.303e+06 3.856e+06 1.032e+07 -1.526e+07 ]
+Found saddle at (5.0652, -3.41377), val=9.74453
+Found saddle at (4.98997, -3.44179), val=9.73564
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.49977e+07
+[I_p comparison] cut-cell moment   : 1.47207e+07
+[I_p comparison] relative diff     : 0.0184672
+plasma_current = 1.49976778e+07
+alpha = -1.38147850e+00
+psi_x = 9.73563592e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -2.23300532e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.794e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 2.265476e-11
+res_1: 6.35e-08
+res_2: 1.42e-03
+Currents: [9.307e+06 2.272e+07 4.711e+07 1.944e+07 1.486e+07 1.810e+05 3.416e+06 5.301e+06 3.856e+06 1.031e+07 -1.526e+07 ]
+Found saddle at (5.0652, -3.41377), val=9.6817
+Found saddle at (4.98997, -3.44179), val=9.67278
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.50025e+07
+[I_p comparison] cut-cell moment   : 1.47228e+07
+[I_p comparison] relative diff     : 0.0186453
+plasma_current = 1.50025126e+07
+alpha = -1.38169413e+00
+psi_x = 9.67277760e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -2.29347676e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 2.059e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 2.319674e-11
+res_1: 1.74e-08
+res_2: 1.55e-03
+Currents: [9.274e+06 2.261e+07 4.707e+07 1.934e+07 1.480e+07 1.376e+05 3.417e+06 5.301e+06 3.856e+06 1.032e+07 -1.531e+07 ]
+Found saddle at (5.0652, -3.41377), val=9.61646
+Found saddle at (4.98997, -3.44179), val=9.60756
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.49976e+07
+[I_p comparison] cut-cell moment   : 1.47203e+07
+[I_p comparison] relative diff     : 0.0184879
+plasma_current = 1.49976149e+07
+alpha = -1.38173199e+00
+psi_x = 9.60756364e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -2.36344885e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.790e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 2.352757e-11
+res_1: 3.32e-08
+res_2: 1.45e-03
+Currents: [9.103e+06 2.262e+07 4.687e+07 1.934e+07 1.466e+07 1.146e+05 3.413e+06 5.299e+06 3.855e+06 1.031e+07 -1.532e+07 ]
+Found saddle at (5.0652, -3.41377), val=9.55195
+Found saddle at (4.98997, -3.44179), val=9.54303
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.50025e+07
+[I_p comparison] cut-cell moment   : 1.47227e+07
+[I_p comparison] relative diff     : 0.0186446
+plasma_current = 1.50024604e+07
+alpha = -1.38192917e+00
+psi_x = 9.54302865e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -2.42532133e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 2.059e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 2.329877e-11
+res_1: 1.52e-08
+res_2: 1.58e-03
+Currents: [9.066e+06 2.251e+07 4.681e+07 1.924e+07 1.461e+07 7.108e+04 3.413e+06 5.299e+06 3.855e+06 1.031e+07 -1.536e+07 ]
+Found saddle at (5.0652, -3.41377), val=9.48548
+Found saddle at (4.98997, -3.44179), val=9.47658
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.49975e+07
+[I_p comparison] cut-cell moment   : 1.47203e+07
+[I_p comparison] relative diff     : 0.0184827
+plasma_current = 1.49975182e+07
+alpha = -1.38193260e+00
+psi_x = 9.47658401e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -2.49611896e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.786e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 2.361162e-11
+res_1: 2.40e-09
+res_2: 1.48e-03
+Currents: [8.891e+06 2.252e+07 4.661e+07 1.924e+07 1.446e+07 4.908e+04 3.409e+06 5.298e+06 3.854e+06 1.030e+07 -1.537e+07 ]
+Found saddle at (5.0652, -3.41377), val=9.41961
+Found saddle at (4.98997, -3.44179), val=9.41069
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.50025e+07
+[I_p comparison] cut-cell moment   : 1.47229e+07
+[I_p comparison] relative diff     : 0.0186388
+plasma_current = 1.50024945e+07
+alpha = -1.38215407e+00
+psi_x = 9.41068980e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -2.55939943e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 2.057e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 2.387103e-11
+res_1: 5.02e-08
+res_2: 1.61e-03
+Currents: [8.852e+06 2.241e+07 4.655e+07 1.913e+07 1.441e+07 4.403e+03 3.410e+06 5.298e+06 3.854e+06 1.031e+07 -1.542e+07 ]
+Found saddle at (5.0652, -3.41377), val=9.35205
+Found saddle at (4.98997, -3.44179), val=9.34316
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.49977e+07
+[I_p comparison] cut-cell moment   : 1.47204e+07
+[I_p comparison] relative diff     : 0.0184839
+plasma_current = 1.49976619e+07
+alpha = -1.38211914e+00
+psi_x = 9.34316290e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -2.63098901e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.783e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 2.406785e-11
+res_1: 3.78e-08
+res_2: 1.51e-03
+Currents: [8.675e+06 2.242e+07 4.635e+07 1.913e+07 1.426e+07 -1.823e+04 3.406e+06 5.296e+06 3.853e+06 1.030e+07 -1.542e+07 ]
+Found saddle at (5.0652, -3.41377), val=9.28519
+Found saddle at (4.98997, -3.44179), val=9.27627
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=5921 TrueVSize=5921
+[I_p comparison] BFS whole-element : 1.50025e+07
+[I_p comparison] cut-cell moment   : 1.47228e+07
+[I_p comparison] relative diff     : 0.018645
+plasma_current = 1.50024783e+07
+alpha = -1.38229131e+00
+psi_x = 9.27626763e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -2.69506424e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 2.055e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+Refining mesh, AMR iteration 1
+Number of true DOFs: 6470
+stride: 9.270000
+nbbbs:  927
+Nc:     100
+size: 100
+Found saddle at (5.0652, -3.41377), val=9.28519
+Found saddle at (4.98997, -3.44179), val=9.27627
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.49301e+07
+[I_p comparison] cut-cell moment   : 1.47217e+07
+[I_p comparison] relative diff     : 0.0139638
+plasma_current = 1.49301339e+07
+alpha = -1.38229131e+00
+psi_x = 9.27626763e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -2.69506424e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 4.506e-01  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 37 iterations with a residual norm of 3.615281e-09
+res_1: 1.58e-06
+res_2: 4.40e-03
+Currents: [1.324e+07 2.099e+07 4.673e+07 1.848e+07 1.628e+07 -2.747e+05 3.598e+06 5.077e+06 3.373e+06 1.094e+07 -1.665e+07 ]
+Found saddle at (5.0652, -3.41377), val=9.75438
+Found saddle at (4.98997, -3.44179), val=9.75054
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.50096e+07
+[I_p comparison] cut-cell moment   : 1.48051e+07
+[I_p comparison] relative diff     : 0.0136244
+plasma_current = 1.50095536e+07
+alpha = -1.33391683e+00
+psi_x = 9.75053623e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.67226551e+00; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.513e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 44 iterations with a residual norm of 1.016191e-09
+res_1: 1.37e-10
+res_2: 3.93e-08
+Currents: [-2.598e+06 1.183e+07 2.668e+07 9.804e+06 8.671e+04 -6.047e+06 3.370e+06 5.097e+06 3.345e+06 1.095e+07 -2.219e+07 ]
+Found saddle at (5.0652, -3.41377), val=-1.23818
+Found saddle at (4.98997, -3.44179), val=-1.24205
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.50962e+07
+[I_p comparison] cut-cell moment   : 1.48715e+07
+[I_p comparison] relative diff     : 0.0148851
+plasma_current = 1.50961745e+07
+alpha = -1.36946577e+00
+psi_x = -1.24205004e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.30285672e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 7.990e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 7.155705e-10
+res_1: 6.41e-07
+res_2: 2.50e-03
+Currents: [-2.901e+06 1.160e+07 2.701e+07 9.534e+06 2.107e+05 -6.508e+06 3.522e+06 5.044e+06 3.628e+06 1.081e+07 -2.233e+07 ]
+Found saddle at (5.0652, -3.41377), val=-1.45658
+Found saddle at (4.98997, -3.44179), val=-1.46079
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.49879e+07
+[I_p comparison] cut-cell moment   : 1.47534e+07
+[I_p comparison] relative diff     : 0.0156461
+plasma_current = 1.49878711e+07
+alpha = -1.37435155e+00
+psi_x = -1.46078682e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.34733168e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 7.088e-03  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 36 iterations with a residual norm of 8.278390e-10
+res_1: 8.21e-07
+res_2: 2.73e-03
+Currents: [-2.859e+06 1.119e+07 2.675e+07 9.238e+06 5.386e+04 -6.697e+06 3.529e+06 5.044e+06 3.628e+06 1.086e+07 -2.262e+07 ]
+Found saddle at (5.00326, -3.34612), val=-1.68743
+Found saddle at (5.0652, -3.41377), val=-1.68378
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=383 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.50596e+07
+[I_p comparison] cut-cell moment   : 1.48202e+07
+[I_p comparison] relative diff     : 0.0158971
+plasma_current = 1.50596453e+07
+alpha = -1.37499526e+00
+psi_x = -1.68743445e+00; r_x = 5.00326258e+00; z_x = -3.34612029e+00
+psi_ma = -1.37005346e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.416e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 2.555368e-09
+res_1: 2.38e-10
+res_2: 1.75e-07
+Currents: [-3.881e+06 1.196e+07 2.626e+07 9.364e+06 3.400e+05 -6.454e+06 3.506e+06 4.907e+06 3.598e+06 1.053e+07 -2.150e+07 ]
+Found saddle at (5.0652, -3.41377), val=-1.44326
+Found saddle at (4.98997, -3.44179), val=-1.44701
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.49347e+07
+[I_p comparison] cut-cell moment   : 1.47052e+07
+[I_p comparison] relative diff     : 0.0153665
+plasma_current = 1.49346776e+07
+alpha = -1.33809593e+00
+psi_x = -1.44701377e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.32204936e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.419e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 33 iterations with a residual norm of 4.014180e-09
+res_1: 7.06e-07
+res_2: 2.00e-03
+Currents: [-2.903e+06 1.146e+07 2.652e+07 9.454e+06 -8.607e+04 -6.515e+06 3.490e+06 5.033e+06 3.561e+06 1.094e+07 -2.258e+07 ]
+Found saddle at (5.0652, -3.41377), val=-1.59773
+Found saddle at (4.98997, -3.44179), val=-1.60196
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.50347e+07
+[I_p comparison] cut-cell moment   : 1.4791e+07
+[I_p comparison] relative diff     : 0.0162125
+plasma_current = 1.50347163e+07
+alpha = -1.36673210e+00
+psi_x = -1.60196110e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.35432103e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.082e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 37 iterations with a residual norm of 1.858580e-10
+res_1: 6.10e-07
+res_2: 2.17e-03
+Currents: [-2.787e+06 1.117e+07 2.641e+07 9.234e+06 -1.891e+05 -6.590e+06 3.475e+06 5.052e+06 3.563e+06 1.094e+07 -2.275e+07 ]
+Found saddle at (5.00326, -3.34612), val=-1.74507
+Found saddle at (5.0652, -3.41377), val=-1.7414
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=383 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.49699e+07
+[I_p comparison] cut-cell moment   : 1.47261e+07
+[I_p comparison] relative diff     : 0.0162899
+plasma_current = 1.49699498e+07
+alpha = -1.36502485e+00
+psi_x = -1.74507350e+00; r_x = 5.00326258e+00; z_x = -3.34612029e+00
+psi_ma = -1.37267324e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.187e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 37 iterations with a residual norm of 2.519153e-09
+res_1: 2.91e-10
+res_2: 2.13e-07
+Currents: [-3.428e+06 1.166e+07 2.623e+07 9.292e+06 1.976e+05 -6.419e+06 3.462e+06 4.955e+06 3.534e+06 1.067e+07 -2.186e+07 ]
+Found saddle at (5.0652, -3.41377), val=-1.50316
+Found saddle at (4.98997, -3.44179), val=-1.50707
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.50505e+07
+[I_p comparison] cut-cell moment   : 1.48184e+07
+[I_p comparison] relative diff     : 0.0154209
+plasma_current = 1.50504515e+07
+alpha = -1.34226848e+00
+psi_x = -1.50707047e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.32301360e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.122e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 33 iterations with a residual norm of 4.431169e-09
+res_1: 4.91e-07
+res_2: 2.81e-03
+Currents: [-2.639e+06 1.121e+07 2.668e+07 9.401e+06 -2.496e+05 -6.514e+06 3.484e+06 5.076e+06 3.570e+06 1.100e+07 -2.285e+07 ]
+Found saddle at (5.00326, -3.34612), val=-1.68116
+Found saddle at (5.0652, -3.41377), val=-1.67757
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=383 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.49515e+07
+[I_p comparison] cut-cell moment   : 1.47053e+07
+[I_p comparison] relative diff     : 0.0164682
+plasma_current = 1.49515019e+07
+alpha = -1.36713091e+00
+psi_x = -1.68116470e+00; r_x = 5.00326258e+00; z_x = -3.34612029e+00
+psi_ma = -1.37198613e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.204e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 37 iterations with a residual norm of 3.562926e-09
+res_1: 3.53e-10
+res_2: 3.18e-07
+Currents: [-3.267e+06 1.174e+07 2.637e+07 9.409e+06 2.304e+05 -6.334e+06 3.461e+06 4.961e+06 3.518e+06 1.070e+07 -2.187e+07 ]
+Found saddle at (5.0652, -3.41377), val=-1.41809
+Found saddle at (4.98997, -3.44179), val=-1.42199
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.50474e+07
+[I_p comparison] cut-cell moment   : 1.48173e+07
+[I_p comparison] relative diff     : 0.0152917
+plasma_current = 1.50473877e+07
+alpha = -1.34114952e+00
+psi_x = -1.42199487e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.31421711e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.122e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 34 iterations with a residual norm of 3.068525e-09
+res_1: 6.29e-07
+res_2: 3.34e-03
+Currents: [-2.527e+06 1.123e+07 2.695e+07 9.454e+06 -1.525e+05 -6.515e+06 3.495e+06 5.095e+06 3.592e+06 1.103e+07 -2.291e+07 ]
+Found saddle at (5.00326, -3.34612), val=-1.6281
+Found saddle at (5.0652, -3.41377), val=-1.6248
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=383 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.49461e+07
+[I_p comparison] cut-cell moment   : 1.47016e+07
+[I_p comparison] relative diff     : 0.016359
+plasma_current = 1.49461072e+07
+alpha = -1.37302936e+00
+psi_x = -1.62809999e+00; r_x = 5.00326258e+00; z_x = -3.34612029e+00
+psi_ma = -1.37254085e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.220e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 1.382267e-09
+res_1: 1.70e-10
+res_2: 9.25e-08
+Currents: [-3.207e+06 1.185e+07 2.654e+07 9.490e+06 3.456e+05 -6.287e+06 3.463e+06 4.962e+06 3.522e+06 1.070e+07 -2.180e+07 ]
+Found saddle at (5.0652, -3.41377), val=-1.32846
+Found saddle at (4.98997, -3.44179), val=-1.33249
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.50491e+07
+[I_p comparison] cut-cell moment   : 1.48195e+07
+[I_p comparison] relative diff     : 0.0152566
+plasma_current = 1.50491013e+07
+alpha = -1.34182952e+00
+psi_x = -1.33248967e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.30543985e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.122e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 34 iterations with a residual norm of 2.941668e-09
+res_1: 6.56e-07
+res_2: 3.26e-03
+Currents: [-2.311e+06 1.127e+07 2.713e+07 9.519e+06 -4.452e+03 -6.464e+06 3.496e+06 5.094e+06 3.590e+06 1.103e+07 -2.288e+07 ]
+Found saddle at (5.00326, -3.34612), val=-1.5327
+Found saddle at (5.0652, -3.41377), val=-1.5295
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=383 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.49475e+07
+[I_p comparison] cut-cell moment   : 1.47029e+07
+[I_p comparison] relative diff     : 0.0163596
+plasma_current = 1.49474651e+07
+alpha = -1.37236068e+00
+psi_x = -1.53269859e+00; r_x = 5.00326258e+00; z_x = -3.34612029e+00
+psi_ma = -1.36219904e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.218e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 1.353077e-09
+res_1: 1.72e-10
+res_2: 8.99e-08
+Currents: [-3.005e+06 1.190e+07 2.673e+07 9.558e+06 4.909e+05 -6.242e+06 3.465e+06 4.964e+06 3.522e+06 1.071e+07 -2.179e+07 ]
+Found saddle at (5.0652, -3.41377), val=-1.23534
+Found saddle at (4.98997, -3.44179), val=-1.23929
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.50493e+07
+[I_p comparison] cut-cell moment   : 1.48189e+07
+[I_p comparison] relative diff     : 0.0153125
+plasma_current = 1.50493202e+07
+alpha = -1.34176321e+00
+psi_x = -1.23929138e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.29610128e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.122e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 34 iterations with a residual norm of 3.084272e-09
+res_1: 6.83e-07
+res_2: 3.37e-03
+Currents: [-2.221e+06 1.136e+07 2.732e+07 9.593e+06 1.225e+05 -6.427e+06 3.500e+06 5.099e+06 3.595e+06 1.104e+07 -2.284e+07 ]
+Found saddle at (5.00326, -3.34612), val=-1.4479
+Found saddle at (5.0652, -3.41377), val=-1.44469
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=383 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.49466e+07
+[I_p comparison] cut-cell moment   : 1.47019e+07
+[I_p comparison] relative diff     : 0.0163735
+plasma_current = 1.49465876e+07
+alpha = -1.37364135e+00
+psi_x = -1.44790080e+00; r_x = 5.00326258e+00; z_x = -3.34612029e+00
+psi_ma = -1.35497056e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.221e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 1.389082e-09
+res_1: 1.70e-10
+res_2: 9.31e-08
+Currents: [-2.908e+06 1.199e+07 2.691e+07 9.637e+06 6.267e+05 -6.194e+06 3.468e+06 4.966e+06 3.523e+06 1.070e+07 -2.173e+07 ]
+Found saddle at (5.0652, -3.41377), val=-1.14153
+Found saddle at (4.98997, -3.44179), val=-1.14557
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.50494e+07
+[I_p comparison] cut-cell moment   : 1.48195e+07
+[I_p comparison] relative diff     : 0.0152782
+plasma_current = 1.50494141e+07
+alpha = -1.34187720e+00
+psi_x = -1.14557391e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.28674952e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.122e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 34 iterations with a residual norm of 2.929780e-09
+res_1: 7.02e-07
+res_2: 3.25e-03
+Currents: [-2.016e+06 1.142e+07 2.749e+07 9.666e+06 2.762e+05 -6.370e+06 3.501e+06 5.097e+06 3.592e+06 1.104e+07 -2.281e+07 ]
+Found saddle at (5.00326, -3.34612), val=-1.34534
+Found saddle at (5.0652, -3.41377), val=-1.34217
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=383 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.49475e+07
+[I_p comparison] cut-cell moment   : 1.4703e+07
+[I_p comparison] relative diff     : 0.0163555
+plasma_current = 1.49475096e+07
+alpha = -1.37229159e+00
+psi_x = -1.34533610e+00; r_x = 5.00326258e+00; z_x = -3.34612029e+00
+psi_ma = -1.34339862e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.218e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 38 iterations with a residual norm of 1.351905e-09
+res_1: 1.72e-10
+res_2: 8.98e-08
+Currents: [-2.698e+06 1.204e+07 2.711e+07 9.709e+06 7.786e+05 -6.146e+06 3.470e+06 4.967e+06 3.524e+06 1.071e+07 -2.171e+07 ]
+Found saddle at (5.0652, -3.41377), val=-1.04374
+Found saddle at (4.98997, -3.44179), val=-1.0477
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.50492e+07
+[I_p comparison] cut-cell moment   : 1.48189e+07
+[I_p comparison] relative diff     : 0.0153081
+plasma_current = 1.50492399e+07
+alpha = -1.34173883e+00
+psi_x = -1.04770366e+00; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.27692997e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.122e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 34 iterations with a residual norm of 3.076315e-09
+res_1: 7.32e-07
+res_2: 3.37e-03
+Currents: [-1.916e+06 1.151e+07 2.770e+07 9.744e+06 4.109e+05 -6.331e+06 3.505e+06 5.102e+06 3.597e+06 1.104e+07 -2.277e+07 ]
+Found saddle at (5.00326, -3.34612), val=-1.25587
+Found saddle at (5.0652, -3.41377), val=-1.25268
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=383 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.49472e+07
+[I_p comparison] cut-cell moment   : 1.47022e+07
+[I_p comparison] relative diff     : 0.0163877
+plasma_current = 1.49471599e+07
+alpha = -1.37358040e+00
+psi_x = -1.25586565e+00; r_x = 5.00326258e+00; z_x = -3.34612029e+00
+psi_ma = -1.33570364e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.221e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+GMRES converged in 37 iterations with a residual norm of 4.063907e-09
+res_1: 5.06e-10
+res_2: 3.10e-07
+Currents: [-2.464e+06 1.208e+07 2.730e+07 9.779e+06 9.279e+05 -6.097e+06 3.472e+06 4.970e+06 3.519e+06 1.074e+07 -2.173e+07 ]
+Found saddle at (5.0652, -3.41377), val=-0.94719
+Found saddle at (4.98997, -3.44179), val=-0.951203
+total saddles found: 2
+[DEBUGGING: NonlinearEquationRes] ind_ma=4501 slave=0  ind_x=4579 slave=0  VSize=6662 TrueVSize=6470
+[I_p comparison] BFS whole-element : 1.50492e+07
+[I_p comparison] cut-cell moment   : 1.48185e+07
+[I_p comparison] relative diff     : 0.0153304
+plasma_current = 1.50492114e+07
+alpha = -1.34172365e+00
+psi_x = -9.51203362e-01; r_x = 4.98997074e+00; z_x = -3.44179019e+00
+psi_ma = -1.26723226e+01; r_ma = 6.39977429e+00; z_ma = 5.03202881e-01
+newton error (eq_res tdof): 1.122e-02  (newton_tol=1.0e-06)
+inexact newton rtol: 1.00e-06
+
+Reached the maximum number of refinement levels
+time elapsed: 261.553305 seconds
+glvis -m meshes/mesh_refine.mesh -g gf/final_model1_pc5_cyc0_it5.gf

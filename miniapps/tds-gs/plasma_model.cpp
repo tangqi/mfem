@@ -273,10 +273,15 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T, const Integrati
   
   // Return the full plasma-source coefficient, depending on the model choice used (1, 2, 3, 4)
   //
-  // WARNING: the option==1 formula below (together with the model_choice switch
-  // block above) is DUPLICATED in cut_cell_current.cpp, class
-  // PlasmaSourceIntegrand, which is used by the cut-cell I_p validation module.
-  // If you change the plasma source model here, mirror the change there too.
+  // WARNING: the option==1 formula below (together with the model_choice
+  // switch block above) is DUPLICATED in cut_cell_current.cpp, class
+  // PlasmaSourceIntegrand (cut-cell I_p validation module). The on-separatrix
+  // value of this same formula at psi_N=1 is ALSO duplicated in
+  // gateaux_cutcell.cpp, class GBoundaryCoef (cut-cell Gateaux diagnostic).
+  // Additionally, the option==2/3/4 Gateaux integrands further below
+  // (psi_N_multiplier, `other`, and the per-option `coeff`) are DUPLICATED in
+  // gateaux_cutcell.cpp, class GateauxCoef. If you change the plasma source
+  // model here, mirror the change in all of those places.
   else if (option == 1) {  // POSSIBLE BUG HERE for Taylor state
   
     // Compute the integrand of:

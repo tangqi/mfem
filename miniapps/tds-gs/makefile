@@ -9,7 +9,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 #define source and object
 GS_COMMON_SRC = amr.cpp double_integrals.cpp field.cpp  test.cpp boundary.cpp elliptic_integral.cpp gs.cpp plasma_model.cpp \
-				diffusion_term.cpp exact.cpp initial_coefficient.cpp sys_operator.cpp cut_cell_current.cpp
+				diffusion_term.cpp exact.cpp initial_coefficient.cpp sys_operator.cpp cut_cell_current.cpp gateaux_cutcell.cpp
 GS_COMMON_OBJ = $(GS_COMMON_SRC:.cpp=.o)
 
 #define the target executable
