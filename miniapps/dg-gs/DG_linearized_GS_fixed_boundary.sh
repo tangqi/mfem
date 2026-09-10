@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # Executable
-EXE="./DG_fixed_boundary_GS"
+EXE="./DG_fixed_boundary_linear_GS"
 
 # Input mesh
 MESH="meshes/ITER.msh"
