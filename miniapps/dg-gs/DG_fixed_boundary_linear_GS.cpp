@@ -1,16 +1,12 @@
 // Fixed Boundary Grad-Shafranov Solver With Discontinuous Galerkin
 // We are solving: -div[(1/R) grad(psi)] = -R (Solev'ev)
+// This is a linearized Grad-Shafranov equation due to the source term having no
+// psi dependence
 // Coordinate convention:
 // x(0) = R
 // x(1) = Z
 // NOTE: With any chosen mesh, R should be > 0 for all coordinates along the
 // mesh. Otherwise, the diffusion term can blow up due to a 1 / R dependency.
-
-// TODO: need analytical solution to compare against. See exact solution in
-// section 7.1.1 in DPG paper.
-
-// TODO: in a different file, add nonlinear solve e.g. Newton iteration:
-// residual, delta_x, Newton Loop, JFNK, preconditioner.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -33,7 +29,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "meshes/ITER.msh";
 
    std::string output_mesh = "./solutions/solution_mesh.mesh";
-   std::string output_gf = "./solutions/solution_gf.mesh";
+   std::string output_gf = "./solutions/solution_gf.gf";
 
    int ser_ref_levels = 1;
    int par_ref_levels = 2;
@@ -195,18 +191,6 @@ int main(int argc, char *argv[])
    // Magnetic permeability
    // const real_t mu0 = 4.0*M_PI*1e-7;  // kept for later use (nonlinear source)
 
-   // // Solov'ev coefficients
-   // real_t Cp  = 1.0;
-   // real_t CFF = 1.0;;
-
-   // // Solov'ev equilibrium source--simple linear case
-   // // P'(psi) = C_P
-   // // F(psi) F'(psi) = C_F
-   // FunctionCoefficient rhs([=](const Vector &x) {
-   //    const real_t R = x(0);
-   //    return mu0*R*Cp + CFF/R;
-   // });
-
    // Solov'ev equilibrium source--simple linear case
    // Equation 7.1.1 in DPG paper RHS
    FunctionCoefficient rhs([=](const Vector &x) {
@@ -220,8 +204,7 @@ int main(int argc, char *argv[])
    // Handle boundary conditions. In DG, boundary conditions are imposed weakly
    // through boundary integrals rather than by directly fixing boundary DOFs.
    ConstantCoefficient psi_b(0.0);  // Psi is 0 at the boundary
-   b.AddBdrFaceIntegrator(
-   new DGDirichletLFIntegrator(psi_b, invR, sigma, kappa));
+   b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(psi_b, invR, sigma, kappa));
 
    b.Assemble();
 
@@ -229,9 +212,9 @@ int main(int argc, char *argv[])
    // Linear System Solve
    /**************************************************************/
    
-   // Define solution vector x
-   ParGridFunction x(&fespace);
-   x = 0.0;
+   // Define solution vector psi
+   ParGridFunction psi(&fespace);
+   psi = 0.0;
 
    OperatorHandle A;
    std::unique_ptr<HypreBoomerAMG> amg;  // Algebraic Multigrid preconditioner
@@ -266,7 +249,7 @@ int main(int argc, char *argv[])
       cg.SetPrintLevel(1);
       cg.SetOperator(*A);
       if (amg) { cg.SetPreconditioner(*amg); }  // With partial assembly, there is no AMG preconditioner
-      cg.Mult(b, x);
+      cg.Mult(b, psi);
    }
    else
    {
@@ -279,7 +262,7 @@ int main(int argc, char *argv[])
       gmres.SetPrintLevel(1);
       gmres.SetOperator(*A);
       if (amg) { gmres.SetPreconditioner(*amg); }  // With partial assembly, there is no AMG preconditioner
-      gmres.Mult(b, x);
+      gmres.Mult(b, psi);
    }
 
    // Track solve time
@@ -298,7 +281,7 @@ int main(int argc, char *argv[])
    if (save_as_one)
    {
       pmesh.SaveAsOne(output_mesh);
-      x.SaveAsOne(output_gf.c_str());
+      psi.SaveAsOne(output_gf.c_str());
    }
    else
    {
@@ -323,7 +306,7 @@ int main(int argc, char *argv[])
       ofstream gf_ofs(gf_name.str());
       MFEM_VERIFY(gf_ofs.good(), "Could not open grid-function output file: " << gf_name.str());
       gf_ofs.precision(8);
-      x.Save(gf_ofs);
+      psi.Save(gf_ofs);
    }
    
    // Send the solution by socket to a GLVis server.
@@ -334,7 +317,7 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << pmesh << x << flush;
+      sol_sock << "solution\n" << pmesh << psi << flush;
    }
 
    // Print time to solve
@@ -367,8 +350,8 @@ int main(int argc, char *argv[])
       return R4/8.0 + d1 + d2*R2 + d3*(R4 - 4.0*R2*Z*Z);
    });
 
-   const real_t psi_l2_error = x.ComputeL2Error(psi_exact);
-   const real_t psi_linf_error = x.ComputeMaxError(psi_exact);
+   const real_t psi_l2_error = psi.ComputeL2Error(psi_exact);
+   const real_t psi_linf_error = psi.ComputeMaxError(psi_exact);
 
    // Compute norm of exact solution using zero grid function
    ParGridFunction zero_gf(&fespace);

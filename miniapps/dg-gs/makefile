@@ -7,8 +7,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-# The single-file DG fixed-boundary Grad-Shafranov solver
-MINIAPPS = DG_fixed_boundary_linear_GS
+# The DG fixed-boundary Grad-Shafranov solvers (linear and nonlinear)
+MINIAPPS = DG_fixed_boundary_linear_GS DG_fixed_boundary_nonlinear_GS
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
