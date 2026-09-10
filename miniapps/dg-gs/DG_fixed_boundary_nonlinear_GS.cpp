@@ -374,11 +374,24 @@ int main(int argc, char *argv[])
    // Magnetic permeability
    // const real_t mu0 = 4.0*M_PI*1e-7;  // kept for later use (nonlinear source)
 
-   // Solov'ev equilibrium source--simple linear case
-   // Equation 7.1.1 in DPG paper RHS
-   FunctionCoefficient rhs([=](const Vector &x) {
+   // Coefficients from section 7.1.2 of DPG paper
+   const real_t pi = std::acos(-1.0);
+   const real_t kr = 1.15 * pi;
+   const real_t kz = 1.15;
+   const real_t r0 = -0.5;
+   
+   // Nonlinear source term from section 7.1.2 of DPG paper
+   ParGridFunction psi_eval(&fespace);
+   psi_eval = 0.0;
+   NonlinearGSSource rhs(psi_eval, kr, kz, r0);
+
+   // Exact solution: needed here because of boundary conditions
+   FunctionCoefficient psi_exact([=](const Vector &x)
+   {
       const real_t R = x(0);
-      return -R;
+      const real_t Z = x(1);
+
+      return std::sin(kr * (R + r0)) * std::cos(kz * Z);
    });
 
    ParLinearForm b(&fespace);
@@ -386,8 +399,11 @@ int main(int argc, char *argv[])
 
    // Handle boundary conditions. In DG, boundary conditions are imposed weakly
    // through boundary integrals rather than by directly fixing boundary DOFs.
-   ConstantCoefficient psi_b(0.0);  // Psi is 0 at the boundary
-   b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(psi_b, invR, sigma, kappa));
+   // BCs are given by the exact solution in this case
+   b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(psi_exact, invR, sigma, kappa));
+
+   // ConstantCoefficient psi_b(0.0);  // Psi is 0 at the boundary
+   // b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(psi_b, invR, sigma, kappa));
 
    // b.Assemble();
 
@@ -398,6 +414,7 @@ int main(int argc, char *argv[])
    // Calculate residual Ax - b
    auto EvaluateResidual = [&](const Vector &u, Vector &res)
    {
+      psi_eval = u;
       b.Assemble();
 
       A->Mult(u, res);
@@ -416,7 +433,7 @@ int main(int argc, char *argv[])
 
    // TODO: add max_newton_iterations as an input parameter. Also consider
    // adding max_krylov_steps as an input parameter as well.
-   const int max_newton_iter = 6;
+   const int max_newton_iter = 20;
    const int max_gmres_iter = 500;
    const real_t newton_abs_tol = 1.0e-12;
    const real_t newton_rel_tol = 1.0e-8;
@@ -552,24 +569,7 @@ int main(int argc, char *argv[])
    // Compare against analytic solution
    /**************************************************************/
 
-   // TODO: double check that the coefficients are correct
-
-   // Coefficients from Section 7.1.1 of DPG paper
-   const real_t d1 =  0.075385029660066;
-   const real_t d2 = -0.206294962187880;
-   const real_t d3 = -0.031433707280533;
-
-   // Exact solution
-   FunctionCoefficient psi_exact([=](const Vector &x)
-   {
-      const real_t R = x(0);
-      const real_t Z = x(1);
-
-      const real_t R2 = R*R;
-      const real_t R4 = R2*R2;
-
-      return R4/8.0 + d1 + d2*R2 + d3*(R4 - 4.0*R2*Z*Z);
-   });
+   // Note: exact solution defined earlier in linear form section
 
    const real_t psi_l2_error = psi.ComputeL2Error(psi_exact);
    const real_t psi_linf_error = psi.ComputeMaxError(psi_exact);
