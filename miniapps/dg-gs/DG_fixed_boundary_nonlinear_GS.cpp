@@ -12,6 +12,10 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <cmath>
+#include <functional>
+#include <limits>
+#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -113,6 +117,68 @@ public:
 
 
 
+/**
+ * @brief Nonlinear manufactured source term from Section 7.1.2
+ * of the DPG Grad-Shafranov paper.
+ *
+ * Evaluates the RHS f(R,Z,psi) in
+ *
+ *   -div[(1/R) grad(psi)] = f(R,Z,psi).
+ */
+class NonlinearGSSource : public Coefficient
+{
+private:
+   const ParGridFunction &psi;
+
+   real_t kr;
+   real_t kz;
+   real_t r0;
+
+public:
+   NonlinearGSSource(const ParGridFunction &psi_,
+                     real_t kr_,
+                     real_t kz_,
+                     real_t r0_)
+      : psi(psi_),
+        kr(kr_),
+        kz(kz_),
+        r0(r0_)
+   { }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      Vector x(T.GetSpaceDim());
+      T.Transform(ip, x);
+
+      const real_t R = x(0);
+      const real_t Z = x(1);
+
+      MFEM_VERIFY(R > 0.0, "Grad-Shafranov mesh must lie entirely in R > 0.");
+
+      // Current nonlinear iterate evaluated at this quadrature point
+      const real_t psi_val = psi.GetValue(T, ip);
+
+      const real_t arg_R = kr * (R + r0);
+      const real_t arg_Z = kz * Z;
+
+      // Manufactured exact solution q(R,Z)
+      const real_t q =
+         std::sin(arg_R) * std::cos(arg_Z);
+
+      const real_t cos_term =
+         std::cos(arg_R) * std::cos(arg_Z);
+
+      return ((kr*kr + kz*kz) / R) * psi_val
+             + (kr / (R*R)) * cos_term
+             + q*q
+             - psi_val*psi_val
+             + std::exp(-q)
+             - std::exp(-psi_val);
+   }
+};
+
+
+
 int main(int argc, char *argv[])
 {
    
@@ -127,10 +193,10 @@ int main(int argc, char *argv[])
    const char *mesh_file = "meshes/ITER.msh";
 
    std::string output_mesh = "./solutions/solution_mesh.mesh";
-   std::string output_gf = "./solutions/solution_gf.mesh";
+   std::string output_gf = "./solutions/solution_gf.gf";
 
-   int ser_ref_levels = 1;
-   int par_ref_levels = 2;
+   int ser_ref_levels = 0;
+   int par_ref_levels = 1;
    int order = 1;
 
    real_t sigma = -1.0;
@@ -329,35 +395,50 @@ int main(int argc, char *argv[])
    // Newton Loop With Jacobian-Free Newton-Krylov
    /**************************************************************/
 
+   // Calculate residual Ax - b
+   auto EvaluateResidual = [&](const Vector &u, Vector &res)
+   {
+      b.Assemble();
+
+      A->Mult(u, res);
+      res -= b;
+   };
+
+   MPI_Barrier(MPI_COMM_WORLD);
+   double solve_start = MPI_Wtime();
+
    // Define solution vector psi and initialize as zero
    ParGridFunction psi(&fespace);
    psi = 0.0;
+
+   // Construct the Jacobian-free operator
+   JFNKOperator J(MPI_COMM_WORLD,A->Height(),EvaluateResidual);
 
    // TODO: add max_newton_iterations as an input parameter. Also consider
    // adding max_krylov_steps as an input parameter as well.
    const int max_newton_iter = 6;
    const int max_gmres_iter = 500;
-
    const real_t newton_abs_tol = 1.0e-12;
    const real_t newton_rel_tol = 1.0e-8;
+   const real_t gmres_abs_tol = 0.0;
+   const real_t gmres_rel_tol = 1.0e-6;
 
    // Set GMRES solver parameters
    GMRESSolver gmres(MPI_COMM_WORLD);
-   gmres.SetAbsTol(newton_abs_tol);
-   gmres.SetRelTol(newton_rel_tol);
+   gmres.SetAbsTol(gmres_abs_tol);
+   gmres.SetRelTol(gmres_rel_tol);
    gmres.SetMaxIter(max_gmres_iter);
    gmres.SetKDim(10);
    gmres.SetPrintLevel(1);
+   gmres.SetOperator(J);  // Jacobian action on vector
    if (amg) { gmres.SetPreconditioner(*amg); }  // With partial assembly, there is no AMG preconditioner
 
    bool newton_converged = false;
    real_t initial_res_norm = 0.0;
-   for (int k = 0; k < max_newton_iter; k++)
+   for (int k = 0; k <= max_newton_iter; k++)
    {
-      // Reassemble source term b(psi) using current psi
-      b.Assemble();
-
       J.SetLinearizationPoint(psi);
+      const Vector &res = J.GetBaseResidual();
 
       // Check for convergence before new Newton iteration and break if already converged
       const real_t res_norm = std::sqrt(InnerProduct(MPI_COMM_WORLD, res, res));  // Residual norm
@@ -373,97 +454,32 @@ int main(int argc, char *argv[])
       if (res_norm <= newton_abs_tol || rel_res <= newton_rel_tol)
       {
          newton_converged = true;
-         if (Mpi::Root()) {cout << "Newton converged after " << k << " Newton corrections." << endl;}
+         if (Mpi::Root()) {cout << "Newton converged after " << k << " iterations." << endl;}
          break;
       }
+      if (k == max_newton_iter) {break;}
 
       // Initialize Newton correction term delta_psi
       Vector delta_psi(psi.Size());
       delta_psi = 0.0;
 
       // Form residual A psi b(psi)
-      Vector res(J.GetBaseResidual());
+      Vector newton_rhs(res);
+      newton_rhs *= -1.0;
 
       // Linear Solve with GMRES
-      gmres.SetOperator(J);
-      gmres.Mult(-1.0 * res, delta_psi);
+      gmres.Mult(newton_rhs, delta_psi);
       MFEM_VERIFY(gmres.GetConverged(), "GMRES failed during Newton iteration.");
 
       // Newton update step
       psi += delta_psi;
-
-      // Compute residual at NEW solution psi_{k+1}
-      Vector res_new(psi.Size());
-      EvaluateResidual(psi, res_new);
-
-      const real_t res_norm = std::sqrt(InnerProduct(MPI_COMM_WORLD, res_new, res_new));
-
-      if (res_norm <= newton_abs_tol) {break;}
-
-      if (!newton_converged && Mpi::Root())
-      {
-         cout << "WARNING: Newton solver reached the maximum of "
-            << max_newton_iter
-            << " iterations without converging." << endl;
-      }
    }
 
-
-   /**************************************************************/
-   // Linear System Solve
-   /**************************************************************/
-   
-   // Define solution vector psi
-   ParGridFunction psi(&fespace);
-   psi = 0.0;
-
-   OperatorHandle A;
-   std::unique_ptr<HypreBoomerAMG> amg;  // Algebraic Multigrid preconditioner
-
-   // Partial assembly
-   if (pa)
+   if (!newton_converged && Mpi::Root())
    {
-      // Set the operator A to point at the bilinear form a, for GMRES or CG later on  
-      A.Reset(&a, false);
-   }
-   else
-   {
-      // Build HYPRE sparse matrix
-      A.SetType(Operator::Hypre_ParCSR);
-      a.ParallelAssemble(A);
-
-      // Build Algebraic Multigrid preconditioner from A
-      amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
-   }
-
-   MPI_Barrier(MPI_COMM_WORLD);
-   double solve_start = MPI_Wtime();
-   
-   // Depending on the symmetry of A, define and apply a parallel PCG or
-   // GMRES solver for AX=B using the BoomerAMG preconditioner from hypre.
-   if (sigma == -1.0)
-   {
-      // Conjugate gradient: sigma == -1 implies A is SPD
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(500);
-      cg.SetPrintLevel(1);
-      cg.SetOperator(*A);
-      if (amg) { cg.SetPreconditioner(*amg); }  // With partial assembly, there is no AMG preconditioner
-      cg.Mult(b, psi);
-   }
-   else
-   {
-      // GMRES
-      GMRESSolver gmres(MPI_COMM_WORLD);
-      gmres.SetAbsTol(0.0);
-      gmres.SetRelTol(1e-12);
-      gmres.SetMaxIter(500);
-      gmres.SetKDim(10);
-      gmres.SetPrintLevel(1);
-      gmres.SetOperator(*A);
-      if (amg) { gmres.SetPreconditioner(*amg); }  // With partial assembly, there is no AMG preconditioner
-      gmres.Mult(b, psi);
+      cout << "WARNING: Newton solver reached the maximum of "
+         << max_newton_iter
+         << " iterations without converging." << endl;
    }
 
    // Track solve time
@@ -525,8 +541,12 @@ int main(int argc, char *argv[])
    if (Mpi::Root()) 
    {
       cout << '\n';
-      cout << "Linear solve time: " << solve_time << " seconds" << endl;
+      cout << "Solve time: " << solve_time << " seconds" << endl;
    }
+
+
+   ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
    /**************************************************************/
    // Compare against analytic solution
