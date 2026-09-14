@@ -48,6 +48,8 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <vector>
+#include <iomanip>
 
 using namespace std;
 using namespace mfem;
@@ -510,9 +512,6 @@ int main(int argc, char *argv[])
       res -= b;
    };
 
-   MPI_Barrier(MPI_COMM_WORLD);
-   double solve_start = MPI_Wtime();
-
    // Define solution vector psi and initialize as zero
    ParGridFunction psi(&fespace);
    psi = 0.0;
@@ -532,6 +531,20 @@ int main(int argc, char *argv[])
 
    bool newton_converged = false;
    real_t initial_res_norm = 0.0;
+
+   // Metrics for post-solve summary
+   int newton_iterations = 0;
+   int total_gmres_iterations = 0;
+   real_t final_res_norm = 0.0;
+   real_t final_rel_res = 0.0;
+   std::vector<int> gmres_iterations_per_newton;
+   std::vector<real_t> residual_norm_per_newton;
+   std::vector<real_t> relative_residual_per_newton;
+
+   // Solve timer
+   MPI_Barrier(MPI_COMM_WORLD);
+   double solve_start = MPI_Wtime();
+
    for (int k = 0; k <= max_newton_iter; k++)
    {
       J.SetLinearizationPoint(psi);
@@ -541,6 +554,8 @@ int main(int argc, char *argv[])
       const real_t res_norm = std::sqrt(InnerProduct(MPI_COMM_WORLD, res, res));  // Residual norm
       if (k == 0) {initial_res_norm = res_norm;}
       const real_t rel_res = (initial_res_norm > 0.0) ? res_norm / initial_res_norm : 0.0;  // Relative residual
+      final_res_norm = res_norm;
+      final_rel_res = rel_res;
       if (Mpi::Root())
       {
          cout << "Newton iteration " << k
@@ -556,7 +571,7 @@ int main(int argc, char *argv[])
       }
       if (k == max_newton_iter) {break;}
 
-      // Initialize Newton correction term delta_psi
+      // Initialize Newton iteration term delta_psi
       Vector delta_psi(psi.Size());
       delta_psi = 0.0;
 
@@ -567,6 +582,14 @@ int main(int argc, char *argv[])
       // Solve J(psi_k) delta_psi = -R(psi_k) with GMRES
       gmres.Mult(newton_rhs, delta_psi);
       MFEM_VERIFY(gmres.GetConverged(), "GMRES failed during Newton iteration.");
+   
+      // Track solve metrics for post-solve summary
+      const int gmres_iterations = gmres.GetNumIterations();
+      gmres_iterations_per_newton.push_back(gmres_iterations);
+      residual_norm_per_newton.push_back(res_norm);
+      relative_residual_per_newton.push_back(rel_res);
+      total_gmres_iterations += gmres.GetNumIterations();
+      newton_iterations++;
 
       // Newton update step
       psi += delta_psi;
@@ -634,17 +657,9 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << pmesh << psi << flush;
    }
 
-   // Print time to solve and number of DOFs
-   if (Mpi::Root()) 
-   {
-      cout << '\n';
-      cout << "Number of DOFs: " << size << endl;
-      cout << "Solve time:     " << solve_time << " seconds" << endl;
-   }
-
 
    /**************************************************************/
-   // Compare against analytic solution
+   // Print Solve Metrics
    /**************************************************************/
 
    // Note: exact solution defined earlier in linear form section
@@ -662,10 +677,53 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
    {
       cout << '\n';
-      cout << "Solution error metrics:" << endl;
+      cout << "Run summary" << endl;
+      cout << "-----------" << endl;
+
+      cout << "MPI ranks:                 " << Mpi::WorldSize() << endl;
+      cout << "Global DOFs:               " << size << endl;
+      cout << "Polynomial order:          " << order << endl;
+      cout << "Serial refinement levels:  " << ser_ref_levels << endl;
+      cout << "Parallel refinement levels:" << par_ref_levels << endl;
+
+      cout << '\n';
+      cout << "Exact solution error metrics:" << endl;
       cout << "  L2 error:          " << psi_l2_error << endl;
       cout << "  relative L2 error: " << psi_relative_l2 << endl;
       cout << "  Linf error:        " << psi_linf_error << endl;
+
+      cout << '\n';
+      cout << "Newton iteration history:" << endl;
+      cout << "  Iteration" << "    GMRES iterations" << "     ||R||"
+         << "        Relative ||R||" << endl;
+
+      for (std::size_t k = 0; k < gmres_iterations_per_newton.size(); k++)
+      {
+         cout << "  "
+            << std::setw(10) << k
+            << std::setw(15) << gmres_iterations_per_newton[k]
+            << std::setw(15) << residual_norm_per_newton[k]
+            << std::setw(20) << relative_residual_per_newton[k]
+            << endl;
+      }
+
+      cout << '\n';
+      cout << "Converged:               " << (newton_converged ? "yes" : "no") << endl;
+      cout << "Final ||R||:             " << final_res_norm << endl;
+      cout << "Final relative residual: " << final_rel_res << endl;
+      cout << "Solve time:              " << solve_time << " seconds" << endl;
+
+      cout << '\n';
+
+      if (save_as_one || Mpi::WorldSize() == 1)
+      {
+         cout << "glvis -m " << output_mesh << " -g " << output_gf << endl;
+      }
+      else
+      {
+         cout << "glvis -m " << output_mesh << ".0" << " -g " << output_gf << ".0" << endl;
+         cout << "(visualizes the rank-0 partition only)" << endl;
+      }
    }
 
    return 0;
