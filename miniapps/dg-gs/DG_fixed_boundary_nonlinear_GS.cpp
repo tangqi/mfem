@@ -1,13 +1,45 @@
-// Fixed Boundary Grad-Shafranov Solver With Discontinuous Galerkin
-// We are solving: -div[(1/R) grad(psi)] = -R (Solev'ev)
+// Parallel Fixed Boundary Grad-Shafranov Solver With Discontinuous Galerkin
+//
+// This implements the nonlinear manufactured-solution test from Section
+// 7.1.2 of:
+// Z. Peng, Q. Tang, and X.-Z. Tang,
+// "An Adaptive Discontinuous Petrov-Galerkin Method for the
+// Grad-Shafranov Equation," SIAM J. Sci. Comput. 42(5), 2020.
+// DOI: 10.1137/19M1309894
+//
+// We are solving: -div[(1/R) grad(psi)] = f(R, Z, psi)
+//
+// Where f(R, Z, psi) = 1 / R F(R, Z, psi), and the source term given by the
+// paper is:
+//
+//   F(R,Z,psi) = (k_R^2 + k_Z^2) psi
+//                + (k_R/R) cos(k_R(R + R_0)) cos(k_Z Z)
+//                + R [ sin^2(k_R(R + R_0)) cos^2(k_Z Z)
+//                      - psi^2
+//                      + exp(-sin(k_R(R + R_0)) cos(k_Z Z))
+//                      - exp(-psi) ]
+//
+// with:
+//
+//   k_R = 1.15*pi,
+//   k_Z = 1.15,
+//   R_0 = -0.5.
+//
+// The analytical solution is: psi_exact(R,Z) = sin(k_R(R + R_0)) cos(k_Z Z)
+//
+// Nonhomogeneous Dirichlet boundary conditions are imposed weakly as
+// psi = psi_exact on the plasma boundary.
+//
+// We use a preconditioned Jacobian-Free Newton-Krylov method for the
+// nonlinear solve. GMRES is used for the inner Krylov solve, and HYPRE
+// BoomerAMG is applied to the assembled DG diffusion operator as the
+// preconditioner.
+//
 // Coordinate convention:
 // x(0) = R
 // x(1) = Z
 // NOTE: With any chosen mesh, R should be > 0 for all coordinates along the
 // mesh. Otherwise, the diffusion term can blow up due to a 1 / R dependency.
-
-// TODO: add nonlinear solve e.g. Newton iteration:
-// residual, delta_x, Newton Loop, JFNK, preconditioner.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -42,7 +74,7 @@ private:
    Vector psi_base;
    Vector res_base;
 
-   // Scratch vectors used for finite difference
+   // Scratch vectors representing the finite difference perturbation
    mutable Vector psi_pert;
    mutable Vector res_pert;
 
@@ -130,19 +162,19 @@ class NonlinearGSSource : public Coefficient
 private:
    const ParGridFunction &psi;
 
-   real_t kr;
-   real_t kz;
-   real_t r0;
+   real_t k_R;
+   real_t k_Z;
+   real_t R_0;
 
 public:
    NonlinearGSSource(const ParGridFunction &psi_,
-                     real_t kr_,
-                     real_t kz_,
-                     real_t r0_)
+                     real_t k_R_,
+                     real_t k_Z_,
+                     real_t R_0_)
       : psi(psi_),
-        kr(kr_),
-        kz(kz_),
-        r0(r0_)
+      k_R(k_R_),
+      k_Z(k_Z_),
+      R_0(R_0_)
    { }
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
@@ -158,8 +190,8 @@ public:
       // Current nonlinear iterate evaluated at this quadrature point
       const real_t psi_val = psi.GetValue(T, ip);
 
-      const real_t arg_R = kr * (R + r0);
-      const real_t arg_Z = kz * Z;
+      const real_t arg_R = k_R * (R + R_0);
+      const real_t arg_Z = k_Z * Z;
 
       // Manufactured exact solution q(R,Z)
       const real_t q =
@@ -168,8 +200,8 @@ public:
       const real_t cos_term =
          std::cos(arg_R) * std::cos(arg_Z);
 
-      return ((kr*kr + kz*kz) / R) * psi_val
-             + (kr / (R*R)) * cos_term
+      return ((k_R*k_R + k_Z*k_Z) / R) * psi_val
+             + (k_R / (R*R)) * cos_term
              + q*q
              - psi_val*psi_val
              + std::exp(-q)
@@ -195,18 +227,34 @@ int main(int argc, char *argv[])
    std::string output_mesh = "./solutions/solution_mesh.mesh";
    std::string output_gf = "./solutions/solution_gf.gf";
 
+   // Polynomial order and mesh refinement
    int ser_ref_levels = 0;
    int par_ref_levels = 1;
    int order = 1;
 
+   // DG parameters
    real_t sigma = -1.0;
    real_t kappa = -1.0;
-   // real_t eta = 0.0;
 
+   // Newton solver parameters
+   int max_newton_iter = 20;
+   real_t newton_abs_tol = 1.0e-12;
+   real_t newton_rel_tol = 1.0e-8;
+
+   // GMRES solver parameters
+   int max_gmres_iter = 500;
+   int gmres_kdim = 10;
+   real_t gmres_abs_tol = 0.0;
+   real_t gmres_rel_tol = 1.0e-6;
+
+   // Preconditioner
+   std::string preconditioner = "amg";
+
+   // Miscellaneous
    bool pa = false;
-   bool visualization = 1;
-   // const char *device_config = "cpu";
+   bool visualization = true;
    bool save_as_one = false;
+   // const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
 
@@ -236,7 +284,29 @@ int main(int argc, char *argv[])
                   "DG penalty parameterm should be positive."
                   " Negative values are replaced with (order+1)^2.");
 
-   // args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
+   args.AddOption(&max_newton_iter, "-nmi", "--newton-max-it",
+                  "Maximum number of Newton iterations.");
+
+   args.AddOption(&newton_rel_tol, "-nrtol", "--newton-rtol",
+                  "Relative nonlinear residual tolerance.");
+
+   args.AddOption(&newton_abs_tol, "-natol", "--newton-atol",
+                  "Absolute nonlinear residual tolerance.");
+
+   args.AddOption(&max_gmres_iter, "-gmi", "--gmres-max-it",
+                  "Maximum number of GMRES iterations per Newton iteration.");
+
+   args.AddOption(&gmres_rel_tol, "-grtol", "--gmres-rtol",
+                  "Relative GMRES convergence tolerance.");
+
+   args.AddOption(&gmres_abs_tol, "-gatol", "--gmres-atol",
+                  "Absolute GMRES convergence tolerance.");
+
+   args.AddOption(&gmres_kdim, "-gk", "--gmres-kdim",
+                  "GMRES Krylov subspace dimension before restart.");
+
+   args.AddOption(&preconditioner, "-pc", "--preconditioner",
+                  "Preconditioner to use: 'amg' or 'none'.");
 
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
@@ -245,13 +315,13 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
 
-   // args.AddOption(&device_config, "-d", "--device",
-   //                "Device configuration string, see Device::Configure().");
-
    args.AddOption(&save_as_one, "-one", "--save-as-one", "-sep",
                   "--save-separately",
                   "Save parallel solution mesh and grid function as one file "
                   "or as separate files for each MPI rank.");
+
+   // args.AddOption(&device_config, "-d", "--device",
+   //                "Device configuration string, see Device::Configure().");
 
    args.Parse();
 
@@ -268,6 +338,18 @@ int main(int argc, char *argv[])
 
    // Kappa should be positive. Otherwise, it is (order + 1)^2
    if (kappa < 0) { kappa = (order+1)*(order+1); }
+
+   MFEM_VERIFY(max_newton_iter > 0, "--newton-max-it must be positive.");
+   MFEM_VERIFY(newton_abs_tol >= 0.0, "--newton-atol must be nonnegative.");
+   MFEM_VERIFY(newton_rel_tol >= 0.0, "--newton-rtol must be nonnegative.");
+   MFEM_VERIFY(max_gmres_iter > 0, "--gmres-max-it must be positive.");
+   MFEM_VERIFY(gmres_abs_tol >= 0.0, "--gmres-atol must be nonnegative.");
+   MFEM_VERIFY(gmres_rel_tol >= 0.0, "--gmres-rtol must be nonnegative.");
+   MFEM_VERIFY(gmres_kdim > 0, "--gmres-kdim must be positive.");
+
+   // TODO: add more preconditioners
+   MFEM_VERIFY(preconditioner == "amg" || preconditioner == "none",
+               "--preconditioner must be 'amg' or 'none'.");
 
    // Print command line options
    if (Mpi::Root()) { args.PrintOptions(cout); }
@@ -354,9 +436,18 @@ int main(int argc, char *argv[])
    // Partial assembly
    if (pa)
    {
-      // Set the operator A to point at the bilinear form a, for GMRES or CG later on  
+      // Set the operator A to point at the bilinear form a, for GMRES later on  
       A.Reset(&a, false);
+
+      if (preconditioner == "amg")
+      {
+         MFEM_ABORT("BoomerAMG requires the fully assembled HypreParMatrix in "
+                  "the current implementation. Use --preconditioner none with "
+                  "--partial-assembly.");
+      }
    }
+
+   // No partial assembly and preconditioner setup
    else
    {
       // Build HYPRE sparse matrix
@@ -364,7 +455,10 @@ int main(int argc, char *argv[])
       a.ParallelAssemble(A);
 
       // Build Algebraic Multigrid preconditioner from A
-      amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
+      if (preconditioner == "amg")
+      {
+         amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
+      }
    }
 
    /**************************************************************/
@@ -376,14 +470,14 @@ int main(int argc, char *argv[])
 
    // Coefficients from section 7.1.2 of DPG paper
    const real_t pi = std::acos(-1.0);
-   const real_t kr = 1.15 * pi;
-   const real_t kz = 1.15;
-   const real_t r0 = -0.5;
+   const real_t k_R = 1.15 * pi;
+   const real_t k_Z = 1.15;
+   const real_t R_0 = -0.5;
    
    // Nonlinear source term from section 7.1.2 of DPG paper
    ParGridFunction psi_eval(&fespace);
    psi_eval = 0.0;
-   NonlinearGSSource rhs(psi_eval, kr, kz, r0);
+   NonlinearGSSource rhs(psi_eval, k_R, k_Z, R_0);
 
    // Exact solution: needed here because of boundary conditions
    FunctionCoefficient psi_exact([=](const Vector &x)
@@ -391,7 +485,7 @@ int main(int argc, char *argv[])
       const real_t R = x(0);
       const real_t Z = x(1);
 
-      return std::sin(kr * (R + r0)) * std::cos(kz * Z);
+      return std::sin(k_R * (R + R_0)) * std::cos(k_Z * Z);
    });
 
    ParLinearForm b(&fespace);
@@ -402,16 +496,11 @@ int main(int argc, char *argv[])
    // BCs are given by the exact solution in this case
    b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(psi_exact, invR, sigma, kappa));
 
-   // ConstantCoefficient psi_b(0.0);  // Psi is 0 at the boundary
-   // b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(psi_b, invR, sigma, kappa));
-
-   // b.Assemble();
-
    /**************************************************************/
    // Newton Loop With Jacobian-Free Newton-Krylov
    /**************************************************************/
 
-   // Calculate residual Ax - b
+   // Calculate residual
    auto EvaluateResidual = [&](const Vector &u, Vector &res)
    {
       psi_eval = u;
@@ -431,21 +520,12 @@ int main(int argc, char *argv[])
    // Construct the Jacobian-free operator
    JFNKOperator J(MPI_COMM_WORLD,A->Height(),EvaluateResidual);
 
-   // TODO: add max_newton_iterations as an input parameter. Also consider
-   // adding max_krylov_steps as an input parameter as well.
-   const int max_newton_iter = 20;
-   const int max_gmres_iter = 500;
-   const real_t newton_abs_tol = 1.0e-12;
-   const real_t newton_rel_tol = 1.0e-8;
-   const real_t gmres_abs_tol = 0.0;
-   const real_t gmres_rel_tol = 1.0e-6;
-
    // Set GMRES solver parameters
    GMRESSolver gmres(MPI_COMM_WORLD);
    gmres.SetAbsTol(gmres_abs_tol);
    gmres.SetRelTol(gmres_rel_tol);
    gmres.SetMaxIter(max_gmres_iter);
-   gmres.SetKDim(10);
+   gmres.SetKDim(gmres_kdim);
    gmres.SetPrintLevel(1);
    gmres.SetOperator(J);  // Jacobian action on vector
    if (amg) { gmres.SetPreconditioner(*amg); }  // With partial assembly, there is no AMG preconditioner
@@ -480,11 +560,11 @@ int main(int argc, char *argv[])
       Vector delta_psi(psi.Size());
       delta_psi = 0.0;
 
-      // Form residual A psi b(psi)
+      // Form residual -R(psi_k)
       Vector newton_rhs(res);
       newton_rhs *= -1.0;
 
-      // Linear Solve with GMRES
+      // Solve J(psi_k) delta_psi = -R(psi_k) with GMRES
       gmres.Mult(newton_rhs, delta_psi);
       MFEM_VERIFY(gmres.GetConverged(), "GMRES failed during Newton iteration.");
 
@@ -554,15 +634,13 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << pmesh << psi << flush;
    }
 
-   // Print time to solve
+   // Print time to solve and number of DOFs
    if (Mpi::Root()) 
    {
       cout << '\n';
-      cout << "Solve time: " << solve_time << " seconds" << endl;
+      cout << "Number of DOFs: " << size << endl;
+      cout << "Solve time:     " << solve_time << " seconds" << endl;
    }
-
-
-   ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
    /**************************************************************/
