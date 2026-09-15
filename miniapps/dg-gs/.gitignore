@@ -1,3 +1,5 @@
 solutions/
-run_logs/
-convergence_studies/
+
+# Convergence study: ignore generated data, keep the driver/collector scripts.
+convergence_studies/runs/
+convergence_studies/results.csv
