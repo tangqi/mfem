@@ -2,7 +2,7 @@
 #
 # AMG-baseline convergence study for the nonlinear DG Grad-Shafranov solver.
 #
-# Sweeps uniform mesh refinement L = 0..4 (h halves each level) at fixed order 1
+# Sweeps uniform mesh refinement L = 0..5 (h halves each level) at fixed order 1
 # with the BoomerAMG preconditioner, running each resolution both serial (1 rank)
 # and parallel (4 ranks). Per-run artifacts go under convergence_studies/runs/:
 # terminal logs in runs/logs/, meshes in runs/meshes/, grid functions in runs/gfs/.
@@ -40,7 +40,7 @@ GMRES_ATOL=0.0
 GMRES_KDIM=10
 
 # Refinement levels to sweep (override with the LEVELS env var for a dry run)
-LEVELS="${LEVELS:-0 1 2 3 4}"
+LEVELS="${LEVELS:-0 1 2 3 4 5}"
 
 RUNS_DIR="convergence_studies/runs"
 LOGDIR="$RUNS_DIR/logs"

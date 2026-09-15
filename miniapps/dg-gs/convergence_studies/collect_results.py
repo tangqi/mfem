@@ -3,8 +3,8 @@
 
 Parses the "Run summary" block that DG_fixed_boundary_nonlinear_GS prints to each
 runs/logs/nonlinear_amg_<config>_L<level>.log (alongside this script), writes
-results.csv next to this script, and prints, per config, the L2 error and the
-observed order p = log2(e_{L-1}/e_L).
+AMG_baseline_results.csv next to this script, and prints, per config, the L2 error
+and the observed order p = log2(e_{L-1}/e_L).
 
 Run after run_convergence_study.sh (works from any CWD):
     python3 collect_results.py
@@ -19,12 +19,12 @@ import re
 # Resolve paths from this script's own location so it works from any CWD.
 BASE = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(BASE, "runs", "logs")
-OUT_CSV = os.path.join(BASE, "results.csv")
+OUT_CSV = os.path.join(BASE, "AMG_baseline_results.csv")
 
 LOG_RE = re.compile(r"nonlinear_amg_(?P<config>\w+)_L(?P<level>\d+)\.log$")
 
 FIELDS = [
-    "config", "ranks", "level", "dofs",
+    "config", "ranks", "level", "order", "dofs",
     "l2_error", "rel_l2_error", "linf_error",
     "newton_iters", "gmres_iters_total", "converged", "solve_time_s",
 ]
@@ -66,6 +66,7 @@ def parse_log(path):
         "config": config,
         "ranks": _grab(r"MPI ranks:\s+(\d+)", text, int),
         "level": level,
+        "order": _grab(r"Polynomial order:\s+(\d+)", text, int),
         "dofs": _grab(r"Global DOFs:\s+(\d+)", text, int),
         "l2_error": _grab(r"L2 error:\s+([-\d.eE+]+)", text, float),
         "rel_l2_error": _grab(r"relative L2 error:\s+([-\d.eE+]+)", text, float),
@@ -94,7 +95,7 @@ def main():
     # Per-config table with observed order p = log2(e_{L-1}/e_L).
     for config in sorted({r["config"] for r in rows}):
         seq = [r for r in rows if r["config"] == config]
-        print(f"[{config}]  ranks={seq[0]['ranks']}")
+        print(f"[{config}]  ranks={seq[0]['ranks']}  order={seq[0]['order']}")
         print(f"  {'L':>2} {'DOFs':>10} {'L2 error':>12} {'order':>7} "
               f"{'Newton':>7} {'GMRES':>7} {'time[s]':>9} conv")
         prev = None
