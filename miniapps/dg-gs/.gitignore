@@ -1,4 +1,5 @@
 solutions/
+scratch/
 
 # Convergence study: ignore generated data, keep the driver/collector scripts.
 convergence_studies/runs/

@@ -408,6 +408,7 @@ int main(int argc, char *argv[])
 
    ParBilinearForm a(&fespace);
 
+
    // Diffusion operator in GS is like the Poisson diffusion operator, but with a 1/R instead
    FunctionCoefficient invR([](const Vector &x)
       {
@@ -416,6 +417,7 @@ int main(int argc, char *argv[])
          return 1.0 / R;
       }
    );
+
 
    // Build standard bilinear form integral 
    a.AddDomainIntegrator(new DiffusionIntegrator(invR));
@@ -481,6 +483,7 @@ int main(int argc, char *argv[])
    psi_eval = 0.0;
    NonlinearGSSource rhs(psi_eval, k_R, k_Z, R_0);
 
+
    // Exact solution: needed here because of boundary conditions
    FunctionCoefficient psi_exact([=](const Vector &x)
    {
@@ -489,6 +492,7 @@ int main(int argc, char *argv[])
 
       return std::sin(k_R * (R + R_0)) * std::cos(k_Z * Z);
    });
+
 
    ParLinearForm b(&fespace);
    b.AddDomainIntegrator(new DomainLFIntegrator(rhs));
@@ -502,6 +506,7 @@ int main(int argc, char *argv[])
    // Newton Loop With Jacobian-Free Newton-Krylov
    /**************************************************************/
 
+
    // Calculate residual
    auto EvaluateResidual = [&](const Vector &u, Vector &res)
    {
@@ -511,6 +516,7 @@ int main(int argc, char *argv[])
       A->Mult(u, res);
       res -= b;
    };
+
 
    // Define solution vector psi and initialize as zero
    ParGridFunction psi(&fespace);
