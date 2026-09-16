@@ -380,7 +380,7 @@ int main(int argc, char *argv[])
    a.Finalize();  // Compress A into CSR format
 
    OperatorHandle A;
-   std::unique_ptr<HypreBoomerAMG> amg;  // Algebraic Multigrid preconditioner
+   // std::unique_ptr<HypreBoomerAMG> amg;  // Algebraic Multigrid preconditioner
 
    // Partial assembly
    if (pa)
@@ -403,11 +403,11 @@ int main(int argc, char *argv[])
       A.SetType(Operator::Hypre_ParCSR);
       a.ParallelAssemble(A);
 
-      // Build Algebraic Multigrid preconditioner from A
-      if (preconditioner == "amg")
-      {
-         amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
-      }
+      // // Build Algebraic Multigrid preconditioner from A
+      // if (preconditioner == "amg")
+      // {
+      //    amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
+      // }
    }
 
    /**************************************************************/
@@ -536,6 +536,10 @@ int main(int argc, char *argv[])
       // Form Jacobian J(psi_k) = A - B'(psi_k)
       std::unique_ptr<HypreParMatrix> Jacobian(new HypreParMatrix(*A.As<HypreParMatrix>()));
       Jacobian->Add(-1.0, *Bprime);
+
+      // Apply preconditioner AMG(J(psi_k))
+      std::unique_ptr<HypreBoomerAMG> amg;
+      if (preconditioner == "amg") { amg.reset(new HypreBoomerAMG(*Jacobian)); }
 
       // Solve J(psi_k) delta_psi = -R(psi_k) with GMRES
       GMRESSolver gmres(MPI_COMM_WORLD);
