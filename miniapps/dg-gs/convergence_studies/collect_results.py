@@ -17,11 +17,21 @@ import os
 import re
 
 # Resolve paths from this script's own location so it works from any CWD.
+# RUNS_SUBDIR (which run directory to read) and OUT_NAME (output CSV name) can be
+# overridden via env vars to collect a different study without clobbering another
+# study's CSV, e.g.:
+#   RUNS_SUBDIR=runs_amg_jk OUT_NAME=AMG_Jk_explicit_jacobian_results.csv \
+#   python collect_results.py
 BASE = os.path.dirname(os.path.abspath(__file__))
-LOG_DIR = os.path.join(BASE, "runs", "logs")
-OUT_CSV = os.path.join(BASE, "AMG_baseline_results.csv")
+RUNS_SUBDIR = os.environ.get("RUNS_SUBDIR", "runs_baseline")
+LOG_DIR = os.path.join(BASE, RUNS_SUBDIR, "logs")
+# The results CSV lives inside the study's own run folder.
+OUT_CSV = os.path.join(BASE, RUNS_SUBDIR, os.environ.get("OUT_NAME", "AMG_baseline_results.csv"))
 
-LOG_RE = re.compile(r"nonlinear_amg_(?P<config>\w+)_L(?P<level>\d+)\.log$")
+# config is lowercase letters (serial/parallel); the "_o<order>" tag is optional so
+# this matches both the h-studies (nonlinear_amg_serial_L0.log) and the order study
+# (nonlinear_amg_serial_o2_L0.log). Order for the CSV comes from the log content.
+LOG_RE = re.compile(r"nonlinear_amg_(?P<config>[a-z]+)(?:_o(?P<order>\d+))?_L(?P<level>\d+)\.log$")
 
 FIELDS = [
     "config", "ranks", "level", "order", "dofs",
@@ -85,27 +95,58 @@ def main():
         print(f"No logs found in {LOG_DIR}/ (pattern nonlinear_amg_*_L*.log).")
         return
 
-    rows.sort(key=lambda r: (r["config"], r["level"]))
+    rows.sort(key=lambda r: (r["config"], r["order"] or 0, r["level"]))
     with open(OUT_CSV, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=FIELDS)
         w.writeheader()
         w.writerows(rows)
     print(f"Wrote {OUT_CSV} ({len(rows)} rows)\n")
 
-    # Per-config table with observed order p = log2(e_{L-1}/e_L).
-    for config in sorted({r["config"] for r in rows}):
-        seq = [r for r in rows if r["config"] == config]
-        print(f"[{config}]  ranks={seq[0]['ranks']}  order={seq[0]['order']}")
-        print(f"  {'L':>2} {'DOFs':>10} {'L2 error':>12} {'order':>7} "
-              f"{'Newton':>7} {'GMRES':>7} {'time[s]':>9} conv")
-        prev = None
-        for r in seq:
-            e = r["l2_error"]
-            p = ("%.2f" % (math.log(prev / e, 2))) if (prev and e and e > 0) else "  -  "
-            print(f"  {r['level']:>2} {r['dofs']:>10} {e:>12.4e} {p:>7} "
-                  f"{r['newton_iters']:>7} {r['gmres_iters_total']:>7} "
-                  f"{r['solve_time_s']:>9.3f} {r['converged']:>4}")
-            prev = e
+    configs = sorted({r["config"] for r in rows})
+    orders = sorted({r["order"] or 0 for r in rows})
+    levels = sorted({r["level"] for r in rows})
+
+    def pick(config, order, level):
+        return next((r for r in rows if r["config"] == config
+                     and (r["order"] or 0) == order and r["level"] == level), None)
+
+    # Per (config, order): h-convergence table with observed rate p = log2(e_{L-1}/e_L).
+    for config in configs:
+        for order in orders:
+            seq = sorted((r for r in rows if r["config"] == config
+                          and (r["order"] or 0) == order), key=lambda r: r["level"])
+            if not seq:
+                continue
+            print(f"[{config}]  ranks={seq[0]['ranks']}  order={order}")
+            print(f"  {'L':>2} {'DOFs':>10} {'L2 error':>12} {'rate':>6} "
+                  f"{'Newton':>7} {'GMRES':>7} {'time[s]':>9} conv")
+            prev = None
+            for r in seq:
+                e = r["l2_error"]
+                rate = ("%.2f" % math.log(prev / e, 2)) if (prev and e and e > 0) else "  -  "
+                print(f"  {r['level']:>2} {r['dofs']:>10} {e:>12.4e} {rate:>6} "
+                      f"{r['newton_iters']:>7} {r['gmres_iters_total']:>7} "
+                      f"{r['solve_time_s']:>9.3f} {r['converged']:>4}")
+                prev = e
+            print()
+
+    # "Relative to order <base>" summary at matched mesh (serial), for order comparison.
+    base = orders[0]
+    cfg = "serial" if "serial" in configs else configs[0]
+    if len(orders) > 1:
+        print(f"Relative to order {base} ({cfg}, same mesh level):")
+        print(f"  {'L':>2} {'order':>5} {'DOFs':>10} {'L2 ratio':>10} {'time ratio':>11}")
+        for level in levels:
+            ref = pick(cfg, base, level)
+            if not ref:
+                continue
+            for order in orders:
+                r = pick(cfg, order, level)
+                if not r:
+                    continue
+                l2r = r["l2_error"] / ref["l2_error"] if ref["l2_error"] else float("nan")
+                tr = r["solve_time_s"] / ref["solve_time_s"] if ref["solve_time_s"] else float("nan")
+                print(f"  {level:>2} {order:>5} {r['dofs']:>10} {l2r:>10.3g} {tr:>11.3g}")
         print()
 
 

@@ -24,44 +24,51 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 
-# Executable and fixed problem definition
-EXE="./DG_fixed_boundary_nonlinear_GS"
+# Executable and fixed problem definition.
+# EXE and RUNS_SUBDIR can be overridden via env vars to benchmark a different
+# solver/preconditioner without clobbering a previous study's outputs, e.g.:
+#   EXE=./DG_fixed_boundary_nonlinear_GS_explicit_Jacobian \
+#   RUNS_SUBDIR=runs_amg_jk ./run_convergence_study.sh
+EXE="${EXE:-./DG_fixed_boundary_nonlinear_GS}"
 MESH="meshes/ITER.msh"
-ORDER=1
+# Polynomial order(s) to sweep (override with the ORDERS env var), e.g.
+#   ORDERS="1 2 3" ... ./run_convergence_study.sh
+ORDERS="${ORDERS:-1}"
 PC="amg"
 
-# Baseline solver tolerances (kept fixed = the reference for future preconditioners)
-NEWTON_MAX_IT=20
-NEWTON_RTOL=1e-8
-NEWTON_ATOL=1e-12
-GMRES_MAX_IT=500
-GMRES_RTOL=1e-6
-GMRES_ATOL=0.0
-GMRES_KDIM=10
+# Solver tolerances (defaults = the baseline reference; override any via env, e.g.
+#   NEWTON_RTOL=1e-10 GMRES_RTOL=1e-10 ... ./run_convergence_study.sh )
+NEWTON_MAX_IT="${NEWTON_MAX_IT:-20}"
+NEWTON_RTOL="${NEWTON_RTOL:-1e-8}"
+NEWTON_ATOL="${NEWTON_ATOL:-1e-12}"
+GMRES_MAX_IT="${GMRES_MAX_IT:-500}"
+GMRES_RTOL="${GMRES_RTOL:-1e-6}"
+GMRES_ATOL="${GMRES_ATOL:-0.0}"
+GMRES_KDIM="${GMRES_KDIM:-10}"
 
 # Refinement levels to sweep (override with the LEVELS env var for a dry run)
 LEVELS="${LEVELS:-0 1 2 3 4 5}"
 
-RUNS_DIR="convergence_studies/runs"
+RUNS_DIR="convergence_studies/${RUNS_SUBDIR:-runs_baseline}"
 LOGDIR="$RUNS_DIR/logs"
 MESHDIR="$RUNS_DIR/meshes"
 GFDIR="$RUNS_DIR/gfs"
 mkdir -p "$LOGDIR" "$MESHDIR" "$GFDIR"
 
-# run_case <ranks> <tag> <save-flag> <level>
+# run_case <ranks> <tag> <save-flag> <order> <level>
 run_case () {
-   local ranks="$1" tag="$2" save_flag="$3" L="$4"
+   local ranks="$1" tag="$2" save_flag="$3" order="$4" L="$5"
 
-   local om="$MESHDIR/${tag}_L${L}_mesh.mesh"
-   local og="$GFDIR/${tag}_L${L}_gf.gf"
-   local log="$LOGDIR/nonlinear_amg_${tag}_L${L}.log"
+   local om="$MESHDIR/${tag}_o${order}_L${L}_mesh.mesh"
+   local og="$GFDIR/${tag}_o${order}_L${L}_gf.gf"
+   local log="$LOGDIR/nonlinear_amg_${tag}_o${order}_L${L}.log"
 
-   echo ">>> ${tag}  L=${L}  ranks=${ranks}  ->  ${log}"
+   echo ">>> ${tag}  order=${order}  L=${L}  ranks=${ranks}  ->  ${log}"
    srun -n "$ranks" "$EXE" \
       -m "$MESH" \
       -rs 0 \
       -rp "$L" \
-      -o "$ORDER" \
+      -o "$order" \
       -nmi "$NEWTON_MAX_IT" \
       -nrtol "$NEWTON_RTOL" \
       -natol "$NEWTON_ATOL" \
@@ -78,9 +85,11 @@ run_case () {
       > "$log" 2>&1
 }
 
-echo "=== Convergence study: order ${ORDER}, pc=${PC}, levels: ${LEVELS} ==="
-for L in $LEVELS; do
-   run_case 1 serial   -one "$L"
-   run_case 4 parallel -sep "$L"
+echo "=== Convergence study: pc=${PC}, orders: ${ORDERS}, levels: ${LEVELS} ==="
+for o in $ORDERS; do
+   for L in $LEVELS; do
+      run_case 1 serial   -one "$o" "$L"
+      run_case 4 parallel -sep "$o" "$L"
+   done
 done
 echo "=== Done. Parse with: python3 collect_results.py ==="
