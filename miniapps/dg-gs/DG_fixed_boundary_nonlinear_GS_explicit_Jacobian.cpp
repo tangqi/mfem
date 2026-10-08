@@ -185,14 +185,17 @@ int main(int argc, char *argv[])
    real_t newton_abs_tol = 1.0e-12;
    real_t newton_rel_tol = 1.0e-8;
 
-   // GMRES solver parameters
-   int max_gmres_iter = 500;
+   // Krylov solver parameters
+   int max_krylov_iter = 500;
    int gmres_kdim = 10;
-   real_t gmres_abs_tol = 0.0;
-   real_t gmres_rel_tol = 1.0e-6;
+   real_t krylov_abs_tol = 0.0;
+   real_t krylov_rel_tol = 1.0e-6;
 
    // Preconditioner
    std::string preconditioner = "amg";
+
+   // Krylov solver
+   std::string krylov_solver = "gmres";
 
    // Miscellaneous
    bool pa = false;
@@ -237,20 +240,24 @@ int main(int argc, char *argv[])
    args.AddOption(&newton_abs_tol, "-natol", "--newton-atol",
                   "Absolute nonlinear residual tolerance.");
 
-   args.AddOption(&max_gmres_iter, "-gmi", "--gmres-max-it",
-                  "Maximum number of GMRES iterations per Newton iteration.");
+   args.AddOption(&max_krylov_iter, "-kmi", "--krylov-max-it",
+                  "Maximum number of Krylov iterations per Newton iteration.");
 
-   args.AddOption(&gmres_rel_tol, "-grtol", "--gmres-rtol",
-                  "Relative GMRES convergence tolerance.");
+   args.AddOption(&krylov_rel_tol, "-krtol", "--krylov-rtol",
+                  "Relative Krylov convergence tolerance.");
 
-   args.AddOption(&gmres_abs_tol, "-gatol", "--gmres-atol",
-                  "Absolute GMRES convergence tolerance.");
+   args.AddOption(&krylov_abs_tol, "-katol", "--krylov-atol",
+                  "Absolute Krylov convergence tolerance.");
 
    args.AddOption(&gmres_kdim, "-gk", "--gmres-kdim",
-                  "GMRES Krylov subspace dimension before restart.");
+                  "GMRES restart dimension (KDim); used only when --krylov-solver gmres.");
 
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
                   "Preconditioner to use: 'amg' or 'none'.");
+
+   args.AddOption(&krylov_solver, "-ks", "--krylov-solver",
+                  "Krylov solver for the Newton linear system: 'gmres' or 'cg'"
+                  " (cg is valid only when the Jacobian is SPD).");
 
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
@@ -286,14 +293,17 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(max_newton_iter > 0, "--newton-max-it must be positive.");
    MFEM_VERIFY(newton_abs_tol >= 0.0, "--newton-atol must be nonnegative.");
    MFEM_VERIFY(newton_rel_tol >= 0.0, "--newton-rtol must be nonnegative.");
-   MFEM_VERIFY(max_gmres_iter > 0, "--gmres-max-it must be positive.");
-   MFEM_VERIFY(gmres_abs_tol >= 0.0, "--gmres-atol must be nonnegative.");
-   MFEM_VERIFY(gmres_rel_tol >= 0.0, "--gmres-rtol must be nonnegative.");
+   MFEM_VERIFY(max_krylov_iter > 0, "--krylov-max-it must be positive.");
+   MFEM_VERIFY(krylov_abs_tol >= 0.0, "--krylov-atol must be nonnegative.");
+   MFEM_VERIFY(krylov_rel_tol >= 0.0, "--krylov-rtol must be nonnegative.");
    MFEM_VERIFY(gmres_kdim > 0, "--gmres-kdim must be positive.");
 
    // TODO: add more preconditioners
    MFEM_VERIFY(preconditioner == "amg" || preconditioner == "none",
                "--preconditioner must be 'amg' or 'none'.");
+
+   MFEM_VERIFY(krylov_solver == "gmres" || krylov_solver == "cg",
+               "--krylov-solver must be 'gmres' or 'cg'.");
 
    // Partial assembly not supported currently
    MFEM_VERIFY(!pa, "Partial assembly currently not supported for explicit Jacobian assembly.");
@@ -475,10 +485,10 @@ int main(int argc, char *argv[])
 
    // Metrics for post-solve summary
    int newton_iterations = 0;
-   int total_gmres_iterations = 0;
+   int total_krylov_iterations = 0;
    real_t final_res_norm = 0.0;
    real_t final_rel_res = 0.0;
-   std::vector<int> gmres_iterations_per_newton;
+   std::vector<int> krylov_iterations_per_newton;
    std::vector<real_t> residual_norm_per_newton;
    std::vector<real_t> relative_residual_per_newton;
 
@@ -541,24 +551,33 @@ int main(int argc, char *argv[])
       std::unique_ptr<HypreBoomerAMG> amg;
       if (preconditioner == "amg") { amg.reset(new HypreBoomerAMG(*Jacobian)); }
 
-      // Solve J(psi_k) delta_psi = -R(psi_k) with GMRES
-      GMRESSolver gmres(MPI_COMM_WORLD);
-      gmres.SetAbsTol(gmres_abs_tol);
-      gmres.SetRelTol(gmres_rel_tol);
-      gmres.SetMaxIter(max_gmres_iter);
-      gmres.SetKDim(gmres_kdim);
-      gmres.SetPrintLevel(1);
-      gmres.SetOperator(*Jacobian);
-      if (amg) { gmres.SetPreconditioner(*amg); }  // With partial assembly, there is no AMG preconditioner
-      gmres.Mult(newton_rhs, delta_psi);
-      MFEM_VERIFY(gmres.GetConverged(), "GMRES failed during Newton iteration.");
-   
+      // Solve J(psi_k) delta_psi = -R(psi_k) with the chosen Krylov solver
+      std::unique_ptr<IterativeSolver> krylov;
+      if (krylov_solver == "cg")
+      {
+         krylov.reset(new CGSolver(MPI_COMM_WORLD));
+      }
+      else
+      {
+         auto *gmres = new GMRESSolver(MPI_COMM_WORLD);
+         gmres->SetKDim(gmres_kdim);
+         krylov.reset(gmres);
+      }
+      krylov->SetAbsTol(krylov_abs_tol);
+      krylov->SetRelTol(krylov_rel_tol);
+      krylov->SetMaxIter(max_krylov_iter);
+      krylov->SetPrintLevel(1);
+      krylov->SetOperator(*Jacobian);
+      if (amg) { krylov->SetPreconditioner(*amg); }  // With --preconditioner none, there is no AMG preconditioner
+      krylov->Mult(newton_rhs, delta_psi);
+      MFEM_VERIFY(krylov->GetConverged(), "Krylov solver failed during Newton iteration.");
+
       // Track solve metrics for post-solve summary
-      const int gmres_iterations = gmres.GetNumIterations();
-      gmres_iterations_per_newton.push_back(gmres_iterations);
+      const int krylov_iterations = krylov->GetNumIterations();
+      krylov_iterations_per_newton.push_back(krylov_iterations);
       residual_norm_per_newton.push_back(res_norm);
       relative_residual_per_newton.push_back(rel_res);
-      total_gmres_iterations += gmres.GetNumIterations();
+      total_krylov_iterations += krylov_iterations;
       newton_iterations++;
 
       // Newton update step
@@ -655,6 +674,7 @@ int main(int argc, char *argv[])
       cout << "Polynomial order:          " << order << endl;
       cout << "Serial refinement levels:  " << ser_ref_levels << endl;
       cout << "Parallel refinement levels:" << par_ref_levels << endl;
+      cout << "Krylov solver:             " << krylov_solver << endl;
 
       cout << '\n';
       cout << "Exact solution error metrics:" << endl;
@@ -664,14 +684,14 @@ int main(int argc, char *argv[])
 
       cout << '\n';
       cout << "Newton iteration history:" << endl;
-      cout << "  Iteration" << "    GMRES iterations" << "     ||R||"
+      cout << "  Iteration" << "    Krylov iterations" << "     ||R||"
          << "        Relative ||R||" << endl;
 
-      for (std::size_t k = 0; k < gmres_iterations_per_newton.size(); k++)
+      for (std::size_t k = 0; k < krylov_iterations_per_newton.size(); k++)
       {
          cout << "  "
             << std::setw(10) << k
-            << std::setw(15) << gmres_iterations_per_newton[k]
+            << std::setw(15) << krylov_iterations_per_newton[k]
             << std::setw(15) << residual_norm_per_newton[k]
             << std::setw(20) << relative_residual_per_newton[k]
             << endl;
