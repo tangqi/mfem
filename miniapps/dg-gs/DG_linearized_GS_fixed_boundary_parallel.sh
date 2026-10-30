@@ -22,7 +22,7 @@ OUTPUT_MESH="./solutions/solution_mesh_4ranks.mesh"
 OUTPUT_GF="./solutions/solution_gf_4ranks.gf"
 
 # Mesh and solution are saved separately per MPI rank
-srun -n 4 "$EXE" \
+mpirun -np 4 "$EXE" \
     -m "$MESH" \
     -rs "$SER_REFINEMENT_LEVELS" \
     -rp "$PAR_REFINEMENT_LEVELS" \

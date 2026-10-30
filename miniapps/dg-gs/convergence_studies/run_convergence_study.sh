@@ -9,8 +9,7 @@
 # Parse the logs with collect_results.py afterwards.
 #
 # Lives in dg-gs/convergence_studies/ and can be launched from anywhere; it cd's
-# to the solver directory itself. Must run inside a Slurm allocation with >= 4
-# tasks (e.g. `salloc -n 4 ...`), since it calls srun.
+# to the solver directory itself. Launches runs with mpirun.
 #
 # Usage:
 #   ./run_convergence_study.sh            # full sweep, L = 0 1 2 3 4
@@ -88,7 +87,7 @@ run_case () {
    local log="$LOGDIR/nonlinear_amg_${base}.log"
 
    echo ">>> ${cfg}  ks=${ks:-<default>}  order=${order}  L=${L}  ranks=${ranks}  ->  ${log}"
-   srun -n "$ranks" "$EXE" \
+   mpirun -np "$ranks" "$EXE" \
       -m "$MESH" \
       -rs 0 \
       -rp "$L" \

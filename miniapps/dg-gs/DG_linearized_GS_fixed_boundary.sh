@@ -20,7 +20,7 @@ ORDER=1
 OUTPUT_MESH="./solutions/solution_mesh.mesh"
 OUTPUT_GF="./solutions/solution_gf.gf"
 
-srun -n 1 "$EXE" \
+mpirun -np 1 "$EXE" \
     -m "$MESH" \
     -rs "$SER_REFINEMENT_LEVELS" \
     -rp "$PAR_REFINEMENT_LEVELS" \

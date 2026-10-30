@@ -50,6 +50,7 @@
 #include <memory>
 #include <vector>
 #include <iomanip>
+#include <filesystem>
 
 using namespace std;
 using namespace mfem;
@@ -604,6 +605,24 @@ int main(int argc, char *argv[])
    // If input is --save-as-one, then the entire mesh and solution are saved as one file. Else,
    // if input is --save-separately, then separate mesh and solution files are saved for each
    // MPI rank.
+
+   // Create the output directories if they do not already exist
+   if (Mpi::Root())
+   {
+      for (const std::string &path : {output_mesh, output_gf})
+      {
+         const std::filesystem::path dir = std::filesystem::path(path).parent_path();
+         if (!dir.empty())
+         {
+            std::error_code ec;
+            std::filesystem::create_directories(dir, ec);
+            MFEM_VERIFY(!ec, "Could not create output directory: " << dir.string()
+                        << " (" << ec.message() << ")");
+         }
+      }
+   }
+   MPI_Barrier(MPI_COMM_WORLD);
+
    if (save_as_one)
    {
       pmesh.SaveAsOne(output_mesh);
