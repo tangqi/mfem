@@ -259,7 +259,7 @@ int main(int argc, char *argv[])
       gmres.SetAbsTol(0.0);
       gmres.SetRelTol(1e-12);
       gmres.SetMaxIter(500);
-      gmres.SetKDim(10);
+      gmres.SetKDim(10);  // Restarted GMRES--10 is too little maybe?
       gmres.SetPrintLevel(1);
       gmres.SetOperator(*A);
       if (amg) { gmres.SetPreconditioner(*amg); }  // With partial assembly, there is no AMG preconditioner

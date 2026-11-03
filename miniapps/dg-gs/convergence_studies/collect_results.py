@@ -8,6 +8,10 @@ and the observed order p = log2(e_{L-1}/e_L).
 
 Run after run_convergence_study.sh (works from any CWD):
     python3 collect_results.py
+
+With STUDY=linear, instead parses the linear_sipg_cg_<config>_o<order>_L<level>.log
+files written by run_linear_convergence_study.sh and only writes the CSV (no tables):
+    STUDY=linear python3 collect_results.py
 """
 
 import csv
@@ -23,10 +27,14 @@ import re
 #   RUNS_SUBDIR=runs_amg_jk OUT_NAME=AMG_Jk_explicit_jacobian_results.csv \
 #   python collect_results.py
 BASE = os.path.dirname(os.path.abspath(__file__))
-RUNS_SUBDIR = os.environ.get("RUNS_SUBDIR", "runs_baseline")
+# STUDY selects which solver's logs to parse: 'nonlinear' (default) or 'linear'.
+STUDY = os.environ.get("STUDY", "nonlinear")
+LINEAR = STUDY == "linear"
+RUNS_SUBDIR = os.environ.get("RUNS_SUBDIR", "runs_linear_sipg_cg" if LINEAR else "runs_baseline")
 LOG_DIR = os.path.join(BASE, RUNS_SUBDIR, "logs")
 # The results CSV lives inside the study's own run folder.
-OUT_CSV = os.path.join(BASE, RUNS_SUBDIR, os.environ.get("OUT_NAME", "AMG_baseline_results.csv"))
+OUT_CSV = os.path.join(BASE, RUNS_SUBDIR, os.environ.get(
+    "OUT_NAME", "linear_sipg_cg_results.csv" if LINEAR else "AMG_baseline_results.csv"))
 
 # config is lowercase letters (serial/parallel); the "_ks<solver>" and "_o<order>"
 # tags are optional, so this matches the h-studies (nonlinear_amg_serial_L0.log), the
@@ -40,6 +48,16 @@ FIELDS = [
     "config", "ranks", "level", "order", "krylov", "dofs",
     "l2_error", "rel_l2_error", "linf_error",
     "newton_iters", "krylov_iters_total", "converged", "solve_time_s",
+]
+
+# Linear study logs: linear_sipg_cg_<config>_o<order>_L<level>.log
+LINEAR_LOG_RE = re.compile(
+    r"linear_sipg_cg_(?P<config>[a-z]+)_o(?P<order>\d+)_L(?P<level>\d+)\.log$")
+
+LINEAR_FIELDS = [
+    "config", "ranks", "level", "order", "dofs",
+    "l2_error", "rel_l2_error", "linf_error",
+    "cg_iters", "converged", "solve_time_s",
 ]
 
 
@@ -92,8 +110,52 @@ def parse_log(path):
     }
 
 
+def parse_linear_log(path):
+    with open(path) as f:
+        text = f.read()
+
+    m = LINEAR_LOG_RE.search(os.path.basename(path))
+    if not m:
+        return None
+    config = m.group("config")
+
+    # The linear solver prints no run summary: CG iterations come from the last
+    # "Iteration : N" line of the PCG output, convergence from the absence of
+    # "PCG: No convergence!", and ranks from the config.
+    iters = re.findall(r"Iteration :\s+(\d+)", text)
+
+    return {
+        "config": config,
+        "ranks": {"serial": 1, "parallel": 4}.get(config),
+        "level": int(m.group("level")),
+        "order": int(m.group("order")),
+        "dofs": _grab(r"Number of unknowns:\s+(\d+)", text, int),
+        "l2_error": _grab(r"\n\s*L2 error:\s+([-\d.eE+]+)", text, float),
+        "rel_l2_error": _grab(r"relative L2 error:\s+([-\d.eE+]+)", text, float),
+        "linf_error": _grab(r"Linf error:\s+([-\d.eE+]+)", text, float),
+        "cg_iters": int(iters[-1]) if iters else None,
+        "converged": "PCG: No convergence!" not in text and bool(iters),
+        "solve_time_s": _grab(r"Linear solve time:\s+([-\d.eE+]+)", text, float),
+    }
+
+
+def main_linear():
+    rows = [r for p in sorted(glob.glob(os.path.join(LOG_DIR, "linear_sipg_cg_*_L*.log")))
+            if (r := parse_linear_log(p))]
+    if not rows:
+        print(f"No logs found in {LOG_DIR}/ (pattern linear_sipg_cg_*_L*.log).")
+        return
+
+    rows.sort(key=lambda r: (r["config"], r["order"], r["level"]))
+    with open(OUT_CSV, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=LINEAR_FIELDS)
+        w.writeheader()
+        w.writerows(rows)
+    print(f"Wrote {OUT_CSV} ({len(rows)} rows)")
+
+
 def main():
-    rows = [r for p in sorted(glob.glob(os.path.join(LOG_DIR, "nonlinear_amg_*_L*.log")))
+    rows =[r for p in sorted(glob.glob(os.path.join(LOG_DIR, "nonlinear_amg_*_L*.log")))
             if (r := parse_log(p))]
     if not rows:
         print(f"No logs found in {LOG_DIR}/ (pattern nonlinear_amg_*_L*.log).")
@@ -189,4 +251,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main_linear() if LINEAR else main()
