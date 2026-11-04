@@ -8,7 +8,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 # The DG fixed-boundary Grad-Shafranov solvers (linear and nonlinear)
-MINIAPPS = DG_fixed_boundary_linear_GS DG_fixed_boundary_nonlinear_GS DG_fixed_boundary_nonlinear_GS_explicit_Jacobian
+MINIAPPS = DG_fixed_boundary_linear_GS DG_fixed_boundary_linear_GS_exact_bc DG_fixed_boundary_nonlinear_GS DG_fixed_boundary_nonlinear_GS_explicit_Jacobian
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
