@@ -1,0 +1,165 @@
+Options used:
+   --mesh meshes/ITER.msh
+   --output-mesh convergence_studies/runs_linear_sipg_cg_exact_bc/meshes/serial_o3_L4_mesh.mesh
+   --output-gridfunction convergence_studies/runs_linear_sipg_cg_exact_bc/gfs/serial_o3_L4_gf.gf
+   --refine-serial 0
+   --refine-parallel 4
+   --order 3
+   --sigma -1
+   --kappa 16
+   --no-partial-assembly
+   --no-visualization
+   --save-as-one
+Number of unknowns: 2744320
+
+
+ Num MPI tasks = 1
+
+ Num OpenMP threads = 1
+
+
+BoomerAMG SETUP PARAMETERS:
+
+ Max levels = 25
+ Num levels = 9
+
+ Strength Threshold = 0.250000
+ Interpolation Truncation Factor = 0.000000
+ Maximum Row Sum Threshold for Dependency Weakening = 0.900000
+
+ Coarsening Type = HMIS 
+
+ No. of levels of aggressive coarsening: 1
+
+ Interpolation on agg. levels= multipass interpolation
+ measures are determined locally
+
+
+ No global partition option chosen.
+
+ Interpolation = extended+i interpolation
+
+Operator Matrix Information:
+
+             nonzero             entries/row          row sums
+lev    rows   entries sparse   min  max     avg      min         max
+=======================================================================
+  0 2744320 109644800  0.000    30   40    40.0  -2.239e+00   1.181e+01
+  1  313961   4592913  0.000     4   28    14.6  -8.340e-01   1.687e+01
+  2  117812   3065322  0.000     7   44    26.0  -4.167e-01   1.889e+01
+  3   31850   1046364  0.001    11   49    32.9  -1.286e-02   2.525e+01
+  4    7404    259662  0.005    14   51    35.1  -1.326e-04   2.129e+01
+  5    1469     50123  0.023    14   48    34.1  -1.041e-06   2.478e+01
+  6     251      7395  0.117    14   44    29.5  -1.476e-12   2.691e+01
+  7      40       814  0.509    11   30    20.4   1.535e-01   2.698e+01
+  8       6        36  1.000     6    6     6.0   1.653e+01   2.871e+01
+
+
+Interpolation Matrix Information:
+                        entries/row        min        max            row sums
+lev    rows x cols    min  max  avgW     weight      weight       min         max
+====================================================================================
+  0 2744320 x 313961    1    5   1.2   2.407e-02   1.131e+00   2.154e-01   1.134e+00
+  1  313961 x 117812    1    4   3.4  -4.351e-02   1.042e+00   2.192e-01   1.089e+00
+  2  117812 x 31850     1    4   3.9   7.742e-03   1.000e+00   1.565e-01   1.016e+00
+  3   31850 x 7404      1    4   3.9   7.117e-03   1.000e+00   9.753e-02   1.001e+00
+  4    7404 x 1469      1    4   3.9   5.108e-03   7.887e-01   1.271e-01   1.000e+00
+  5    1469 x 251       0    4   3.9   3.428e-03   7.008e-01   0.000e+00   1.000e+00
+  6     251 x 40        0    4   3.7   2.813e-03   6.825e-01   0.000e+00   1.000e+00
+  7      40 x 6         0    4   2.9   5.635e-03   5.348e-01   0.000e+00   1.000e+00
+
+
+     Complexity:    grid = 1.172281
+                operator = 1.082290
+                memory = 1.123923
+
+
+
+
+BoomerAMG SOLVER PARAMETERS:
+
+  Maximum number of cycles:         1 
+  Stopping Tolerance:               0.000000e+00 
+  Cycle type (1 = V, 2 = W, etc.):  1
+
+  Relaxation Parameters:
+   Visiting Grid:                     down   up  coarse
+            Number of sweeps:            1    1     1 
+   Type 0=Jac, 3=hGS, 6=hSGS, 9=GE:      8    8     9 
+   Point types, partial sweeps (1=C, -1=F):
+                  Pre-CG relaxation (down):   0
+                   Post-CG relaxation (up):   0
+                             Coarsest grid:   0
+
+   Iteration :   0  (B r, r) = 0.00108471
+   Iteration :   1  (B r, r) = 0.00167197
+   Iteration :   2  (B r, r) = 0.000443116
+   Iteration :   3  (B r, r) = 7.96621e-05
+   Iteration :   4  (B r, r) = 3.01578e-05
+   Iteration :   5  (B r, r) = 1.20377e-05
+   Iteration :   6  (B r, r) = 4.8918e-06
+   Iteration :   7  (B r, r) = 2.15216e-06
+   Iteration :   8  (B r, r) = 7.79748e-07
+   Iteration :   9  (B r, r) = 3.10056e-07
+   Iteration :  10  (B r, r) = 1.26986e-07
+   Iteration :  11  (B r, r) = 5.2985e-08
+   Iteration :  12  (B r, r) = 2.17421e-08
+   Iteration :  13  (B r, r) = 8.33933e-09
+   Iteration :  14  (B r, r) = 3.47913e-09
+   Iteration :  15  (B r, r) = 1.30949e-09
+   Iteration :  16  (B r, r) = 5.24625e-10
+   Iteration :  17  (B r, r) = 2.26615e-10
+   Iteration :  18  (B r, r) = 9.39096e-11
+   Iteration :  19  (B r, r) = 3.95791e-11
+   Iteration :  20  (B r, r) = 1.67916e-11
+   Iteration :  21  (B r, r) = 7.01083e-12
+   Iteration :  22  (B r, r) = 2.7884e-12
+   Iteration :  23  (B r, r) = 1.17256e-12
+   Iteration :  24  (B r, r) = 4.94469e-13
+   Iteration :  25  (B r, r) = 2.01853e-13
+   Iteration :  26  (B r, r) = 8.46154e-14
+   Iteration :  27  (B r, r) = 3.55159e-14
+   Iteration :  28  (B r, r) = 1.46992e-14
+   Iteration :  29  (B r, r) = 6.23242e-15
+   Iteration :  30  (B r, r) = 2.65892e-15
+   Iteration :  31  (B r, r) = 1.09381e-15
+   Iteration :  32  (B r, r) = 4.48101e-16
+   Iteration :  33  (B r, r) = 1.88044e-16
+   Iteration :  34  (B r, r) = 7.69126e-17
+   Iteration :  35  (B r, r) = 3.2122e-17
+   Iteration :  36  (B r, r) = 1.34429e-17
+   Iteration :  37  (B r, r) = 5.66762e-18
+   Iteration :  38  (B r, r) = 2.35217e-18
+   Iteration :  39  (B r, r) = 9.75548e-19
+   Iteration :  40  (B r, r) = 4.02117e-19
+   Iteration :  41  (B r, r) = 1.65419e-19
+   Iteration :  42  (B r, r) = 6.77243e-20
+   Iteration :  43  (B r, r) = 2.77732e-20
+   Iteration :  44  (B r, r) = 1.14249e-20
+   Iteration :  45  (B r, r) = 4.76232e-21
+   Iteration :  46  (B r, r) = 1.97836e-21
+   Iteration :  47  (B r, r) = 8.22979e-22
+   Iteration :  48  (B r, r) = 3.42636e-22
+   Iteration :  49  (B r, r) = 1.39899e-22
+   Iteration :  50  (B r, r) = 5.76354e-23
+   Iteration :  51  (B r, r) = 2.35399e-23
+   Iteration :  52  (B r, r) = 9.44209e-24
+   Iteration :  53  (B r, r) = 3.86188e-24
+   Iteration :  54  (B r, r) = 1.60131e-24
+   Iteration :  55  (B r, r) = 6.54694e-25
+   Iteration :  56  (B r, r) = 2.68269e-25
+   Iteration :  57  (B r, r) = 1.12394e-25
+   Iteration :  58  (B r, r) = 4.64069e-26
+   Iteration :  59  (B r, r) = 1.90083e-26
+   Iteration :  60  (B r, r) = 7.92561e-27
+   Iteration :  61  (B r, r) = 3.22192e-27
+   Iteration :  62  (B r, r) = 1.30806e-27
+   Iteration :  63  (B r, r) = 5.41169e-28
+Average reduction factor = 0.641397
+
+Linear solve time: 17.7728 seconds
+
+Solution error metrics:
+  L2 error:          1.89194e-14
+  relative L2 error: 1.17762e-12
+  Linf error:        3.74948e-13

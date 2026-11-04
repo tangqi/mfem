@@ -1,4 +1,5 @@
 solutions/
 scratch/
-convergence_studies/runs*/
+convergence_studies/runs*/meshes
+convergence_studies/runs*/gfs
 convergence_studies/*_results.csv
