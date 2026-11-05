@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Collect convergence-study results into a CSV + summary table.
 
-Parses the "Run summary" block that DG_fixed_boundary_nonlinear_GS prints to each
-runs/logs/nonlinear_amg_<config>_L<level>.log (alongside this script), writes
-AMG_baseline_results.csv next to this script, and prints, per config, the L2 error
+Parses the "Run summary" block that the nonlinear solvers print to each
+convergence_studies/<RUNS_SUBDIR>/logs/nonlinear_amg_<config>_L<level>.log, writes
+AMG_baseline_results.csv into that study folder, and prints, per config, the L2 error
 and the observed order p = log2(e_{L-1}/e_L).
 
 Run after run_convergence_study.sh (works from any CWD):
@@ -20,13 +20,14 @@ import math
 import os
 import re
 
-# Resolve paths from this script's own location so it works from any CWD.
+# Resolve paths from this script's own location so it works from any CWD. This
+# script lives in convergence_studies/tools/; the study folders are its siblings.
 # RUNS_SUBDIR (which run directory to read) and OUT_NAME (output CSV name) can be
 # overridden via env vars to collect a different study without clobbering another
 # study's CSV, e.g.:
 #   RUNS_SUBDIR=runs_amg_jk OUT_NAME=AMG_Jk_explicit_jacobian_results.csv \
 #   python collect_results.py
-BASE = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # STUDY selects which solver's logs to parse: 'nonlinear' (default) or 'linear'.
 STUDY = os.environ.get("STUDY", "nonlinear")
 LINEAR = STUDY == "linear"

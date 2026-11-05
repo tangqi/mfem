@@ -8,7 +8,7 @@
 // NOTE: With any chosen mesh, R should be > 0 for all coordinates along the
 // mesh. Otherwise, the diffusion term can blow up due to a 1 / R dependency.
 //
-// Exact-BC variant of DG_fixed_boundary_linear_GS.cpp: the analytic Solov'ev
+// Exact-BC variant of DG_GS_fixed_boundary_linear.cpp: the analytic Solov'ev
 // solution is imposed as the weak Dirichlet data on the straight-edged mesh
 // boundary instead of psi = 0. The mesh boundary only approximates the
 // psi_exact = 0 contour, so imposing psi = 0 there leaves an O(1e-5) geometry

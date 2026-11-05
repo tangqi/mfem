@@ -6,9 +6,9 @@
 # with the BoomerAMG preconditioner, running each resolution both serial (1 rank)
 # and parallel (4 ranks). Per-run artifacts go under convergence_studies/runs/:
 # terminal logs in runs/logs/, meshes in runs/meshes/, grid functions in runs/gfs/.
-# Parse the logs with collect_results.py afterwards.
+# Parse the logs with tools/collect_results.py afterwards.
 #
-# Lives in dg-gs/convergence_studies/ and can be launched from anywhere; it cd's
+# Lives in dg-gs/convergence_studies/tools/ and can be launched from anywhere; it cd's
 # to the solver directory itself. Launches runs with mpirun.
 #
 # Usage:
@@ -17,20 +17,20 @@
 
 set -euo pipefail
 
-# This script lives in dg-gs/convergence_studies/ but drives the binary in dg-gs/.
+# This script lives in dg-gs/convergence_studies/tools/ but drives the binary in dg-gs/.
 # Anchor to the script's own location and run from the solver directory so the
 # EXE/MESH relative paths below resolve as before.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/.."
+cd "$SCRIPT_DIR/../.."
 
 # Executable and fixed problem definition.
 # Defaults to the explicit-Jacobian solver (this driver passes its --krylov-* /
 # -kmi/-krtol/-katol flags). EXE and RUNS_SUBDIR can be overridden via env vars to
 # benchmark a different solver/preconditioner without clobbering a previous study, e.g.:
-#   EXE=./DG_fixed_boundary_nonlinear_GS_explicit_Jacobian \
+#   EXE=./DG_GS_fixed_boundary_nonlinear \
 #   RUNS_SUBDIR=runs_amg_jk ./run_convergence_study.sh
 # (The JFNK binary uses the older --gmres-* flag names and is not driven by this script.)
-EXE="${EXE:-./DG_fixed_boundary_nonlinear_GS_explicit_Jacobian}"
+EXE="${EXE:-./DG_GS_fixed_boundary_nonlinear}"
 MESH="meshes/ITER.msh"
 # Polynomial order(s) to sweep (override with the ORDERS env var), e.g.
 #   ORDERS="1 2 3" ... ./run_convergence_study.sh
@@ -122,4 +122,4 @@ for ks in "${kry_list[@]}"; do
       done
    done
 done
-echo "=== Done. Parse with: python3 collect_results.py ==="
+echo "=== Done. Parse with: python3 convergence_studies/tools/collect_results.py ==="

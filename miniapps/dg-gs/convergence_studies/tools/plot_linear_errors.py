@@ -2,14 +2,17 @@
 """2D plots of the numerical solution, exact solution, and pointwise error for
 every run of the linear SIPG + CG convergence study.
 
-For each logs/linear_sipg_cg_<config>_o<order>_L<level>.log, samples the saved mesh
-and grid function with sample_linear_GS_error (built from the makefile in this
-folder) and writes plots/<config>_o<order>_L<level>.png with three panels:
-psi_h, psi_exact, and psi_h - psi_exact. The error panel carries a legend with the
-solver's global (relative) L2 and Linf errors from linear_sipg_cg_results.csv.
+For each logs/linear_sipg_cg_<config>_o<order>_L<level>.log in the study folder
+convergence_studies/<RUNS_SUBDIR>/ (default runs_linear_sipg_cg), samples the saved
+mesh and grid function with sample_linear_GS_error (built from the makefile in this
+tools/ folder) and writes plots/<config>_o<order>_L<level>.png into the study folder
+with three panels: psi_h, psi_exact, and psi_h - psi_exact. The error panel carries a
+legend with the solver's global (relative) L2 and Linf errors from
+linear_sipg_cg_results.csv.
 
 Works from any CWD:
     python3 plot_linear_errors.py
+    RUNS_SUBDIR=runs_other python3 plot_linear_errors.py  # a different study folder
     ONLY=serial_o1 python3 plot_linear_errors.py   # only runs whose name contains this
     KEEP_DATA=1 python3 plot_linear_errors.py      # keep plots/data/*.bin samples
 """
@@ -28,15 +31,19 @@ import pandas as pd
 from matplotlib.collections import LineCollection
 from matplotlib.lines import Line2D
 
-# Resolve paths from this script's own location so it works from any CWD.
-BASE = os.path.dirname(os.path.abspath(__file__))
+# Resolve paths from this script's own location so it works from any CWD. This
+# script and the sampling tool live in convergence_studies/tools/; RUNS_SUBDIR picks
+# the study folder next to it.
+TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.join(os.path.dirname(TOOLS_DIR),
+                    os.environ.get("RUNS_SUBDIR", "runs_linear_sipg_cg"))
 LOG_DIR = os.path.join(BASE, "logs")
 MESH_DIR = os.path.join(BASE, "meshes")
 GF_DIR = os.path.join(BASE, "gfs")
 PLOT_DIR = os.path.join(BASE, "plots")
 DATA_DIR = os.path.join(PLOT_DIR, "data")
 CSV = os.path.join(BASE, "linear_sipg_cg_results.csv")
-TOOL = os.path.join(BASE, "sample_linear_GS_error")
+TOOL = os.path.join(TOOLS_DIR, "sample_linear_GS_error")
 
 ONLY = os.environ.get("ONLY", "")
 KEEP_DATA = os.environ.get("KEEP_DATA", "0") == "1"
@@ -138,7 +145,7 @@ def plot_run(base, config, order, level, metrics, data):
 
 
 def main():
-    subprocess.run(["make", "-s", "-C", BASE, "sample_linear_GS_error"], check=True)
+    subprocess.run(["make", "-s", "-C", TOOLS_DIR, "sample_linear_GS_error"], check=True)
     os.makedirs(DATA_DIR, exist_ok=True)
 
     results = pd.read_csv(CSV) if os.path.exists(CSV) else None

@@ -1,7 +1,7 @@
 // Samples a saved DG Grad-Shafranov solution and the analytic Solov'ev solution
 // on a per-element refinement of the mesh, for 2D error plots.
 //
-// Reads the mesh and grid function written by DG_fixed_boundary_linear_GS, either
+// Reads the mesh and grid function written by DG_GS_fixed_boundary_linear, either
 // as one file (-one) or as per-rank pieces <base>.0 .. <base>.N-1 (-sep, use -np N).
 // Points are kept per element so DG discontinuities are preserved.
 //
@@ -24,7 +24,7 @@ using namespace std;
 using namespace mfem;
 
 // Exact solution from Section 7.1.1 of the DPG paper; must match the
-// coefficients and formula in DG_fixed_boundary_linear_GS.cpp.
+// coefficients and formula in DG_GS_fixed_boundary_linear.cpp.
 static real_t psi_exact(real_t R, real_t Z)
 {
    const real_t d1 =  0.075385029660066;

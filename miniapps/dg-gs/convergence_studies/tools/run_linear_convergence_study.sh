@@ -7,9 +7,9 @@
 # resolution both serial (1 rank) and parallel (4 ranks). Per-run artifacts go under
 # convergence_studies/runs_linear_sipg_cg/: terminal logs in logs/, meshes in meshes/,
 # grid functions in gfs/. Collect the logs into a CSV afterwards with:
-#   STUDY=linear python3 collect_results.py
+#   STUDY=linear python3 convergence_studies/tools/collect_results.py
 #
-# Lives in dg-gs/convergence_studies/ and can be launched from anywhere; it cd's
+# Lives in dg-gs/convergence_studies/tools/ and can be launched from anywhere; it cd's
 # to the solver directory itself. Launches runs with mpirun.
 #
 # Usage:
@@ -21,10 +21,10 @@ set -euo pipefail
 # Anchor to the script's own location and run from the solver directory so the
 # EXE/MESH relative paths below resolve.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/.."
+cd "$SCRIPT_DIR/../.."
 
 # Executable and fixed problem definition
-EXE="${EXE:-./DG_fixed_boundary_linear_GS}"
+EXE="${EXE:-./DG_GS_fixed_boundary_linear}"
 MESH="meshes/ITER.msh"
 ORDER="${ORDER:-1}"
 
@@ -80,4 +80,4 @@ for L in $LEVELS; do
       run_case "$cfg" "$L"
    done
 done
-echo "=== Done. Collect with: STUDY=linear python3 collect_results.py ==="
+echo "=== Done. Collect with: STUDY=linear python3 convergence_studies/tools/collect_results.py ==="

@@ -1,4 +1,5 @@
-# Builds the sampling tool used by plot_linear_errors.py against the MFEM build
+# Builds the sampling tool used by plot_linear_errors.py against the MFEM build.
+# Lives in dg-gs/convergence_studies/tools/, four levels below the MFEM root.
 MFEM_DIR ?= ../../../..
 MFEM_BUILD_DIR ?= ../../../..
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk

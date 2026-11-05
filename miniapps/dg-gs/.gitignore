@@ -1,5 +1,19 @@
+# Compiled executables have no file extension: ignore every extensionless file,
+# then re-include directories, files with an extension, and makefiles.
+*
+!*/
+!*.*
+!makefile
+!Makefile
+
+# Object files (re-ignored here because !*.* above overrides the root .gitignore)
+*.o
+
+# Solver outputs
 solutions/
 scratch/
-convergence_studies/runs*/meshes
-convergence_studies/runs*/gfs
-convergence_studies/*_results.csv
+
+# Large per-run outputs of the convergence studies
+convergence_studies/runs*/meshes/
+convergence_studies/runs*/gfs/
+convergence_studies/runs*/plots/data/

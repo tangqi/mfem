@@ -7,8 +7,11 @@
 
 set -euo pipefail
 
+# Run from the solver directory (one level up) so the relative paths below resolve
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.."
+
 # Executable
-EXE="./DG_fixed_boundary_nonlinear_GS"
+EXE="./DG_GS_fixed_boundary_nonlinear_JFNK"
 
 # Input mesh
 MESH="meshes/ITER.msh"

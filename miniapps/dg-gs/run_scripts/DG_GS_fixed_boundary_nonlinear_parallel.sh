@@ -3,19 +3,23 @@
 # Runs the fixed-boundary discontinuous Galerkin Grad-Shafranov solver for
 # the nonlinear manufactured-solution problem from Section 7.1.2 of the
 # DPG Grad-Shafranov paper, using Newton's method with an explicitly
-# assembled Jacobian.
+# assembled Jacobian. This version uses four MPI ranks and a higher
+# level of mesh refinement.
 
 set -euo pipefail
 
+# Run from the solver directory (one level up) so the relative paths below resolve
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.."
+
 # Executable
-EXE="./DG_fixed_boundary_nonlinear_GS_explicit_Jacobian"
+EXE="./DG_GS_fixed_boundary_nonlinear"
 
 # Input mesh
 MESH="meshes/ITER.msh"
 
 # Discretization
-SER_REFINEMENT_LEVELS=1
-PAR_REFINEMENT_LEVELS=1
+SER_REFINEMENT_LEVELS=2
+PAR_REFINEMENT_LEVELS=2
 ORDER=1
 
 # Newton solver
@@ -34,10 +38,11 @@ GMRES_KDIM=10
 PRECONDITIONER="amg"
 
 # Outputs
-OUTPUT_MESH="./solutions/solution_mesh.mesh"
-OUTPUT_GF="./solutions/solution_gf.gf"
+OUTPUT_MESH="./solutions/solution_mesh_4ranks.mesh"
+OUTPUT_GF="./solutions/solution_gf_4ranks.gf"
 
-mpirun -np 1 "$EXE" \
+# Mesh and solution are saved separately per MPI rank.
+mpirun -np 4 "$EXE" \
     -m "$MESH" \
     -rs "$SER_REFINEMENT_LEVELS" \
     -rp "$PAR_REFINEMENT_LEVELS" \
@@ -54,5 +59,5 @@ mpirun -np 1 "$EXE" \
     -no-pa \
     -om "$OUTPUT_MESH" \
     -og "$OUTPUT_GF" \
-    -one \
+    -sep \
     -no-vis

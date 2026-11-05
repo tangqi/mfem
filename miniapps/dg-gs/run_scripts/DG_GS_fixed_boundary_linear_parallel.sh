@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 
 # Runs the fixed-boundary discontinuous Galerkin Grad-Shafranov solver for
-# the linearized Solov'ev source term. Identical to DG_linearized_GS_fixed_boundary.sh
+# the linearized Solov'ev source term. Identical to DG_GS_fixed_boundary_linear.sh
 # except that this version is run over 4 MPI ranks at a higher level of refinement.
 
 set -euo pipefail
 
+# Run from the solver directory (one level up) so the relative paths below resolve
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.."
+
 # Executable
-EXE="./DG_fixed_boundary_linear_GS"
+EXE="./DG_GS_fixed_boundary_linear"
 
 # Input mesh
 MESH="meshes/ITER.msh"
