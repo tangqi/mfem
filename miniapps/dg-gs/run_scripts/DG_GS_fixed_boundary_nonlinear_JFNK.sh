@@ -2,7 +2,7 @@
 
 # Runs the fixed-boundary discontinuous Galerkin Grad-Shafranov solver for
 # the nonlinear manufactured-solution problem from Section 7.1.2 of the
-# DPG Grad-Shafranov paper.
+# DPG Grad-Shafranov paper, using the Jacobian-free Newton-Krylov method.
 
 set -euo pipefail
 
@@ -25,11 +25,12 @@ NEWTON_MAX_IT=20
 NEWTON_RTOL=1e-8
 NEWTON_ATOL=1e-12
 
-# GMRES solver
-GMRES_MAX_IT=500
-GMRES_RTOL=1e-6
-GMRES_ATOL=0.0
-GMRES_KDIM=10
+# Krylov solver ('gmres' or 'cg')
+KRYLOV_SOLVER="gmres"
+KRYLOV_MAX_IT=500
+KRYLOV_RTOL=1e-6
+KRYLOV_ATOL=0.0
+GMRES_KDIM=30
 
 # Preconditioner
 PRECONDITIONER="amg"
@@ -46,12 +47,12 @@ mpirun -np 1 "$EXE" \
     -nmi "$NEWTON_MAX_IT" \
     -nrtol "$NEWTON_RTOL" \
     -natol "$NEWTON_ATOL" \
-    -gmi "$GMRES_MAX_IT" \
-    -grtol "$GMRES_RTOL" \
-    -gatol "$GMRES_ATOL" \
+    -ks "$KRYLOV_SOLVER" \
+    -kmi "$KRYLOV_MAX_IT" \
+    -krtol "$KRYLOV_RTOL" \
+    -katol "$KRYLOV_ATOL" \
     -gk "$GMRES_KDIM" \
     -pc "$PRECONDITIONER" \
-    -no-pa \
     -om "$OUTPUT_MESH" \
     -og "$OUTPUT_GF" \
     -one \

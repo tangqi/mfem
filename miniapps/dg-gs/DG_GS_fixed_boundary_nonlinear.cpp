@@ -31,9 +31,9 @@
 // psi = psi_exact on the plasma boundary.
 //
 // We use a preconditioned Newton method, where we explicitly construct the
-// Jacobian, for the nonlinear solve. GMRES is used for the inner Krylov solve,
-// and HYPRE BoomerAMG is applied to the assembled DG diffusion operator as the
-// preconditioner.
+// Jacobian, for the nonlinear solve. GMRES or CG is used for the inner Krylov
+//solve, and HYPRE BoomerAMG is applied to the assembled Jacobian matrix
+// as the preconditioner.
 //
 // Coordinate convention:
 // x(0) = R
@@ -103,17 +103,17 @@ public:
 
       // Manufactured exact solution q(R,Z)
       const real_t q =
-         std::sin(arg_R) * std::cos(arg_Z);
+         sin(arg_R) * cos(arg_Z);
 
       const real_t cos_term =
-         std::cos(arg_R) * std::cos(arg_Z);
+         cos(arg_R) * cos(arg_Z);
 
       return ((k_R*k_R + k_Z*k_Z) / R) * psi_val
              + (k_R / (R*R)) * cos_term
              + q*q
              - psi_val*psi_val
-             + std::exp(-q)
-             - std::exp(-psi_val);
+             + exp(-q)
+             - exp(-psi_val);
    }
 };
 
@@ -150,10 +150,20 @@ public:
       MFEM_VERIFY(R > 0.0, "Grad-Shafranov mesh must lie entirely in R > 0.");
       const real_t psi_val = psi.GetValue(T, ip);
 
-      return (k_R*k_R + k_Z*k_Z) / R - 2.0*psi_val + std::exp(-psi_val);
+      return (k_R*k_R + k_Z*k_Z) / R - 2.0*psi_val + exp(-psi_val);
    }
 };
 
+
+
+// 1/R coefficient in the diffusion operator
+FunctionCoefficient invR([](const Vector &x)
+   {
+      const real_t R = x(0);
+      MFEM_VERIFY(R > 0.0, "Grad-Shafranov mesh must lie entirely in R > 0 to prevent blow-up.");
+      return 1.0 / R;
+   }
+);
 
 
 int main(int argc, char *argv[])
@@ -169,8 +179,8 @@ int main(int argc, char *argv[])
    
    const char *mesh_file = "meshes/ITER.msh";
 
-   std::string output_mesh = "./solutions/solution_mesh.mesh";
-   std::string output_gf = "./solutions/solution_gf.gf";
+   string output_mesh = "./solutions/solution_mesh.mesh";
+   string output_gf = "./solutions/solution_gf.gf";
 
    // Polynomial order and mesh refinement
    int ser_ref_levels = 0;
@@ -188,21 +198,19 @@ int main(int argc, char *argv[])
 
    // Krylov solver parameters
    int max_krylov_iter = 500;
-   int gmres_kdim = 10;
+   int gmres_kdim = 30;
    real_t krylov_abs_tol = 0.0;
    real_t krylov_rel_tol = 1.0e-6;
 
    // Preconditioner
-   std::string preconditioner = "amg";
+   string preconditioner = "amg";
 
    // Krylov solver
-   std::string krylov_solver = "gmres";
+   string krylov_solver = "gmres";
 
    // Miscellaneous
-   bool pa = false;
    bool visualization = true;
    bool save_as_one = false;
-   // const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
 
@@ -260,9 +268,6 @@ int main(int argc, char *argv[])
                   "Krylov solver for the Newton linear system: 'gmres' or 'cg'"
                   " (cg is valid only when the Jacobian is SPD).");
 
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
-
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -271,9 +276,6 @@ int main(int argc, char *argv[])
                   "--save-separately",
                   "Save parallel solution mesh and grid function as one file "
                   "or as separate files for each MPI rank.");
-
-   // args.AddOption(&device_config, "-d", "--device",
-   //                "Device configuration string, see Device::Configure().");
 
    args.Parse();
 
@@ -306,15 +308,15 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(krylov_solver == "gmres" || krylov_solver == "cg",
                "--krylov-solver must be 'gmres' or 'cg'.");
 
-   // Partial assembly not supported currently
-   MFEM_VERIFY(!pa, "Partial assembly currently not supported for explicit Jacobian assembly.");
+   // CG assumes an SPD Jacobian, which only SIPG (sigma = -1) guarantees
+   if (krylov_solver == "cg" && sigma != -1.0 && Mpi::Root())
+   {
+      cout << "WARNING: --krylov-solver cg with sigma != -1 (non-SIPG) "
+            "gives a nonsymmetric Jacobian; CG may fail. Use gmres." << endl;
+   }
 
    // Print command line options
    if (Mpi::Root()) { args.PrintOptions(cout); }
-
-   // // Set up and print device used
-   // Device device(device_config);
-   // if (Mpi::Root()) { device.Print(); }
 
    /**************************************************************/
    // Mesh and Finite Element Space
@@ -342,12 +344,8 @@ int main(int argc, char *argv[])
       pmesh.UniformRefinement();
    }
 
-   // If partial assembly, choose the Gauss-Lobatto basis. Otherwise, choose the Gauss-Legendre basis.
-   int bt;
-   if (pa) { bt = BasisType::GaussLobatto; }
-   else { bt = BasisType::GaussLegendre; }
-
-   // Choose discontinuous Galerkin element space with order, dimension, and Gauss Lobatto/Gauss Legendre.
+   // Choose discontinuous Galerkin element space with order, dimension, and Gauss Legendre basis type.
+   const int bt = BasisType::GaussLegendre;
    DG_FECollection fec(order, dim, bt);
    ParFiniteElementSpace fespace(&pmesh, &fec);
 
@@ -364,17 +362,6 @@ int main(int argc, char *argv[])
 
    ParBilinearForm a(&fespace);
 
-
-   // Diffusion operator in GS is like the Poisson diffusion operator, but with a 1/R instead
-   FunctionCoefficient invR([](const Vector &x)
-      {
-         const real_t R = x(0);
-         MFEM_VERIFY(R > 0.0, "Grad-Shafranov mesh must lie entirely in R > 0 to prevent blow-up.");
-         return 1.0 / R;
-      }
-   );
-
-
    // Build standard bilinear form integral 
    a.AddDomainIntegrator(new DiffusionIntegrator(invR));
 
@@ -384,42 +371,14 @@ int main(int argc, char *argv[])
    // Weakly impose Dirichlet boundary conditions for DG
    a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(invR, sigma, kappa));
 
-   // If partial assembly, don't explicitly form A
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-
    a.Assemble();
    a.Finalize();  // Compress A into CSR format
 
    OperatorHandle A;
-   // std::unique_ptr<HypreBoomerAMG> amg;  // Algebraic Multigrid preconditioner
 
-   // Partial assembly
-   if (pa)
-   {
-      // Set the operator A to point at the bilinear form a, for GMRES later on  
-      A.Reset(&a, false);
-
-      if (preconditioner == "amg")
-      {
-         MFEM_ABORT("BoomerAMG requires the fully assembled HypreParMatrix in "
-                  "the current implementation. Use --preconditioner none with "
-                  "--partial-assembly.");
-      }
-   }
-
-   // No partial assembly and preconditioner setup
-   else
-   {
-      // Build HYPRE sparse matrix
-      A.SetType(Operator::Hypre_ParCSR);
-      a.ParallelAssemble(A);
-
-      // // Build Algebraic Multigrid preconditioner from A
-      // if (preconditioner == "amg")
-      // {
-      //    amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
-      // }
-   }
+   // Build HYPRE sparse matrix
+   A.SetType(Operator::Hypre_ParCSR);
+   a.ParallelAssemble(A);
 
    /**************************************************************/
    // Linear Form/GS Source Term
@@ -429,7 +388,7 @@ int main(int argc, char *argv[])
    // const real_t mu0 = 4.0*M_PI*1e-7;  // kept for later use (nonlinear source)
 
    // Coefficients from section 7.1.2 of DPG paper
-   const real_t pi = std::acos(-1.0);
+   const real_t pi = acos(-1.0);
    const real_t k_R = 1.15 * pi;
    const real_t k_Z = 1.15;
    const real_t R_0 = -0.5;
@@ -449,7 +408,7 @@ int main(int argc, char *argv[])
       const real_t R = x(0);
       const real_t Z = x(1);
 
-      return std::sin(k_R * (R + R_0)) * std::cos(k_Z * Z);
+      return sin(k_R * (R + R_0)) * cos(k_Z * Z);
    });
 
 
@@ -489,9 +448,9 @@ int main(int argc, char *argv[])
    int total_krylov_iterations = 0;
    real_t final_res_norm = 0.0;
    real_t final_rel_res = 0.0;
-   std::vector<int> krylov_iterations_per_newton;
-   std::vector<real_t> residual_norm_per_newton;
-   std::vector<real_t> relative_residual_per_newton;
+   vector<int> krylov_iterations_per_newton;
+   vector<real_t> residual_norm_per_newton;
+   vector<real_t> relative_residual_per_newton;
 
    // Solve timer
    MPI_Barrier(MPI_COMM_WORLD);
@@ -504,7 +463,7 @@ int main(int argc, char *argv[])
       EvaluateResidual(psi, res);
 
       // Check for convergence before new Newton iteration and break if already converged
-      const real_t res_norm = std::sqrt(InnerProduct(MPI_COMM_WORLD, res, res));  // Residual norm
+      const real_t res_norm = sqrt(InnerProduct(MPI_COMM_WORLD, res, res));  // Residual norm
       if (k == 0) {initial_res_norm = res_norm;}
       const real_t rel_res = (initial_res_norm > 0.0) ? res_norm / initial_res_norm : 0.0;  // Relative residual
       final_res_norm = res_norm;
@@ -545,15 +504,15 @@ int main(int argc, char *argv[])
       HypreParMatrix *Bprime = source_jacobian_handle.As<HypreParMatrix>();  // B'(psi_k) is the source term contribution
 
       // Form Jacobian J(psi_k) = A - B'(psi_k)
-      std::unique_ptr<HypreParMatrix> Jacobian(new HypreParMatrix(*A.As<HypreParMatrix>()));
+      unique_ptr<HypreParMatrix> Jacobian(new HypreParMatrix(*A.As<HypreParMatrix>()));
       Jacobian->Add(-1.0, *Bprime);
 
       // Apply preconditioner AMG(J(psi_k))
-      std::unique_ptr<HypreBoomerAMG> amg;
+      unique_ptr<HypreBoomerAMG> amg;
       if (preconditioner == "amg") { amg.reset(new HypreBoomerAMG(*Jacobian)); }
 
       // Solve J(psi_k) delta_psi = -R(psi_k) with the chosen Krylov solver
-      std::unique_ptr<IterativeSolver> krylov;
+      unique_ptr<IterativeSolver> krylov;
       if (krylov_solver == "cg")
       {
          krylov.reset(new CGSolver(MPI_COMM_WORLD));
@@ -571,6 +530,7 @@ int main(int argc, char *argv[])
       krylov->SetOperator(*Jacobian);
       if (amg) { krylov->SetPreconditioner(*amg); }  // With --preconditioner none, there is no AMG preconditioner
       krylov->Mult(newton_rhs, delta_psi);
+
       MFEM_VERIFY(krylov->GetConverged(), "Krylov solver failed during Newton iteration.");
 
       // Track solve metrics for post-solve summary
@@ -609,13 +569,13 @@ int main(int argc, char *argv[])
    // Create the output directories if they do not already exist
    if (Mpi::Root())
    {
-      for (const std::string &path : {output_mesh, output_gf})
+      for (const string &path : {output_mesh, output_gf})
       {
-         const std::filesystem::path dir = std::filesystem::path(path).parent_path();
+         const filesystem::path dir = filesystem::path(path).parent_path();
          if (!dir.empty())
          {
-            std::error_code ec;
-            std::filesystem::create_directories(dir, ec);
+            error_code ec;
+            filesystem::create_directories(dir, ec);
             MFEM_VERIFY(!ec, "Could not create output directory: " << dir.string()
                         << " (" << ec.message() << ")");
          }
@@ -706,13 +666,13 @@ int main(int argc, char *argv[])
       cout << "  Iteration" << "    Krylov iterations" << "     ||R||"
          << "        Relative ||R||" << endl;
 
-      for (std::size_t k = 0; k < krylov_iterations_per_newton.size(); k++)
+      for (size_t k = 0; k < krylov_iterations_per_newton.size(); k++)
       {
          cout << "  "
-            << std::setw(10) << k
-            << std::setw(15) << krylov_iterations_per_newton[k]
-            << std::setw(15) << residual_norm_per_newton[k]
-            << std::setw(20) << relative_residual_per_newton[k]
+            << setw(10) << k
+            << setw(15) << krylov_iterations_per_newton[k]
+            << setw(15) << residual_norm_per_newton[k]
+            << setw(20) << relative_residual_per_newton[k]
             << endl;
       }
 

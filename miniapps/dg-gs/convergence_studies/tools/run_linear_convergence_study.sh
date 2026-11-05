@@ -66,7 +66,6 @@ run_case () {
       -rp "$L" \
       -o "$ORDER" \
       -s "$SIGMA" \
-      -no-pa \
       -om "$om" \
       -og "$og" \
       "$save_flag" \

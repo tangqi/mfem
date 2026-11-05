@@ -38,11 +38,8 @@ int main(int argc, char *argv[])
 
    real_t sigma = -1.0;
    real_t kappa = -1.0;
-   // real_t eta = 0.0;
 
-   bool pa = false;
    bool visualization = 1;
-   // const char *device_config = "cpu";
    bool save_as_one = false;
 
    OptionsParser args(argc, argv);
@@ -73,17 +70,9 @@ int main(int argc, char *argv[])
                   "DG penalty parameterm should be positive."
                   " Negative values are replaced with (order+1)^2.");
 
-   // args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
-
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
-
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-
-   // args.AddOption(&device_config, "-d", "--device",
-   //                "Device configuration string, see Device::Configure().");
 
    args.AddOption(&save_as_one, "-one", "--save-as-one", "-sep",
                   "--save-separately",
@@ -108,10 +97,6 @@ int main(int argc, char *argv[])
 
    // Print command line options
    if (Mpi::Root()) { args.PrintOptions(cout); }
-
-   // // Set up and print device used
-   // Device device(device_config);
-   // if (Mpi::Root()) { device.Print(); }
 
    /**************************************************************/
    // Mesh and Finite Element Space
@@ -139,12 +124,8 @@ int main(int argc, char *argv[])
       pmesh.UniformRefinement();
    }
 
-   // If partial assembly, choose the Gauss-Lobatto basis. Otherwise, choose the Gauss-Legendre basis.
-   int bt;
-   if (pa) { bt = BasisType::GaussLobatto; }
-   else { bt = BasisType::GaussLegendre; }
-
-   // Choose discontinuous Galerkin element space with order, dimension, and Gauss Lobatto/Gauss Legendre.
+   // Choose discontinuous Galerkin element space with order, dimension, and Gauss Legendre basis type.
+   const int bt = BasisType::GaussLegendre;
    DG_FECollection fec(order, dim, bt);
    ParFiniteElementSpace fespace(&pmesh, &fec);
 
@@ -178,9 +159,6 @@ int main(int argc, char *argv[])
 
    // Weakly impose Dirichlet boundary conditions for DG
    a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(invR, sigma, kappa));
-
-   // If partial assembly, don't explicitly form A
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
    a.Assemble();
    a.Finalize();  // Compress A into CSR format
@@ -220,21 +198,12 @@ int main(int argc, char *argv[])
    OperatorHandle A;
    std::unique_ptr<HypreBoomerAMG> amg;  // Algebraic Multigrid preconditioner
 
-   // Partial assembly
-   if (pa)
-   {
-      // Set the operator A to point at the bilinear form a, for GMRES or CG later on  
-      A.Reset(&a, false);
-   }
-   else
-   {
-      // Build HYPRE sparse matrix
-      A.SetType(Operator::Hypre_ParCSR);
-      a.ParallelAssemble(A);
+   // Build HYPRE sparse matrix
+   A.SetType(Operator::Hypre_ParCSR);
+   a.ParallelAssemble(A);
 
-      // Build Algebraic Multigrid preconditioner from A
-      amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
-   }
+   // Build Algebraic Multigrid preconditioner from A
+   amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
 
    MPI_Barrier(MPI_COMM_WORLD);
    double solve_start = MPI_Wtime();
@@ -249,7 +218,7 @@ int main(int argc, char *argv[])
       cg.SetMaxIter(500);
       cg.SetPrintLevel(1);
       cg.SetOperator(*A);
-      if (amg) { cg.SetPreconditioner(*amg); }  // With partial assembly, there is no AMG preconditioner
+      cg.SetPreconditioner(*amg);
       cg.Mult(b, psi);
    }
    else
@@ -262,7 +231,7 @@ int main(int argc, char *argv[])
       gmres.SetKDim(10);  // Restarted GMRES--10 is too little maybe?
       gmres.SetPrintLevel(1);
       gmres.SetOperator(*A);
-      if (amg) { gmres.SetPreconditioner(*amg); }  // With partial assembly, there is no AMG preconditioner
+      gmres.SetPreconditioner(*amg);
       gmres.Mult(b, psi);
    }
 

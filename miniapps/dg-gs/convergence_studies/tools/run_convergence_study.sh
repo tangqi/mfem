@@ -26,10 +26,10 @@ cd "$SCRIPT_DIR/../.."
 # Executable and fixed problem definition.
 # Defaults to the explicit-Jacobian solver (this driver passes its --krylov-* /
 # -kmi/-krtol/-katol flags). EXE and RUNS_SUBDIR can be overridden via env vars to
-# benchmark a different solver/preconditioner without clobbering a previous study, e.g.:
-#   EXE=./DG_GS_fixed_boundary_nonlinear \
-#   RUNS_SUBDIR=runs_amg_jk ./run_convergence_study.sh
-# (The JFNK binary uses the older --gmres-* flag names and is not driven by this script.)
+# benchmark a different solver/preconditioner without clobbering a previous study, e.g.
+# the JFNK solver, which takes the same options:
+#   EXE=./DG_GS_fixed_boundary_nonlinear_JFNK \
+#   RUNS_SUBDIR=runs_jfnk ./run_convergence_study.sh
 EXE="${EXE:-./DG_GS_fixed_boundary_nonlinear}"
 MESH="meshes/ITER.msh"
 # Polynomial order(s) to sweep (override with the ORDERS env var), e.g.
@@ -54,7 +54,7 @@ NEWTON_ATOL="${NEWTON_ATOL:-1e-12}"
 KRYLOV_MAX_IT="${KRYLOV_MAX_IT:-500}"
 KRYLOV_RTOL="${KRYLOV_RTOL:-1e-6}"
 KRYLOV_ATOL="${KRYLOV_ATOL:-0.0}"
-GMRES_KDIM="${GMRES_KDIM:-10}"
+GMRES_KDIM="${GMRES_KDIM:-30}"
 
 # Refinement levels to sweep (override with the LEVELS env var for a dry run)
 LEVELS="${LEVELS:-0 1 2 3 4 5}"
@@ -101,7 +101,6 @@ run_case () {
       -gk "$GMRES_KDIM" \
       -pc "$PC" \
       "${ks_args[@]}" \
-      -no-pa \
       -om "$om" \
       -og "$og" \
       "$save_flag" \

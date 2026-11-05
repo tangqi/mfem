@@ -31,7 +31,7 @@ KRYLOV_SOLVER="gmres"
 KRYLOV_MAX_IT=500
 KRYLOV_RTOL=1e-6
 KRYLOV_ATOL=0.0
-GMRES_KDIM=10
+GMRES_KDIM=30
 
 # Preconditioner
 PRECONDITIONER="amg"
@@ -54,7 +54,6 @@ mpirun -np 1 "$EXE" \
     -katol "$KRYLOV_ATOL" \
     -gk "$GMRES_KDIM" \
     -pc "$PRECONDITIONER" \
-    -no-pa \
     -om "$OUTPUT_MESH" \
     -og "$OUTPUT_GF" \
     -one \

@@ -31,7 +31,7 @@
 // psi = psi_exact on the plasma boundary.
 //
 // We use a preconditioned Jacobian-Free Newton-Krylov method for the
-// nonlinear solve. GMRES is used for the inner Krylov solve, and HYPRE
+// nonlinear solve. GMRES or CG is used for the inner Krylov solve, and HYPRE
 // BoomerAMG is applied to the assembled DG diffusion operator as the
 // preconditioner.
 //
@@ -71,7 +71,7 @@ class JFNKOperator : public Operator
 private:
    MPI_Comm comm;
 
-   std::function<void(const Vector &, Vector &)> EvalResidual;
+   function<void(const Vector &, Vector &)> EvalResidual;
 
    // psi^(k) at Newton iteration k and its residual R(psi^(k))
    Vector psi_base;
@@ -88,7 +88,7 @@ public:
    JFNKOperator(
       MPI_Comm comm_,
       int size,
-      std::function<void(const Vector &, Vector &)> eval_residual)
+      function<void(const Vector &, Vector &)> eval_residual)
       : Operator(size),
         comm(comm_),
         EvalResidual(eval_residual),
@@ -122,8 +122,8 @@ public:
     */
    void Mult(const Vector &v, Vector &Jv) const override
    {
-      const real_t psi_norm = std::sqrt(InnerProduct(comm, psi_base, psi_base));
-      const real_t v_norm = std::sqrt(InnerProduct(comm, v, v));
+      const real_t psi_norm = sqrt(InnerProduct(comm, psi_base, psi_base));
+      const real_t v_norm = sqrt(InnerProduct(comm, v, v));
 
       // J*0 = 0
       if (v_norm == 0.0)
@@ -133,8 +133,8 @@ public:
       }
 
       // Finite-difference perturbation
-      const real_t eps_machine = std::numeric_limits<real_t>::epsilon();
-      const real_t epsilon = std::sqrt(eps_machine) * (1.0 + psi_norm) / v_norm;
+      const real_t eps_machine = numeric_limits<real_t>::epsilon();
+      const real_t epsilon = sqrt(eps_machine) * (1.0 + psi_norm) / v_norm;
 
       // psi_pert = psi_k + epsilon*v
       psi_pert = psi_base;
@@ -198,20 +198,30 @@ public:
 
       // Manufactured exact solution q(R,Z)
       const real_t q =
-         std::sin(arg_R) * std::cos(arg_Z);
+         sin(arg_R) * cos(arg_Z);
 
       const real_t cos_term =
-         std::cos(arg_R) * std::cos(arg_Z);
+         cos(arg_R) * cos(arg_Z);
 
       return ((k_R*k_R + k_Z*k_Z) / R) * psi_val
              + (k_R / (R*R)) * cos_term
              + q*q
              - psi_val*psi_val
-             + std::exp(-q)
-             - std::exp(-psi_val);
+             + exp(-q)
+             - exp(-psi_val);
    }
 };
 
+
+
+// 1/R coefficient in the diffusion operator
+FunctionCoefficient invR([](const Vector &x)
+   {
+      const real_t R = x(0);
+      MFEM_VERIFY(R > 0.0, "Grad-Shafranov mesh must lie entirely in R > 0 to prevent blow-up.");
+      return 1.0 / R;
+   }
+);
 
 
 int main(int argc, char *argv[])
@@ -227,8 +237,8 @@ int main(int argc, char *argv[])
    
    const char *mesh_file = "meshes/ITER.msh";
 
-   std::string output_mesh = "./solutions/solution_mesh.mesh";
-   std::string output_gf = "./solutions/solution_gf.gf";
+   string output_mesh = "./solutions/solution_mesh.mesh";
+   string output_gf = "./solutions/solution_gf.gf";
 
    // Polynomial order and mesh refinement
    int ser_ref_levels = 0;
@@ -244,20 +254,21 @@ int main(int argc, char *argv[])
    real_t newton_abs_tol = 1.0e-12;
    real_t newton_rel_tol = 1.0e-8;
 
-   // GMRES solver parameters
-   int max_gmres_iter = 500;
-   int gmres_kdim = 10;
-   real_t gmres_abs_tol = 0.0;
-   real_t gmres_rel_tol = 1.0e-6;
+   // Krylov solver parameters
+   int max_krylov_iter = 500;
+   int gmres_kdim = 30;
+   real_t krylov_abs_tol = 0.0;
+   real_t krylov_rel_tol = 1.0e-6;
 
    // Preconditioner
-   std::string preconditioner = "amg";
+   string preconditioner = "amg";
+
+   // Krylov solver
+   string krylov_solver = "gmres";
 
    // Miscellaneous
-   bool pa = false;
    bool visualization = true;
    bool save_as_one = false;
-   // const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
 
@@ -296,23 +307,24 @@ int main(int argc, char *argv[])
    args.AddOption(&newton_abs_tol, "-natol", "--newton-atol",
                   "Absolute nonlinear residual tolerance.");
 
-   args.AddOption(&max_gmres_iter, "-gmi", "--gmres-max-it",
-                  "Maximum number of GMRES iterations per Newton iteration.");
+   args.AddOption(&max_krylov_iter, "-kmi", "--krylov-max-it",
+                  "Maximum number of Krylov iterations per Newton iteration.");
 
-   args.AddOption(&gmres_rel_tol, "-grtol", "--gmres-rtol",
-                  "Relative GMRES convergence tolerance.");
+   args.AddOption(&krylov_rel_tol, "-krtol", "--krylov-rtol",
+                  "Relative Krylov convergence tolerance.");
 
-   args.AddOption(&gmres_abs_tol, "-gatol", "--gmres-atol",
-                  "Absolute GMRES convergence tolerance.");
+   args.AddOption(&krylov_abs_tol, "-katol", "--krylov-atol",
+                  "Absolute Krylov convergence tolerance.");
 
    args.AddOption(&gmres_kdim, "-gk", "--gmres-kdim",
-                  "GMRES Krylov subspace dimension before restart.");
+                  "GMRES restart dimension (KDim); used only when --krylov-solver gmres.");
 
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
                   "Preconditioner to use: 'amg' or 'none'.");
 
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&krylov_solver, "-ks", "--krylov-solver",
+                  "Krylov solver for the Newton linear system: 'gmres' or 'cg'"
+                  " (cg is valid only when the Jacobian is SPD).");
 
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -322,9 +334,6 @@ int main(int argc, char *argv[])
                   "--save-separately",
                   "Save parallel solution mesh and grid function as one file "
                   "or as separate files for each MPI rank.");
-
-   // args.AddOption(&device_config, "-d", "--device",
-   //                "Device configuration string, see Device::Configure().");
 
    args.Parse();
 
@@ -345,21 +354,27 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(max_newton_iter > 0, "--newton-max-it must be positive.");
    MFEM_VERIFY(newton_abs_tol >= 0.0, "--newton-atol must be nonnegative.");
    MFEM_VERIFY(newton_rel_tol >= 0.0, "--newton-rtol must be nonnegative.");
-   MFEM_VERIFY(max_gmres_iter > 0, "--gmres-max-it must be positive.");
-   MFEM_VERIFY(gmres_abs_tol >= 0.0, "--gmres-atol must be nonnegative.");
-   MFEM_VERIFY(gmres_rel_tol >= 0.0, "--gmres-rtol must be nonnegative.");
+   MFEM_VERIFY(max_krylov_iter > 0, "--krylov-max-it must be positive.");
+   MFEM_VERIFY(krylov_abs_tol >= 0.0, "--krylov-atol must be nonnegative.");
+   MFEM_VERIFY(krylov_rel_tol >= 0.0, "--krylov-rtol must be nonnegative.");
    MFEM_VERIFY(gmres_kdim > 0, "--gmres-kdim must be positive.");
 
    // TODO: add more preconditioners
    MFEM_VERIFY(preconditioner == "amg" || preconditioner == "none",
                "--preconditioner must be 'amg' or 'none'.");
 
+   MFEM_VERIFY(krylov_solver == "gmres" || krylov_solver == "cg",
+               "--krylov-solver must be 'gmres' or 'cg'.");
+
+   // CG assumes an SPD Jacobian, which only SIPG (sigma = -1) guarantees
+   if (krylov_solver == "cg" && sigma != -1.0 && Mpi::Root())
+   {
+      cout << "WARNING: --krylov-solver cg with sigma != -1 (non-SIPG) "
+            "gives a nonsymmetric Jacobian; CG may fail. Use gmres." << endl;
+   }
+
    // Print command line options
    if (Mpi::Root()) { args.PrintOptions(cout); }
-
-   // // Set up and print device used
-   // Device device(device_config);
-   // if (Mpi::Root()) { device.Print(); }
 
    /**************************************************************/
    // Mesh and Finite Element Space
@@ -387,12 +402,8 @@ int main(int argc, char *argv[])
       pmesh.UniformRefinement();
    }
 
-   // If partial assembly, choose the Gauss-Lobatto basis. Otherwise, choose the Gauss-Legendre basis.
-   int bt;
-   if (pa) { bt = BasisType::GaussLobatto; }
-   else { bt = BasisType::GaussLegendre; }
-
-   // Choose discontinuous Galerkin element space with order, dimension, and Gauss Lobatto/Gauss Legendre.
+   // Choose discontinuous Galerkin element space with order, dimension, and Gauss Legendre basis type.
+   const int bt = BasisType::GaussLegendre;
    DG_FECollection fec(order, dim, bt);
    ParFiniteElementSpace fespace(&pmesh, &fec);
 
@@ -409,17 +420,6 @@ int main(int argc, char *argv[])
 
    ParBilinearForm a(&fespace);
 
-
-   // Diffusion operator in GS is like the Poisson diffusion operator, but with a 1/R instead
-   FunctionCoefficient invR([](const Vector &x)
-      {
-         const real_t R = x(0);
-         MFEM_VERIFY(R > 0.0, "Grad-Shafranov mesh must lie entirely in R > 0 to prevent blow-up.");
-         return 1.0 / R;
-      }
-   );
-
-
    // Build standard bilinear form integral 
    a.AddDomainIntegrator(new DiffusionIntegrator(invR));
 
@@ -429,42 +429,19 @@ int main(int argc, char *argv[])
    // Weakly impose Dirichlet boundary conditions for DG
    a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(invR, sigma, kappa));
 
-   // If partial assembly, don't explicitly form A
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-
    a.Assemble();
    a.Finalize();  // Compress A into CSR format
 
    OperatorHandle A;
-   std::unique_ptr<HypreBoomerAMG> amg;  // Algebraic Multigrid preconditioner
 
-   // Partial assembly
-   if (pa)
-   {
-      // Set the operator A to point at the bilinear form a, for GMRES later on  
-      A.Reset(&a, false);
+   // Build HYPRE sparse matrix
+   A.SetType(Operator::Hypre_ParCSR);
+   a.ParallelAssemble(A);
 
-      if (preconditioner == "amg")
-      {
-         MFEM_ABORT("BoomerAMG requires the fully assembled HypreParMatrix in "
-                  "the current implementation. Use --preconditioner none with "
-                  "--partial-assembly.");
-      }
-   }
-
-   // No partial assembly and preconditioner setup
-   else
-   {
-      // Build HYPRE sparse matrix
-      A.SetType(Operator::Hypre_ParCSR);
-      a.ParallelAssemble(A);
-
-      // Build Algebraic Multigrid preconditioner from A
-      if (preconditioner == "amg")
-      {
-         amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
-      }
-   }
+   // Build Algebraic Multigrid preconditioner from A. JFNK never forms the Jacobian,
+   // so the assembled DG diffusion operator is used as the preconditioner.
+   unique_ptr<HypreBoomerAMG> amg;
+   if (preconditioner == "amg") { amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>())); }
 
    /**************************************************************/
    // Linear Form/GS Source Term
@@ -474,7 +451,7 @@ int main(int argc, char *argv[])
    // const real_t mu0 = 4.0*M_PI*1e-7;  // kept for later use (nonlinear source)
 
    // Coefficients from section 7.1.2 of DPG paper
-   const real_t pi = std::acos(-1.0);
+   const real_t pi = acos(-1.0);
    const real_t k_R = 1.15 * pi;
    const real_t k_Z = 1.15;
    const real_t R_0 = -0.5;
@@ -491,7 +468,7 @@ int main(int argc, char *argv[])
       const real_t R = x(0);
       const real_t Z = x(1);
 
-      return std::sin(k_R * (R + R_0)) * std::cos(k_Z * Z);
+      return sin(k_R * (R + R_0)) * cos(k_Z * Z);
    });
 
 
@@ -519,46 +496,56 @@ int main(int argc, char *argv[])
    };
 
 
+   // Construct the Jacobian-free operator
+   JFNKOperator J(MPI_COMM_WORLD, A->Height(), EvaluateResidual);
+
+   // Set up the Krylov solver for J(psi_k) delta_psi = -R(psi_k)
+   unique_ptr<IterativeSolver> krylov;
+   if (krylov_solver == "cg")
+   {
+      krylov.reset(new CGSolver(MPI_COMM_WORLD));
+   }
+   else
+   {
+      auto *gmres = new GMRESSolver(MPI_COMM_WORLD);
+      gmres->SetKDim(gmres_kdim);
+      krylov.reset(gmres);
+   }
+   krylov->SetAbsTol(krylov_abs_tol);
+   krylov->SetRelTol(krylov_rel_tol);
+   krylov->SetMaxIter(max_krylov_iter);
+   krylov->SetPrintLevel(1);
+   krylov->SetOperator(J);  // Jacobian action on vector
+   if (amg) { krylov->SetPreconditioner(*amg); }  // With --preconditioner none, there is no AMG preconditioner
+
    // Define solution vector psi and initialize as zero
    ParGridFunction psi(&fespace);
    psi = 0.0;
-
-   // Construct the Jacobian-free operator
-   JFNKOperator J(MPI_COMM_WORLD,A->Height(),EvaluateResidual);
-
-   // Set GMRES solver parameters
-   GMRESSolver gmres(MPI_COMM_WORLD);
-   gmres.SetAbsTol(gmres_abs_tol);
-   gmres.SetRelTol(gmres_rel_tol);
-   gmres.SetMaxIter(max_gmres_iter);
-   gmres.SetKDim(gmres_kdim);
-   gmres.SetPrintLevel(1);
-   gmres.SetOperator(J);  // Jacobian action on vector
-   if (amg) { gmres.SetPreconditioner(*amg); }  // With partial assembly, there is no AMG preconditioner
 
    bool newton_converged = false;
    real_t initial_res_norm = 0.0;
 
    // Metrics for post-solve summary
    int newton_iterations = 0;
-   int total_gmres_iterations = 0;
+   int total_krylov_iterations = 0;
    real_t final_res_norm = 0.0;
    real_t final_rel_res = 0.0;
-   std::vector<int> gmres_iterations_per_newton;
-   std::vector<real_t> residual_norm_per_newton;
-   std::vector<real_t> relative_residual_per_newton;
+   vector<int> krylov_iterations_per_newton;
+   vector<real_t> residual_norm_per_newton;
+   vector<real_t> relative_residual_per_newton;
 
    // Solve timer
    MPI_Barrier(MPI_COMM_WORLD);
    double solve_start = MPI_Wtime();
 
    for (int k = 0; k <= max_newton_iter; k++)
-   {
+   {   
+      // Set linearization point psi_k and evaluate residual R(psi_k)
       J.SetLinearizationPoint(psi);
       const Vector &res = J.GetBaseResidual();
 
       // Check for convergence before new Newton iteration and break if already converged
-      const real_t res_norm = std::sqrt(InnerProduct(MPI_COMM_WORLD, res, res));  // Residual norm
+      const real_t res_norm = sqrt(InnerProduct(MPI_COMM_WORLD, res, res));  // Residual norm
       if (k == 0) {initial_res_norm = res_norm;}
       const real_t rel_res = (initial_res_norm > 0.0) ? res_norm / initial_res_norm : 0.0;  // Relative residual
       final_res_norm = res_norm;
@@ -582,20 +569,21 @@ int main(int argc, char *argv[])
       Vector delta_psi(psi.Size());
       delta_psi = 0.0;
 
-      // Form residual -R(psi_k)
+      // Form Newton system right hand side (-residual)
       Vector newton_rhs(res);
       newton_rhs *= -1.0;
 
-      // Solve J(psi_k) delta_psi = -R(psi_k) with GMRES
-      gmres.Mult(newton_rhs, delta_psi);
-      MFEM_VERIFY(gmres.GetConverged(), "GMRES failed during Newton iteration.");
-   
+      // Solve J(psi_k) delta_psi = -R(psi_k) with the chosen Krylov solver
+      krylov->Mult(newton_rhs, delta_psi);
+
+      MFEM_VERIFY(krylov->GetConverged(), "Krylov solver failed during Newton iteration.");
+
       // Track solve metrics for post-solve summary
-      const int gmres_iterations = gmres.GetNumIterations();
-      gmres_iterations_per_newton.push_back(gmres_iterations);
+      const int krylov_iterations = krylov->GetNumIterations();
+      krylov_iterations_per_newton.push_back(krylov_iterations);
       residual_norm_per_newton.push_back(res_norm);
       relative_residual_per_newton.push_back(rel_res);
-      total_gmres_iterations += gmres.GetNumIterations();
+      total_krylov_iterations += krylov_iterations;
       newton_iterations++;
 
       // Newton update step
@@ -626,13 +614,13 @@ int main(int argc, char *argv[])
    // Create the output directories if they do not already exist
    if (Mpi::Root())
    {
-      for (const std::string &path : {output_mesh, output_gf})
+      for (const string &path : {output_mesh, output_gf})
       {
-         const std::filesystem::path dir = std::filesystem::path(path).parent_path();
+         const filesystem::path dir = filesystem::path(path).parent_path();
          if (!dir.empty())
          {
-            std::error_code ec;
-            std::filesystem::create_directories(dir, ec);
+            error_code ec;
+            filesystem::create_directories(dir, ec);
             MFEM_VERIFY(!ec, "Could not create output directory: " << dir.string()
                         << " (" << ec.message() << ")");
          }
@@ -710,6 +698,7 @@ int main(int argc, char *argv[])
       cout << "Polynomial order:          " << order << endl;
       cout << "Serial refinement levels:  " << ser_ref_levels << endl;
       cout << "Parallel refinement levels:" << par_ref_levels << endl;
+      cout << "Krylov solver:             " << krylov_solver << endl;
 
       cout << '\n';
       cout << "Exact solution error metrics:" << endl;
@@ -719,16 +708,16 @@ int main(int argc, char *argv[])
 
       cout << '\n';
       cout << "Newton iteration history:" << endl;
-      cout << "  Iteration" << "    GMRES iterations" << "     ||R||"
+      cout << "  Iteration" << "    Krylov iterations" << "     ||R||"
          << "        Relative ||R||" << endl;
 
-      for (std::size_t k = 0; k < gmres_iterations_per_newton.size(); k++)
+      for (size_t k = 0; k < krylov_iterations_per_newton.size(); k++)
       {
          cout << "  "
-            << std::setw(10) << k
-            << std::setw(15) << gmres_iterations_per_newton[k]
-            << std::setw(15) << residual_norm_per_newton[k]
-            << std::setw(20) << relative_residual_per_newton[k]
+            << setw(10) << k
+            << setw(15) << krylov_iterations_per_newton[k]
+            << setw(15) << residual_norm_per_newton[k]
+            << setw(20) << relative_residual_per_newton[k]
             << endl;
       }
 
