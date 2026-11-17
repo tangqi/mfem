@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(pmesh.bdr_attributes.Size() > 0, "Mesh has no boundary attributes.");
 
    // Create an array to mark the essential boundaries, from 1 to the
-   // maximum boundary attribute, initialized to zero
+   // maximum boundary attribute, initialized as an array of zeros
    ess_bdr.SetSize(pmesh.bdr_attributes.Max());
    ess_bdr = 0;
 
@@ -135,6 +135,9 @@ int main(int argc, char *argv[])
 
    // Convert the marked boundaries to essential true DOFs
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+   // Boundary conditions are defined as the exact solution on the boundary DOFs
+   // later in the linear system solve section
 
    /**************************************************************/
    // Bilinear Form

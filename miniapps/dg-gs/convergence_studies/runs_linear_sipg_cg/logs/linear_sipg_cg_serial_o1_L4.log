@@ -7,7 +7,6 @@ Options used:
    --order 1
    --sigma -1
    --kappa 4
-   --no-partial-assembly
    --no-visualization
    --save-as-one
 Number of unknowns: 823296
@@ -91,50 +90,50 @@ BoomerAMG SOLVER PARAMETERS:
                    Post-CG relaxation (up):   0
                              Coarsest grid:   0
 
-   Iteration :   0  (B r, r) = 0.0021145
-   Iteration :   1  (B r, r) = 0.000910007
-   Iteration :   2  (B r, r) = 8.44318e-05
-   Iteration :   3  (B r, r) = 2.27594e-05
-   Iteration :   4  (B r, r) = 3.97645e-06
-   Iteration :   5  (B r, r) = 8.42686e-07
-   Iteration :   6  (B r, r) = 2.01808e-07
-   Iteration :   7  (B r, r) = 4.38737e-08
-   Iteration :   8  (B r, r) = 9.84361e-09
-   Iteration :   9  (B r, r) = 2.392e-09
-   Iteration :  10  (B r, r) = 5.71273e-10
-   Iteration :  11  (B r, r) = 1.35279e-10
-   Iteration :  12  (B r, r) = 3.32273e-11
-   Iteration :  13  (B r, r) = 8.17309e-12
-   Iteration :  14  (B r, r) = 1.96025e-12
-   Iteration :  15  (B r, r) = 4.71809e-13
-   Iteration :  16  (B r, r) = 1.09789e-13
-   Iteration :  17  (B r, r) = 2.45428e-14
-   Iteration :  18  (B r, r) = 5.43265e-15
-   Iteration :  19  (B r, r) = 1.21726e-15
-   Iteration :  20  (B r, r) = 2.73957e-16
-   Iteration :  21  (B r, r) = 6.28932e-17
-   Iteration :  22  (B r, r) = 1.44877e-17
-   Iteration :  23  (B r, r) = 3.30723e-18
-   Iteration :  24  (B r, r) = 7.43785e-19
-   Iteration :  25  (B r, r) = 1.71454e-19
-   Iteration :  26  (B r, r) = 4.00701e-20
-   Iteration :  27  (B r, r) = 9.33093e-21
-   Iteration :  28  (B r, r) = 2.17121e-21
-   Iteration :  29  (B r, r) = 5.07905e-22
-   Iteration :  30  (B r, r) = 1.17532e-22
-   Iteration :  31  (B r, r) = 2.70556e-23
-   Iteration :  32  (B r, r) = 6.26109e-24
-   Iteration :  33  (B r, r) = 1.43456e-24
-   Iteration :  34  (B r, r) = 3.18739e-25
-   Iteration :  35  (B r, r) = 6.99758e-26
-   Iteration :  36  (B r, r) = 1.4946e-26
-   Iteration :  37  (B r, r) = 3.19447e-27
-   Iteration :  38  (B r, r) = 6.97862e-28
-Average reduction factor = 0.476295
+   Iteration :   0  (B r, r) = 0.00215199
+   Iteration :   1  (B r, r) = 0.00107742
+   Iteration :   2  (B r, r) = 8.76168e-05
+   Iteration :   3  (B r, r) = 2.44768e-05
+   Iteration :   4  (B r, r) = 4.2542e-06
+   Iteration :   5  (B r, r) = 8.88923e-07
+   Iteration :   6  (B r, r) = 2.12506e-07
+   Iteration :   7  (B r, r) = 4.66387e-08
+   Iteration :   8  (B r, r) = 1.03873e-08
+   Iteration :   9  (B r, r) = 2.52213e-09
+   Iteration :  10  (B r, r) = 6.02604e-10
+   Iteration :  11  (B r, r) = 1.42467e-10
+   Iteration :  12  (B r, r) = 3.50331e-11
+   Iteration :  13  (B r, r) = 8.60345e-12
+   Iteration :  14  (B r, r) = 2.0676e-12
+   Iteration :  15  (B r, r) = 4.97865e-13
+   Iteration :  16  (B r, r) = 1.16127e-13
+   Iteration :  17  (B r, r) = 2.60281e-14
+   Iteration :  18  (B r, r) = 5.7553e-15
+   Iteration :  19  (B r, r) = 1.28978e-15
+   Iteration :  20  (B r, r) = 2.89932e-16
+   Iteration :  21  (B r, r) = 6.65681e-17
+   Iteration :  22  (B r, r) = 1.53267e-17
+   Iteration :  23  (B r, r) = 3.50419e-18
+   Iteration :  24  (B r, r) = 7.88287e-19
+   Iteration :  25  (B r, r) = 1.81167e-19
+   Iteration :  26  (B r, r) = 4.24524e-20
+   Iteration :  27  (B r, r) = 9.87358e-21
+   Iteration :  28  (B r, r) = 2.29699e-21
+   Iteration :  29  (B r, r) = 5.37261e-22
+   Iteration :  30  (B r, r) = 1.24448e-22
+   Iteration :  31  (B r, r) = 2.8645e-23
+   Iteration :  32  (B r, r) = 6.63114e-24
+   Iteration :  33  (B r, r) = 1.51902e-24
+   Iteration :  34  (B r, r) = 3.38478e-25
+   Iteration :  35  (B r, r) = 7.4224e-26
+   Iteration :  36  (B r, r) = 1.58914e-26
+   Iteration :  37  (B r, r) = 3.39251e-27
+   Iteration :  38  (B r, r) = 7.41203e-28
+Average reduction factor = 0.476562
 
-Linear solve time: 1.65158 seconds
+Linear solve time: 1.67014 seconds
 
 Solution error metrics:
-  L2 error:          2.81591e-05
-  relative L2 error: 0.00175274
-  Linf error:        7.69676e-05
+  L2 error:          1.53346e-07
+  relative L2 error: 9.54491e-06
+  Linf error:        1.32086e-06

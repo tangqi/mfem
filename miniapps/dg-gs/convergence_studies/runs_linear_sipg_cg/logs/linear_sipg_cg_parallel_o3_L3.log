@@ -7,7 +7,6 @@ Options used:
    --order 3
    --sigma -1
    --kappa 16
-   --no-partial-assembly
    --no-visualization
    --save-separately
 Number of unknowns: 686080
@@ -89,71 +88,71 @@ BoomerAMG SOLVER PARAMETERS:
                    Post-CG relaxation (up):   0
                              Coarsest grid:   0
 
-   Iteration :   0  (B r, r) = 0.00105453
-   Iteration :   1  (B r, r) = 0.00146242
-   Iteration :   2  (B r, r) = 0.000376161
-   Iteration :   3  (B r, r) = 7.71881e-05
-   Iteration :   4  (B r, r) = 3.00679e-05
-   Iteration :   5  (B r, r) = 1.09094e-05
-   Iteration :   6  (B r, r) = 4.27119e-06
-   Iteration :   7  (B r, r) = 1.75956e-06
-   Iteration :   8  (B r, r) = 6.34974e-07
-   Iteration :   9  (B r, r) = 2.43849e-07
-   Iteration :  10  (B r, r) = 9.62569e-08
-   Iteration :  11  (B r, r) = 3.72826e-08
-   Iteration :  12  (B r, r) = 1.45643e-08
-   Iteration :  13  (B r, r) = 5.45433e-09
-   Iteration :  14  (B r, r) = 2.13184e-09
-   Iteration :  15  (B r, r) = 7.7656e-10
-   Iteration :  16  (B r, r) = 2.9093e-10
-   Iteration :  17  (B r, r) = 1.13727e-10
-   Iteration :  18  (B r, r) = 4.36831e-11
-   Iteration :  19  (B r, r) = 1.72162e-11
-   Iteration :  20  (B r, r) = 6.89294e-12
-   Iteration :  21  (B r, r) = 2.81983e-12
-   Iteration :  22  (B r, r) = 1.14304e-12
-   Iteration :  23  (B r, r) = 4.61439e-13
-   Iteration :  24  (B r, r) = 1.88939e-13
-   Iteration :  25  (B r, r) = 7.50005e-14
-   Iteration :  26  (B r, r) = 2.9873e-14
-   Iteration :  27  (B r, r) = 1.19219e-14
-   Iteration :  28  (B r, r) = 4.51292e-15
-   Iteration :  29  (B r, r) = 1.7118e-15
-   Iteration :  30  (B r, r) = 6.60968e-16
-   Iteration :  31  (B r, r) = 2.55991e-16
-   Iteration :  32  (B r, r) = 9.85044e-17
-   Iteration :  33  (B r, r) = 3.88618e-17
-   Iteration :  34  (B r, r) = 1.54586e-17
-   Iteration :  35  (B r, r) = 5.99846e-18
-   Iteration :  36  (B r, r) = 2.36333e-18
-   Iteration :  37  (B r, r) = 9.4461e-19
-   Iteration :  38  (B r, r) = 3.60868e-19
-   Iteration :  39  (B r, r) = 1.35923e-19
-   Iteration :  40  (B r, r) = 5.28631e-20
-   Iteration :  41  (B r, r) = 2.02181e-20
-   Iteration :  42  (B r, r) = 7.81351e-21
-   Iteration :  43  (B r, r) = 3.0597e-21
-   Iteration :  44  (B r, r) = 1.18411e-21
-   Iteration :  45  (B r, r) = 4.47427e-22
-   Iteration :  46  (B r, r) = 1.73318e-22
-   Iteration :  47  (B r, r) = 6.58274e-23
-   Iteration :  48  (B r, r) = 2.46031e-23
-   Iteration :  49  (B r, r) = 9.23604e-24
-   Iteration :  50  (B r, r) = 3.52863e-24
-   Iteration :  51  (B r, r) = 1.34673e-24
-   Iteration :  52  (B r, r) = 5.12487e-25
-   Iteration :  53  (B r, r) = 1.98337e-25
-   Iteration :  54  (B r, r) = 7.8309e-26
-   Iteration :  55  (B r, r) = 3.0872e-26
-   Iteration :  56  (B r, r) = 1.20889e-26
-   Iteration :  57  (B r, r) = 4.70009e-27
-   Iteration :  58  (B r, r) = 1.79719e-27
-   Iteration :  59  (B r, r) = 6.92391e-28
-Average reduction factor = 0.623824
+   Iteration :   0  (B r, r) = 0.0010992
+   Iteration :   1  (B r, r) = 0.00160138
+   Iteration :   2  (B r, r) = 0.000435531
+   Iteration :   3  (B r, r) = 8.47522e-05
+   Iteration :   4  (B r, r) = 3.25246e-05
+   Iteration :   5  (B r, r) = 1.15651e-05
+   Iteration :   6  (B r, r) = 4.51851e-06
+   Iteration :   7  (B r, r) = 1.87532e-06
+   Iteration :   8  (B r, r) = 6.77074e-07
+   Iteration :   9  (B r, r) = 2.60271e-07
+   Iteration :  10  (B r, r) = 1.02727e-07
+   Iteration :  11  (B r, r) = 3.974e-08
+   Iteration :  12  (B r, r) = 1.55141e-08
+   Iteration :  13  (B r, r) = 5.80663e-09
+   Iteration :  14  (B r, r) = 2.27281e-09
+   Iteration :  15  (B r, r) = 8.30276e-10
+   Iteration :  16  (B r, r) = 3.09971e-10
+   Iteration :  17  (B r, r) = 1.21018e-10
+   Iteration :  18  (B r, r) = 4.64826e-11
+   Iteration :  19  (B r, r) = 1.8311e-11
+   Iteration :  20  (B r, r) = 7.32528e-12
+   Iteration :  21  (B r, r) = 2.99626e-12
+   Iteration :  22  (B r, r) = 1.21501e-12
+   Iteration :  23  (B r, r) = 4.90409e-13
+   Iteration :  24  (B r, r) = 2.00602e-13
+   Iteration :  25  (B r, r) = 8.00864e-14
+   Iteration :  26  (B r, r) = 3.1733e-14
+   Iteration :  27  (B r, r) = 1.27036e-14
+   Iteration :  28  (B r, r) = 4.82974e-15
+   Iteration :  29  (B r, r) = 1.83032e-15
+   Iteration :  30  (B r, r) = 7.06059e-16
+   Iteration :  31  (B r, r) = 2.73391e-16
+   Iteration :  32  (B r, r) = 1.05326e-16
+   Iteration :  33  (B r, r) = 4.13417e-17
+   Iteration :  34  (B r, r) = 1.64955e-17
+   Iteration :  35  (B r, r) = 6.39802e-18
+   Iteration :  36  (B r, r) = 2.51608e-18
+   Iteration :  37  (B r, r) = 1.00626e-18
+   Iteration :  38  (B r, r) = 3.86083e-19
+   Iteration :  39  (B r, r) = 1.45224e-19
+   Iteration :  40  (B r, r) = 5.64598e-20
+   Iteration :  41  (B r, r) = 2.15998e-20
+   Iteration :  42  (B r, r) = 8.33799e-21
+   Iteration :  43  (B r, r) = 3.26701e-21
+   Iteration :  44  (B r, r) = 1.26693e-21
+   Iteration :  45  (B r, r) = 4.78057e-22
+   Iteration :  46  (B r, r) = 1.84953e-22
+   Iteration :  47  (B r, r) = 7.03698e-23
+   Iteration :  48  (B r, r) = 2.63599e-23
+   Iteration :  49  (B r, r) = 9.88452e-24
+   Iteration :  50  (B r, r) = 3.77262e-24
+   Iteration :  51  (B r, r) = 1.4381e-24
+   Iteration :  52  (B r, r) = 5.47941e-25
+   Iteration :  53  (B r, r) = 2.11494e-25
+   Iteration :  54  (B r, r) = 8.34431e-26
+   Iteration :  55  (B r, r) = 3.29347e-26
+   Iteration :  56  (B r, r) = 1.28909e-26
+   Iteration :  57  (B r, r) = 5.01732e-27
+   Iteration :  58  (B r, r) = 1.91646e-27
+   Iteration :  59  (B r, r) = 7.39562e-28
+Average reduction factor = 0.623953
 
-Linear solve time: 1.27076 seconds
+Linear solve time: 1.27846 seconds
 
 Solution error metrics:
-  L2 error:          2.80472e-05
-  relative L2 error: 0.00174577
-  Linf error:        7.74608e-05
+  L2 error:          2.49368e-13
+  relative L2 error: 1.55217e-11
+  Linf error:        6.00966e-12

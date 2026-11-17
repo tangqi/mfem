@@ -61,15 +61,19 @@ int main(int argc, char *argv[])
    const int npieces = max(num_pieces, 1);
    vector<unique_ptr<Mesh>> meshes;
    vector<unique_ptr<GridFunction>> gfs;
-   long long total_elems = 0;
+   long long total_elems = 0;  // long long stores integers, but can handle larger numbers than just int
    for (int k = 0; k < npieces; k++)
    {
+      
+      // Construct the mesh and grid function file names for this piece. This assumes the naming convention
+      // <base>.<rank> for each MPI rank.
       string mname = mesh_base, gname = gf_base;
       if (num_pieces > 0)
       {
          mname += "." + to_string(k);
          gname += "." + to_string(k);
       }
+
       // Load as GLVis does (no refinement marking, no orientation fix-up): either
       // can reorder element vertices and break the saved DOF ordering.
       meshes.emplace_back(new Mesh(mname, 1, 0, false));
@@ -85,42 +89,65 @@ int main(int argc, char *argv[])
    if (ref <= 0)
    {
       ref = max(order, 1);
-      while (total_elems*ref*ref < 100000) { ref++; }
+      while (total_elems*ref*ref < 100000) { ref++; }  // If ref <=0, refine mesh until ~100000 triangles
    }
 
    vector<double> R, Z, ph, pe, seg;
    vector<int32_t> tri, rank;
    double max_err = 0.0;
 
+   // Loop over each mesh and gridfunction piece
    for (int k = 0; k < npieces; k++)
    {
       Mesh &mesh = *meshes[k];
       GridFunction &gf = *gfs[k];
 
+      // Loop over each element
       for (int e = 0; e < mesh.GetNE(); e++)
       {
          RefinedGeometry *RG = GlobGeometryRefiner.Refine(mesh.GetElementBaseGeometry(e), ref);
          ElementTransformation *T = mesh.GetElementTransformation(e);
          const int offset = (int) R.size();
 
+         // Create vector to store the physical coordinates of each integration point
          Vector x(2);
+
+         // Loop over the integration points of each element
          for (int i = 0; i < RG->RefPts.GetNPoints(); i++)
          {
+            
+            // Get the ith integration point
             const IntegrationPoint &ip = RG->RefPts.IntPoint(i);
+
+
+            // Transform the integration point to physical coordinates
             T->SetIntPoint(&ip);
             T->Transform(ip, x);
+
+            // Get the numerical and exact values at the integration point
             const double v = gf.GetValue(e, ip);
             const double ve = psi_exact(x(0), x(1));
+
             R.push_back(x(0));
             Z.push_back(x(1));
             ph.push_back(v);
             pe.push_back(ve);
+
+            // Update the maximum error
             max_err = max(max_err, fabs(v - ve));
          }
 
+         // Iterate over the refined triangle elements
          for (int j = 0; j < RG->RefGeoms.Size(); j += 3)
          {
-            for (int l = 0; l < 3; l++) { tri.push_back(offset + RG->RefGeoms[j+l]); }
+            
+            // Store the triangle vertices
+            for (int l = 0; l < 3; l++)
+               {
+                  tri.push_back(offset + RG->RefGeoms[j+l]);
+               }
+            
+            // Store the rank of the triangle element
             rank.push_back(k);
          }
       }
@@ -131,12 +158,17 @@ int main(int argc, char *argv[])
       {
          int e1, e2;
          mesh.GetFaceElements(f, &e1, &e2);
+
+         // Skip faces shared by two elements (only consider boundary faces)
          if (e2 >= 0) { continue; }
+
          Array<int> v;
          mesh.GetFaceVertices(f, v);
+
+         // Store the nodes on the boundary edge coordinates
          const real_t *a = mesh.GetVertex(v[0]);
          const real_t *b = mesh.GetVertex(v[1]);
-         seg.insert(seg.end(), {a[0], a[1], b[0], b[1]});
+         seg.insert(seg.end(), {a[0], a[1], b[0], b[1]});  // (R, Z) coordinates of the boundary edges
       }
    }
 

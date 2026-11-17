@@ -1,5 +1,5 @@
 // Fixed Boundary Grad-Shafranov Solver With Discontinuous Galerkin
-// We are solving: -div[(1/R) grad(psi)] = -R (Solev'ev)
+// We are solving: -div[(1/R) grad(psi)] = -R (Solov'ev)
 // This is a linearized Grad-Shafranov equation due to the source term having no
 // psi dependence
 // Coordinate convention:
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
                   " See the documentation of class DGDiffusionIntegrator.");
 
    args.AddOption(&kappa, "-k", "--kappa",
-                  "DG penalty parameterm should be positive."
+                  "DG penalty parameter should be positive."
                   " Negative values are replaced with (order+1)^2.");
 
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -84,12 +84,12 @@ int main(int argc, char *argv[])
    // Print error/help text for invalid command line arguments
    if (!args.Good())
    {
-    // This check makes sure that, in a parallel run, only one MPI rank prints to console  
-    if (Mpi::Root())
-       {
-          args.PrintUsage(cout);
-       }
-       return 1;
+      // This check makes sure that, in a parallel run, only one MPI rank prints to console  
+      if (Mpi::Root())
+         {
+            args.PrintUsage(cout);
+         }
+      return 1;
    }
 
    // Kappa should be positive. Otherwise, it is (order + 1)^2
@@ -164,6 +164,27 @@ int main(int argc, char *argv[])
    a.Finalize();  // Compress A into CSR format
 
    /**************************************************************/
+   // Define Exact Solution
+   /**************************************************************/
+
+   // Coefficients from Section 7.1.1 of DPG paper
+   const real_t d1 =  0.075385029660066;
+   const real_t d2 = -0.206294962187880;
+   const real_t d3 = -0.031433707280533;
+
+   // Exact solution
+   FunctionCoefficient psi_exact([=](const Vector &x)
+   {
+      const real_t R = x(0);
+      const real_t Z = x(1);
+
+      const real_t R2 = R*R;
+      const real_t R4 = R2*R2;
+
+      return R4/8.0 + d1 + d2*R2 + d3*(R4 - 4.0*R2*Z*Z);
+   });
+
+   /**************************************************************/
    // Linear Form/GS Source Term
    /**************************************************************/
 
@@ -180,10 +201,10 @@ int main(int argc, char *argv[])
    ParLinearForm b(&fespace);
    b.AddDomainIntegrator(new DomainLFIntegrator(rhs));
 
-   // Handle boundary conditions. In DG, boundary conditions are imposed weakly
-   // through boundary integrals rather than by directly fixing boundary DOFs.
-   ConstantCoefficient psi_b(0.0);  // Psi is 0 at the boundary
-   b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(psi_b, invR, sigma, kappa));
+   // Handle boundary conditions.
+   // The exact solution is imposed on the straight-edged mesh boundary, which
+   // only approximates the psi_exact = 0 contour.
+   b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(psi_exact, invR, sigma, kappa));
 
    b.Assemble();
 
@@ -214,7 +235,7 @@ int main(int argc, char *argv[])
    {
       // Conjugate gradient: sigma == -1 implies A is SPD
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-12);
+      cg.SetRelTol(1e-14);  // Previously 1e-12 relative tolerance
       cg.SetMaxIter(500);
       cg.SetPrintLevel(1);
       cg.SetOperator(*A);
@@ -226,9 +247,9 @@ int main(int argc, char *argv[])
       // GMRES
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetAbsTol(0.0);
-      gmres.SetRelTol(1e-12);
+      gmres.SetRelTol(1e-14);  // Previously 1e-12 relative tolerance
       gmres.SetMaxIter(500);
-      gmres.SetKDim(10);  // Restarted GMRES--10 is too little maybe?
+      gmres.SetKDim(30);
       gmres.SetPrintLevel(1);
       gmres.SetOperator(*A);
       gmres.SetPreconditioner(*amg);
@@ -316,27 +337,8 @@ int main(int argc, char *argv[])
    }
 
    /**************************************************************/
-   // Compare against analytic solution
+   // Compare against exact solution
    /**************************************************************/
-
-   // TODO: double check that the coefficients are correct
-
-   // Coefficients from Section 7.1.1 of DPG paper
-   const real_t d1 =  0.075385029660066;
-   const real_t d2 = -0.206294962187880;
-   const real_t d3 = -0.031433707280533;
-
-   // Exact solution
-   FunctionCoefficient psi_exact([=](const Vector &x)
-   {
-      const real_t R = x(0);
-      const real_t Z = x(1);
-
-      const real_t R2 = R*R;
-      const real_t R4 = R2*R2;
-
-      return R4/8.0 + d1 + d2*R2 + d3*(R4 - 4.0*R2*Z*Z);
-   });
 
    const real_t psi_l2_error = psi.ComputeL2Error(psi_exact);
    const real_t psi_linf_error = psi.ComputeMaxError(psi_exact);

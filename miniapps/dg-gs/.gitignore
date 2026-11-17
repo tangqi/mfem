@@ -17,3 +17,6 @@ scratch/
 convergence_studies/runs*/meshes/
 convergence_studies/runs*/gfs/
 convergence_studies/runs*/plots/data/
+
+# Other
+.DS_Store

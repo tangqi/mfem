@@ -7,7 +7,6 @@ Options used:
    --order 2
    --sigma -1
    --kappa 9
-   --no-partial-assembly
    --no-visualization
    --save-as-one
 Number of unknowns: 6432
@@ -85,53 +84,53 @@ BoomerAMG SOLVER PARAMETERS:
                    Post-CG relaxation (up):   0
                              Coarsest grid:   0
 
-   Iteration :   0  (B r, r) = 0.00188393
-   Iteration :   1  (B r, r) = 0.00151034
-   Iteration :   2  (B r, r) = 0.000305803
-   Iteration :   3  (B r, r) = 7.72009e-05
-   Iteration :   4  (B r, r) = 2.01357e-05
-   Iteration :   5  (B r, r) = 4.68038e-06
-   Iteration :   6  (B r, r) = 1.12545e-06
-   Iteration :   7  (B r, r) = 2.89415e-07
-   Iteration :   8  (B r, r) = 6.85786e-08
-   Iteration :   9  (B r, r) = 1.7847e-08
-   Iteration :  10  (B r, r) = 4.56174e-09
-   Iteration :  11  (B r, r) = 1.0667e-09
-   Iteration :  12  (B r, r) = 2.98641e-10
-   Iteration :  13  (B r, r) = 7.6734e-11
-   Iteration :  14  (B r, r) = 1.68643e-11
-   Iteration :  15  (B r, r) = 4.24494e-12
-   Iteration :  16  (B r, r) = 1.09035e-12
-   Iteration :  17  (B r, r) = 2.8937e-13
-   Iteration :  18  (B r, r) = 7.1077e-14
-   Iteration :  19  (B r, r) = 1.89482e-14
-   Iteration :  20  (B r, r) = 5.31875e-15
-   Iteration :  21  (B r, r) = 1.40238e-15
-   Iteration :  22  (B r, r) = 3.57378e-16
-   Iteration :  23  (B r, r) = 9.20987e-17
-   Iteration :  24  (B r, r) = 2.15212e-17
-   Iteration :  25  (B r, r) = 5.25896e-18
-   Iteration :  26  (B r, r) = 1.378e-18
-   Iteration :  27  (B r, r) = 3.19803e-19
-   Iteration :  28  (B r, r) = 7.23633e-20
-   Iteration :  29  (B r, r) = 2.00935e-20
-   Iteration :  30  (B r, r) = 5.07225e-21
-   Iteration :  31  (B r, r) = 1.32788e-21
-   Iteration :  32  (B r, r) = 3.10068e-22
-   Iteration :  33  (B r, r) = 7.67363e-23
-   Iteration :  34  (B r, r) = 1.71619e-23
-   Iteration :  35  (B r, r) = 4.03628e-24
-   Iteration :  36  (B r, r) = 1.03527e-24
-   Iteration :  37  (B r, r) = 2.73203e-25
-   Iteration :  38  (B r, r) = 7.30527e-26
-   Iteration :  39  (B r, r) = 1.80751e-26
-   Iteration :  40  (B r, r) = 4.51779e-27
-   Iteration :  41  (B r, r) = 1.02198e-27
-Average reduction factor = 0.505915
+   Iteration :   0  (B r, r) = 0.00191254
+   Iteration :   1  (B r, r) = 0.00152485
+   Iteration :   2  (B r, r) = 0.000311572
+   Iteration :   3  (B r, r) = 7.85451e-05
+   Iteration :   4  (B r, r) = 2.05441e-05
+   Iteration :   5  (B r, r) = 4.76802e-06
+   Iteration :   6  (B r, r) = 1.14325e-06
+   Iteration :   7  (B r, r) = 2.9429e-07
+   Iteration :   8  (B r, r) = 6.98064e-08
+   Iteration :   9  (B r, r) = 1.8185e-08
+   Iteration :  10  (B r, r) = 4.65199e-09
+   Iteration :  11  (B r, r) = 1.08524e-09
+   Iteration :  12  (B r, r) = 3.03272e-10
+   Iteration :  13  (B r, r) = 7.83065e-11
+   Iteration :  14  (B r, r) = 1.7192e-11
+   Iteration :  15  (B r, r) = 4.3218e-12
+   Iteration :  16  (B r, r) = 1.10905e-12
+   Iteration :  17  (B r, r) = 2.94779e-13
+   Iteration :  18  (B r, r) = 7.23586e-14
+   Iteration :  19  (B r, r) = 1.92597e-14
+   Iteration :  20  (B r, r) = 5.4063e-15
+   Iteration :  21  (B r, r) = 1.42664e-15
+   Iteration :  22  (B r, r) = 3.63524e-16
+   Iteration :  23  (B r, r) = 9.3649e-17
+   Iteration :  24  (B r, r) = 2.19296e-17
+   Iteration :  25  (B r, r) = 5.34932e-18
+   Iteration :  26  (B r, r) = 1.40413e-18
+   Iteration :  27  (B r, r) = 3.25832e-19
+   Iteration :  28  (B r, r) = 7.36576e-20
+   Iteration :  29  (B r, r) = 2.04077e-20
+   Iteration :  30  (B r, r) = 5.15889e-21
+   Iteration :  31  (B r, r) = 1.35158e-21
+   Iteration :  32  (B r, r) = 3.15881e-22
+   Iteration :  33  (B r, r) = 7.81281e-23
+   Iteration :  34  (B r, r) = 1.74818e-23
+   Iteration :  35  (B r, r) = 4.10897e-24
+   Iteration :  36  (B r, r) = 1.05306e-24
+   Iteration :  37  (B r, r) = 2.7784e-25
+   Iteration :  38  (B r, r) = 7.42833e-26
+   Iteration :  39  (B r, r) = 1.83961e-26
+   Iteration :  40  (B r, r) = 4.60129e-27
+   Iteration :  41  (B r, r) = 1.04157e-27
+Average reduction factor = 0.505939
 
-Linear solve time: 0.018931 seconds
+Linear solve time: 0.017769 seconds
 
 Solution error metrics:
-  L2 error:          2.79972e-05
-  relative L2 error: 0.00174266
-  Linf error:        6.5045e-05
+  L2 error:          2.57224e-07
+  relative L2 error: 1.60107e-05
+  Linf error:        2.99122e-06

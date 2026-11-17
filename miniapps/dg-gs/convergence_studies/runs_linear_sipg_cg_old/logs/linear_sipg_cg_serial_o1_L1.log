@@ -1,0 +1,128 @@
+Options used:
+   --mesh meshes/ITER.msh
+   --output-mesh convergence_studies/runs_linear_sipg_cg/meshes/serial_o1_L1_mesh.mesh
+   --output-gridfunction convergence_studies/runs_linear_sipg_cg/gfs/serial_o1_L1_gf.gf
+   --refine-serial 0
+   --refine-parallel 1
+   --order 1
+   --sigma -1
+   --kappa 4
+   --no-partial-assembly
+   --no-visualization
+   --save-as-one
+Number of unknowns: 12864
+
+
+ Num MPI tasks = 1
+
+ Num OpenMP threads = 1
+
+
+BoomerAMG SETUP PARAMETERS:
+
+ Max levels = 25
+ Num levels = 6
+
+ Strength Threshold = 0.250000
+ Interpolation Truncation Factor = 0.000000
+ Maximum Row Sum Threshold for Dependency Weakening = 0.900000
+
+ Coarsening Type = HMIS 
+
+ No. of levels of aggressive coarsening: 1
+
+ Interpolation on agg. levels= multipass interpolation
+ measures are determined locally
+
+
+ No global partition option chosen.
+
+ Interpolation = extended+i interpolation
+
+Operator Matrix Information:
+
+             nonzero            entries/row          row sums
+lev    rows  entries sparse   min  max     avg      min         max
+======================================================================
+  0   12864   152928  0.001     9   12    11.9  -8.660e-15   5.469e+00
+  1    1454    12174  0.006     4   13     8.4  -3.800e-02   9.809e+00
+  2     463     8587  0.040     9   26    18.5  -1.459e-02   1.097e+01
+  3     115     2497  0.189    10   33    21.7  -1.425e-05   1.355e+01
+  4      25      387  0.619     9   22    15.5   1.115e+00   1.487e+01
+  5       5       25  1.000     5    5     5.0   7.327e+00   1.316e+01
+
+
+Interpolation Matrix Information:
+                    entries/row        min        max            row sums
+lev  rows x cols  min  max  avgW     weight      weight       min         max
+================================================================================
+  0 12864 x 1454    1    4   1.4   4.978e-02   1.000e+00   4.982e-01   1.000e+00
+  1  1454 x 463     1    4   3.7   1.216e-02   7.397e-01   3.498e-01   1.003e+00
+  2   463 x 115     1    4   3.7   1.527e-02   7.078e-01   2.424e-01   1.002e+00
+  3   115 x 25      1    4   3.6   7.770e-03   7.134e-01   1.296e-01   1.000e+00
+  4    25 x 5       1    4   2.6   9.995e-03   4.343e-01   9.708e-02   1.000e+00
+
+
+     Complexity:    grid = 1.160292
+                operator = 1.154779
+                memory = 1.303967
+
+
+
+
+BoomerAMG SOLVER PARAMETERS:
+
+  Maximum number of cycles:         1 
+  Stopping Tolerance:               0.000000e+00 
+  Cycle type (1 = V, 2 = W, etc.):  1
+
+  Relaxation Parameters:
+   Visiting Grid:                     down   up  coarse
+            Number of sweeps:            1    1     1 
+   Type 0=Jac, 3=hGS, 6=hSGS, 9=GE:      8    8     9 
+   Point types, partial sweeps (1=C, -1=F):
+                  Pre-CG relaxation (down):   0
+                   Post-CG relaxation (up):   0
+                             Coarsest grid:   0
+
+   Iteration :   0  (B r, r) = 0.00236052
+   Iteration :   1  (B r, r) = 0.00137123
+   Iteration :   2  (B r, r) = 0.000115695
+   Iteration :   3  (B r, r) = 2.00052e-05
+   Iteration :   4  (B r, r) = 3.64344e-06
+   Iteration :   5  (B r, r) = 5.60313e-07
+   Iteration :   6  (B r, r) = 1.00645e-07
+   Iteration :   7  (B r, r) = 1.75694e-08
+   Iteration :   8  (B r, r) = 3.1586e-09
+   Iteration :   9  (B r, r) = 5.22762e-10
+   Iteration :  10  (B r, r) = 9.15559e-11
+   Iteration :  11  (B r, r) = 1.50639e-11
+   Iteration :  12  (B r, r) = 2.61862e-12
+   Iteration :  13  (B r, r) = 4.32974e-13
+   Iteration :  14  (B r, r) = 7.40312e-14
+   Iteration :  15  (B r, r) = 1.23812e-14
+   Iteration :  16  (B r, r) = 2.1935e-15
+   Iteration :  17  (B r, r) = 3.74673e-16
+   Iteration :  18  (B r, r) = 6.72166e-17
+   Iteration :  19  (B r, r) = 1.18381e-17
+   Iteration :  20  (B r, r) = 2.13488e-18
+   Iteration :  21  (B r, r) = 3.78128e-19
+   Iteration :  22  (B r, r) = 6.2013e-20
+   Iteration :  23  (B r, r) = 1.01111e-20
+   Iteration :  24  (B r, r) = 1.6283e-21
+   Iteration :  25  (B r, r) = 2.84319e-22
+   Iteration :  26  (B r, r) = 5.36528e-23
+   Iteration :  27  (B r, r) = 9.37513e-24
+   Iteration :  28  (B r, r) = 1.71756e-24
+   Iteration :  29  (B r, r) = 2.9952e-25
+   Iteration :  30  (B r, r) = 5.23322e-26
+   Iteration :  31  (B r, r) = 9.30211e-27
+   Iteration :  32  (B r, r) = 1.51215e-27
+Average reduction factor = 0.418772
+
+Linear solve time: 0.022296 seconds
+
+Solution error metrics:
+  L2 error:          3.51498e-05
+  relative L2 error: 0.00218787
+  Linf error:        0.000110528
