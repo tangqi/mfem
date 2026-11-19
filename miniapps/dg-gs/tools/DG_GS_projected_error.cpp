@@ -7,11 +7,15 @@
 // ||psi_h - psi||.
 //
 // Pi_h is the true element-wise L2 projection onto the DG space, which is computed
-// by solving the block-diagonal mass matrix system
+// by solving the block-diagonal mass matrix system M x = b, where
+// b_i = (psi_exact, phi_i) and M_{ij} = (phi_j, phi_i).
 //
 // Usage:
 //   DG_GS_projected_error -m mesh.mesh -g psi.gf -p solovev
 //   DG_GS_projected_error -m mesh.mesh -g psi.gf -p manufactured -no-vis
+//
+// NOTE: Currently, only the Solev'ev and manufactured solutions are implemented. For
+// other analytical solutions, they will need to be added to the code below.
 
 #include "mfem.hpp"
 #include <cmath>
@@ -74,7 +78,7 @@ int main(int argc, char *argv[])
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
 
-   // Pick the exact solution
+   // Pick the exact solution. Add other analytical solutions here as needed.
    function<real_t(const Vector &)> exact_fn;
    if (problem == "solovev") { exact_fn = psi_solovev; }
    else if (problem == "manufactured") { exact_fn = psi_manufactured; }

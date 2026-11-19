@@ -284,12 +284,12 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       MFEM_VERIFY(mesh_ofs.good(), "Could not open mesh output file: " << mesh_name.str());
-      mesh_ofs.precision(8);
+      mesh_ofs.precision(17);
       pmesh.Print(mesh_ofs);
 
       ofstream gf_ofs(gf_name.str());
       MFEM_VERIFY(gf_ofs.good(), "Could not open grid-function output file: " << gf_name.str());
-      gf_ofs.precision(8);
+      gf_ofs.precision(17);
       psi.Save(gf_ofs);
    }
    
@@ -300,7 +300,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
-      sol_sock.precision(8);
+      sol_sock.precision(17);
       sol_sock << "solution\n" << pmesh << psi << flush;
    }
 
