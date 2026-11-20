@@ -22,8 +22,9 @@ ORDER=1
 
 # Newton solver
 NEWTON_MAX_IT=20
-NEWTON_RTOL=1e-8
-NEWTON_ATOL=1e-12
+NEWTON_RTOL=0
+NEWTON_ATOL=0
+NEWTON_STOL=1e-8
 
 # Krylov solver ('gmres' or 'cg')
 KRYLOV_SOLVER="gmres"
@@ -47,6 +48,7 @@ mpirun -np 1 "$EXE" \
     -nmi "$NEWTON_MAX_IT" \
     -nrtol "$NEWTON_RTOL" \
     -natol "$NEWTON_ATOL" \
+    -nstol "$NEWTON_STOL" \
     -ks "$KRYLOV_SOLVER" \
     -kmi "$KRYLOV_MAX_IT" \
     -krtol "$KRYLOV_RTOL" \

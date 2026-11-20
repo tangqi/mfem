@@ -251,8 +251,9 @@ int main(int argc, char *argv[])
 
    // Newton solver parameters
    int max_newton_iter = 20;
-   real_t newton_abs_tol = 1.0e-12;
-   real_t newton_rel_tol = 1.0e-8;
+   real_t newton_abs_tol = 0.0;
+   real_t newton_rel_tol = 0.0;
+   real_t newton_step_tol = 1.0e-8;
 
    // Krylov solver parameters
    int max_krylov_iter = 500;
@@ -295,7 +296,7 @@ int main(int argc, char *argv[])
                   " See the documentation of class DGDiffusionIntegrator.");
 
    args.AddOption(&kappa, "-k", "--kappa",
-                  "DG penalty parameterm should be positive."
+                  "DG penalty parameter, should be positive."
                   " Negative values are replaced with (order+1)^2.");
 
    args.AddOption(&max_newton_iter, "-nmi", "--newton-max-it",
@@ -306,6 +307,10 @@ int main(int argc, char *argv[])
 
    args.AddOption(&newton_abs_tol, "-natol", "--newton-atol",
                   "Absolute nonlinear residual tolerance.");
+
+   args.AddOption(&newton_step_tol, "-nstol", "--newton-stol",
+                  "Relative Newton step tolerance: stop when"
+                  " ||delta_psi|| <= nstol*||psi||.");
 
    args.AddOption(&max_krylov_iter, "-kmi", "--krylov-max-it",
                   "Maximum number of Krylov iterations per Newton iteration.");
@@ -354,6 +359,7 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(max_newton_iter > 0, "--newton-max-it must be positive.");
    MFEM_VERIFY(newton_abs_tol >= 0.0, "--newton-atol must be nonnegative.");
    MFEM_VERIFY(newton_rel_tol >= 0.0, "--newton-rtol must be nonnegative.");
+   MFEM_VERIFY(newton_step_tol >= 0.0, "--newton-stol must be nonnegative.");
    MFEM_VERIFY(max_krylov_iter > 0, "--krylov-max-it must be positive.");
    MFEM_VERIFY(krylov_abs_tol >= 0.0, "--krylov-atol must be nonnegative.");
    MFEM_VERIFY(krylov_rel_tol >= 0.0, "--krylov-rtol must be nonnegative.");
@@ -524,6 +530,7 @@ int main(int argc, char *argv[])
 
    bool newton_converged = false;
    real_t initial_res_norm = 0.0;
+   real_t rel_step = numeric_limits<real_t>::infinity();
 
    // Metrics for post-solve summary
    int newton_iterations = 0;
@@ -554,10 +561,12 @@ int main(int argc, char *argv[])
       {
          cout << "Newton iteration " << k
             << ": ||R|| = " << res_norm
-            << ", relative residual = " << rel_res
-            << endl;
+            << ", relative residual = " << rel_res;
+         if (k > 0) { cout << ", relative step = " << rel_step; }
+         cout << endl;
       }
-      if (res_norm <= newton_abs_tol || rel_res <= newton_rel_tol)
+      if (res_norm <= newton_abs_tol || rel_res <= newton_rel_tol ||
+          (k > 0 && rel_step <= newton_step_tol))
       {
          newton_converged = true;
          if (Mpi::Root()) {cout << "Newton converged after " << k << " iterations." << endl;}
@@ -588,6 +597,11 @@ int main(int argc, char *argv[])
 
       // Newton update step
       psi += delta_psi;
+
+      // Relative step size for Newton convergence check
+      const real_t step_norm = sqrt(InnerProduct(MPI_COMM_WORLD, delta_psi, delta_psi));
+      const real_t psi_norm = sqrt(InnerProduct(MPI_COMM_WORLD, psi, psi));
+      rel_step = (psi_norm > 0.0) ? step_norm / psi_norm : 0.0;
    }
 
    if (!newton_converged && Mpi::Root())
